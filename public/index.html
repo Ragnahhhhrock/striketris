@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StrikeTris</title>
+<meta name="description" content="A tactical shooter where giant falling blocks rebuild the map mid-round. Grey box build.">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body data-mode="menu">
+<canvas id="view"></canvas>
+
+<div id="hud">
+  <div id="top">
+    <div id="score">0 : 0</div>
+    <div id="timer">0:00</div>
+    <div id="round">Round 1</div>
+  </div>
+  <canvas id="minimap" width="192" height="192"></canvas>
+  <div id="nextBox"><span>Next <b id="nextName"></b></span><canvas id="next" width="80" height="64"></canvas></div>
+  <div id="feed"></div>
+  <div id="cross"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmark"></div>
+  <div id="hurt"></div>
+  <div id="warn" hidden>Move! Block incoming</div>
+  <div id="prompt"></div>
+  <div id="progress" hidden><div id="progressbar"></div></div>
+  <div id="vitals">
+    <div><b id="hp">100</b><div class="bar"><div id="hpbar"></div></div></div>
+    <div class="right"><span id="weapon"></span><b id="ammo"></b></div>
+  </div>
+  <div id="banner" hidden><h2 id="bannerA"></h2><p id="bannerB"></p></div>
+  <div id="board" hidden></div>
+  <div id="debug" hidden>debug</div>
+  <div id="lockNote" hidden>Mouse lock is blocked here. Hold right mouse to look.</div>
+</div>
+
+<div id="menu">
+  <div class="card">
+    <h1>StrikeTris</h1>
+    <p class="sub">Plant or defuse while giant blocks rebuild the map. Grey box build.</p>
+    <div class="opts">
+      <label>Side <select id="optSide"><option value="attackers">Attackers</option><option value="defenders">Defenders</option></select></label>
+      <label>Team size <select id="optSize"><option value="2">2 v 2</option><option value="3">3 v 3</option><option value="5" selected>5 v 5</option></select></label>
+      <label>Bots <select id="optSkill"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+      <label>Blocks <select id="optPieces"><option value="8">Slow</option><option value="5" selected>Normal</option><option value="3.4">Frantic</option><option value="0">Off</option></select></label>
+    </div>
+    <div class="row">
+      <button id="startBtn">Play</button>
+      <button id="resume" class="alt" hidden>Resume</button>
+    </div>
+    <div class="keys">
+      <div><kbd>WASD</kbd> Move</div><div><kbd>Mouse</kbd> Aim and fire</div>
+      <div><kbd>Space</kbd> Jump. Hold at a ledge to climb</div><div><kbd>E</kbd> Hold to plant or defuse</div>
+      <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> Weapons <kbd>R</kbd> Reload</div>
+      <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Drop a block <kbd>`</kbd> Debug</div>
+    </div>
+    <p class="touch">Needs a keyboard and mouse.</p>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
