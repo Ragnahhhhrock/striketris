@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "npx serve public -l 8080",
-    "test": "node --test test/sim.test.mjs"
+    "test": "node --test test/sim.test.mjs",
+    "share": "bash tools/share/render.sh"
   }
 }

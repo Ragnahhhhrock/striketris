@@ -27,6 +27,10 @@ Connect this repo in Workers & Pages, leave the build command empty, set the out
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
 - **No softlocks:** a block never lands on a spawn or plant spot, and is rejected if it would cut off a site or trap a player.
 
+## Design
+
+Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live reference at `/style-guide.html`. Share images (`og-image.png`, `twitter-card.png`) and app icons are built from `tools/share/share.html` with `npm run share` (needs Chrome and rsvg-convert).
+
 ## Layout
 
 | File | Purpose |

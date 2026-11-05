@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- Source for public/og-image.png (1200x630) and public/twitter-card.png (1200x600). Build: npm run share -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../public/design/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { width: 1200px; height: var(--h, 630px); position: relative; overflow: hidden; font-family: "DejaVu Sans Mono", var(--font); color: var(--ink);
+    background: linear-gradient(180deg, var(--sky-900) 0%, var(--sky-700) 60%, var(--sky-500) 100%); }
+  .bar { position: absolute; top: 0; left: 0; right: 0; height: var(--accent-bar); background: var(--bomb); }
+  .copy { position: absolute; left: 80px; top: 0; bottom: 0; width: 600px; display: flex; flex-direction: column; justify-content: center; }
+  h1 { margin: 0; font-size: 104px; line-height: 1; letter-spacing: -4px; font-weight: 700; }
+  .strip { display: flex; margin: 28px 0 32px; }
+  .strip i { width: 46px; height: 16px; }
+  p { margin: 0; font-size: 31px; line-height: 1.4; color: var(--ink-dim); max-width: 560px; }
+  .url { position: absolute; left: 80px; bottom: 44px; font-size: 26px; color: var(--ink-faint); }
+  /* The well: 8 columns of 44px, open at the top, rows counted from the bottom */
+  .well { position: absolute; right: 90px; bottom: 0; width: 352px; height: 100%; border-left: 4px solid var(--well-500); border-right: 4px solid var(--well-500); background: rgba(4, 5, 13, .55); }
+  .c { position: absolute; width: 44px; height: 44px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.28), inset -5px -5px 0 rgba(0,0,0,.22); }
+  .beam { position: absolute; width: 44px; top: 0; background: linear-gradient(180deg, rgba(255,74,61,0), rgba(255,74,61,.45)); }
+  .ghost { position: absolute; width: 44px; border: 3px solid var(--bomb); background: rgba(255,74,61,.14); }
+  .glow { position: absolute; width: 44px; box-shadow: 0 0 70px 26px rgba(0,229,255,.38); }
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<div class="copy">
+  <h1>StrikeTris</h1>
+  <div class="strip"><i style="background:var(--block-i)"></i><i style="background:var(--block-o)"></i><i style="background:var(--block-t)"></i><i style="background:var(--block-s)"></i><i style="background:var(--block-z)"></i><i style="background:var(--block-j)"></i><i style="background:var(--block-l)"></i></div>
+  <p>Plant or defuse while giant blocks rebuild the map.</p>
+</div>
+<div class="url">striketris.com</div>
+<div class="well" id="well"></div>
+<script>
+  const h = Number(new URLSearchParams(location.search).get('h')) || 630;
+  document.body.style.setProperty('--h', h + 'px');
+  const well = document.getElementById('well'), N = 44;
+  const add = (cls, col, row, w = 1, hgt = 1, color) => {
+    const e = document.createElement('div'); e.className = cls;
+    e.style.left = col * N + 'px'; e.style.bottom = row * N + 'px'; e.style.width = w * N + 'px'; e.style.height = hgt * N + 'px';
+    if (color) e.style.background = color; well.appendChild(e); return e;
+  };
+  const stack = [
+    ['var(--block-i)', [[0,0],[1,0],[2,0],[3,0]]],
+    ['var(--block-j)', [[4,0],[5,0],[6,0],[6,1]]],
+    ['var(--block-t)', [[0,1],[1,1],[2,1],[1,2]]],
+    ['var(--block-s)', [[3,1],[3,2],[2,2],[2,3]]],
+    ['var(--block-o)', [[4,1],[5,1],[4,2],[5,2]]],
+    ['var(--block-l)', [[7,0],[7,1],[7,2],[6,2]]],
+  ];
+  for (const [color, cells] of stack) for (const [c, r] of cells) add('c', c, r, 1, 1, color);
+  // falling I block in column 7, with sky beam and red ghost at the landing spot
+  add('beam', 7, 3, 1, 0).style.cssText += ';top:0;bottom:' + (3 * N) + 'px;height:auto;';
+  add('ghost', 7, 3, 1, 4);
+  add('glow', 7, 9, 1, 4);
+  for (let r = 9; r < 13; r++) add('c', 7, r, 1, 1, 'var(--block-i)');
+</script>
+</body>
+</html>
