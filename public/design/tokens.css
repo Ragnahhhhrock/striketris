@@ -1,0 +1,81 @@
+/*
+  StrikeTris design tokens. Single source of truth for colour, type, space and motion.
+  Rules live in /DESIGN.md. Block colours mirror SHAPE_TINT in src/render.js.
+*/
+:root {
+  /* Surfaces: the grey box and the dark well */
+  --concrete: #c9ced3;        /* page background behind the canvas */
+  --well-900: #14161a;        /* opaque panels (scoreboard, share images) */
+  --well-800: #181a1d;        /* translucent panels base */
+  --well-700: #2c2f33;        /* inputs */
+  --well-600: #33363a;        /* key caps */
+  --well-500: #3a3e43;        /* secondary buttons */
+  --well-400: #4a4f55;        /* secondary button hover */
+  --sky-900: #04050d;         /* arena sky, top */
+  --sky-700: #10142c;
+  --sky-500: #232a55;         /* arena sky, horizon */
+
+  /* Ink */
+  --ink: #f1f2f3;
+  --ink-dim: rgba(241, 242, 243, .75);
+  --ink-faint: rgba(241, 242, 243, .55);
+
+  /* Signals: each colour means one thing */
+  --bomb: #ff4a3d;            /* primary action, bomb timer, incoming block warning */
+  --bomb-hover: #ff6459;
+  --bomb-deep: #7a1f1a;       /* site labels on the map */
+  --gold: #ffd76a;            /* selection, freeze timer, you, progress */
+  --go: #5dff7d;              /* health, crosshair */
+  --steer: #00e5ff;           /* block steering mode */
+  --attackers: #e8953f;
+  --defenders: #4f9be8;
+
+  /* Blocks: classic Tetris colours, never used as UI chrome */
+  --block-i: #00e5ff;
+  --block-o: #ffe600;
+  --block-t: #b44dff;
+  --block-s: #2ee62e;
+  --block-z: #ff2d2d;
+  --block-j: #3a63ff;
+  --block-l: #ff9a1a;
+
+  /* Derived */
+  --panel: rgba(24, 26, 29, .72);
+  --panel-solid: rgba(20, 22, 24, .94);
+  --scrim: rgba(35, 37, 40, .42);
+  --line: rgba(255, 255, 255, .16);
+  --shadow-text: 0 1px 2px rgba(0, 0, 0, .7);
+  --focus: 2px solid #fff;
+
+  /* Type: one family, system monospace, no web fonts to load */
+  --font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-3xl: 30px;
+  --text-display: 44px;
+  --leading-tight: 1.15;
+  --leading-body: 1.45;
+
+  /* Space: 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --hud-edge: 14px;
+
+  /* Shape: square corners everywhere, like cubes */
+  --radius: 0;
+  --rule: 1px;
+  --accent-bar: 6px;
+
+  /* Motion: only for state changes the player needs to notice */
+  --t-fast: .2s;
+  --t-med: .4s;
+}

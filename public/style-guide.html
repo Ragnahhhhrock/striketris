@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StrikeTris style guide</title>
+<meta name="description" content="Colour, type, space and components used across StrikeTris.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#14161a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="design/tokens.css">
+<link rel="stylesheet" href="design/guide.css">
+</head>
+<body>
+<header class="top">
+  <h1>StrikeTris style guide</h1>
+  <p>Tokens live in <code>design/tokens.css</code>. Rules live in <code>DESIGN.md</code>. The game UI uses only what is on this page.</p>
+  <div class="strip" aria-hidden="true"><i style="background:var(--block-i)"></i><i style="background:var(--block-o)"></i><i style="background:var(--block-t)"></i><i style="background:var(--block-s)"></i><i style="background:var(--block-z)"></i><i style="background:var(--block-j)"></i><i style="background:var(--block-l)"></i></div>
+</header>
+
+<main>
+<section>
+  <h2>Surfaces and ink</h2>
+  <div class="swatches">
+    <div><i style="background:var(--concrete)"></i><b>--concrete</b><span>#c9ced3 page, grey box world</span></div>
+    <div><i style="background:var(--well-900)"></i><b>--well-900</b><span>#14161a opaque panels</span></div>
+    <div><i style="background:var(--well-700)"></i><b>--well-700</b><span>#2c2f33 inputs</span></div>
+    <div><i style="background:var(--well-500)"></i><b>--well-500</b><span>#3a3e43 secondary buttons</span></div>
+    <div><i style="background:var(--sky-500)"></i><b>--sky-500</b><span>#232a55 arena horizon</span></div>
+    <div><i style="background:var(--ink)"></i><b>--ink</b><span>#f1f2f3 text</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Signals</h2>
+  <p class="note">One job each. Nothing else uses these colours.</p>
+  <div class="swatches">
+    <div><i style="background:var(--bomb)"></i><b>--bomb</b><span>#ff4a3d primary action, bomb timer, block warning</span></div>
+    <div><i style="background:var(--gold)"></i><b>--gold</b><span>#ffd76a selection, freeze timer, you</span></div>
+    <div><i style="background:var(--go)"></i><b>--go</b><span>#5dff7d health, crosshair</span></div>
+    <div><i style="background:var(--steer)"></i><b>--steer</b><span>#00e5ff block steering</span></div>
+    <div><i style="background:var(--attackers)"></i><b>--attackers</b><span>#e8953f attacker team</span></div>
+    <div><i style="background:var(--defenders)"></i><b>--defenders</b><span>#4f9be8 defender team</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Blocks</h2>
+  <p class="note">Classic Tetris colours. Blocks only, never UI chrome.</p>
+  <div class="swatches">
+    <div><i style="background:var(--block-i)"></i><b>I</b><span>#00e5ff</span></div>
+    <div><i style="background:var(--block-o)"></i><b>O</b><span>#ffe600</span></div>
+    <div><i style="background:var(--block-t)"></i><b>T</b><span>#b44dff</span></div>
+    <div><i style="background:var(--block-s)"></i><b>S</b><span>#2ee62e</span></div>
+    <div><i style="background:var(--block-z)"></i><b>Z</b><span>#ff2d2d</span></div>
+    <div><i style="background:var(--block-j)"></i><b>J</b><span>#3a63ff</span></div>
+    <div><i style="background:var(--block-l)"></i><b>L</b><span>#ff9a1a</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Type</h2>
+  <p class="note">System monospace, sentence case, body lines under 80 characters.</p>
+  <dl class="type">
+    <dt>Display 44 / 700</dt><dd style="font-size:var(--text-display);font-weight:700;letter-spacing:-1px">StrikeTris</dd>
+    <dt>Timer 30 / 700</dt><dd style="font-size:var(--text-3xl);font-weight:700">1:42</dd>
+    <dt>Banner 26 / 700</dt><dd style="font-size:var(--text-2xl);font-weight:700">Attackers win the round</dd>
+    <dt>Warning 20 / 700</dt><dd style="font-size:var(--text-xl);font-weight:700">Move! Block incoming</dd>
+    <dt>Button 16 / 700</dt><dd style="font-size:var(--text-lg);font-weight:700">Play</dd>
+    <dt>Body 14 / 400</dt><dd style="font-size:var(--text-md)">Plant or defuse while giant blocks rebuild the map.</dd>
+    <dt>Label 12 / 400</dt><dd style="font-size:var(--text-sm)">Team size</dd>
+    <dt>Caption 11 / 400</dt><dd style="font-size:var(--text-xs)">Round 1</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>Space</h2>
+  <p class="note">4px base. HUD sits 14px from the screen edge. Corners are square.</p>
+  <div class="space">
+    <span style="width:var(--space-1)"></span><span style="width:var(--space-2)"></span><span style="width:var(--space-3)"></span><span style="width:var(--space-4)"></span><span style="width:var(--space-5)"></span><span style="width:var(--space-6)"></span><span style="width:var(--space-7)"></span>
+  </div>
+  <p class="note">4, 8, 12, 16, 24, 32, 48</p>
+</section>
+
+<section>
+  <h2>Components</h2>
+  <div class="demo scene">
+    <div class="card">
+      <h3>StrikeTris</h3>
+      <p class="sub">Plant or defuse while giant blocks rebuild the map.</p>
+      <div class="opts">
+        <label>Mode <select><option>Play</option><option>Play, invulnerable</option></select></label>
+        <label>Side <select><option>Attackers</option><option>Defenders</option></select></label>
+      </div>
+      <div class="row"><button>Play</button><button class="alt">Resume</button></div>
+      <div class="keys"><div><kbd>WASD</kbd> Move</div><div><kbd>E</kbd> Hold to plant or defuse</div></div>
+    </div>
+  </div>
+  <div class="demo scene hud">
+    <div class="panel top"><div class="small">0 : 0</div><div class="timer">1:42</div><div class="tiny">Round 1</div></div>
+    <div class="panel warn">Move! Block incoming</div>
+    <div class="panel ctrl"><b>Steer block</b><span>Arrows move</span><span>Z X rotate</span></div>
+    <div class="panel feed"><span><b class="att">Kai</b> killed <b class="def">Rex</b></span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Rules</h2>
+  <ul class="rules">
+    <li>Use a token, never a raw hex, in CSS. JavaScript block colours come from <code>SHAPE_TINT</code>.</li>
+    <li>One bomb red element per view.</li>
+    <li>HUD text sits on a panel, never directly on the 3D view.</li>
+    <li>Every control has a visible focus ring.</li>
+    <li>Motion answers game state only.</li>
+  </ul>
+</section>
+</main>
+</body>
+</html>
