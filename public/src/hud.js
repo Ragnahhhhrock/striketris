@@ -39,7 +39,7 @@ export class Hud {
     setTimeout(() => d.remove(), 6000);
   }
 
-  update(dt, viewer) {
+  update(dt, viewer, cam) {
     const g = this.game;
     const a = viewer;
     $('score').textContent = `${g.score.attackers} : ${g.score.defenders}`;
@@ -65,7 +65,7 @@ export class Hud {
     if (human?.alive) {
       if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
       else if (human.team === TEAM.DEF && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
-    } else if (human) prompt = 'Spectating. Space for next player';
+    } else if (human) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';
     $('prompt').textContent = prompt;
 
@@ -90,7 +90,7 @@ export class Hud {
         if (g.grid.los(eye, { x: t.pos.x, y: t.pos.y + 1.4, z: t.pos.z })) this.spotted.add(t);
       }
     }
-    this.drawMini(a);
+    this.drawMini(cam ?? a);
   }
 
   drawNext(id) {
@@ -112,7 +112,7 @@ export class Hud {
       if (g.grid.get(x, 0, z) === STATIC) continue;
       let top = -1;
       for (let y = H - 1; y >= 0; y--) if (g.grid.get(x, y, z) !== EMPTY) { top = y; break; }
-      c.fillStyle = top < 0 ? '#8c9096' : `rgb(${200 + top * 5},${170 - top * 10},${90 - top * 5})`;
+      c.fillStyle = top < 0 ? '#8c9096' : hex(SHAPE_TINT[g.grid.get(x, top, z) - 1]);
       c.fillRect(x * s, z * s, s, s);
     }
     c.font = '700 13px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -121,7 +121,7 @@ export class Hud {
       c.fillText(site.name, (site.centre[0] + .5) * s, (site.centre[1] + .5) * s);
     }
     if (g.piece) {
-      c.fillStyle = Math.sin(g.piece.t * 12) > 0 ? '#ff3b2f' : '#a81d14';
+      c.fillStyle = Math.sin(g.piece.t * 12) > 0 ? hex(SHAPE_TINT[g.piece.shapeId]) : '#ffffff';
       for (const k of g.piece.cells) c.fillRect((g.piece.x + k.x) * s, (g.piece.z + k.z) * s, s, s);
     }
     const m = s / CELL;
@@ -129,7 +129,7 @@ export class Hud {
     const human = g.human;
     for (const a of g.actors) {
       if (!a.alive) continue;
-      const friend = !human || a.team === human.team;
+      const friend = !human || a.team === human.team || this.revealAll;
       if (!friend && !this.spotted.has(a)) continue;
       c.fillStyle = a.team === TEAM.ATT ? '#e8953f' : '#4f9be8';
       c.beginPath(); c.arc(a.pos.x * m, a.pos.z * m, 3, 0, 7); c.fill();

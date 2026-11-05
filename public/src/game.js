@@ -201,6 +201,7 @@ export class Game {
 
   damage(t, amount, by, cause, head = false) {
     if (!t.alive || this.state === 'freeze') return;
+    if (t.isHuman && this.opts.god) return;
     t.hp -= amount;
     this.emit('hurt', { actor: t, by, amount, head });
     if (t.brain && by) t.brain.heard = { ...by.pos };
@@ -209,6 +210,7 @@ export class Game {
 
   kill(t, by, cause, head) {
     if (!t.alive) return;
+    if (t.isHuman && this.opts.god) return;
     t.hp = 0; t.alive = false; t.deaths++; t.mantle = null;
     if (by && by !== t) by.kills++;
     if (t.hasBomb) {
@@ -312,7 +314,12 @@ export class Game {
 
   unstickActors() {
     for (const a of this.actors) {
-      if (a.alive && hitsWorld(this.grid, a.pos.x, a.pos.y, a.pos.z, actorHeight(a))) this.kill(a, null, 'piece');
+      if (!a.alive || !hitsWorld(this.grid, a.pos.x, a.pos.y, a.pos.z, actorHeight(a))) continue;
+      if (a.isHuman && this.opts.god) {
+        // Invulnerable players get lifted onto the new block instead of being trapped inside it.
+        for (let n = 0; n < 120 && hitsWorld(this.grid, a.pos.x, a.pos.y, a.pos.z, actorHeight(a)); n++) a.pos.y += 0.5;
+        a.vel.y = 0;
+      } else this.kill(a, null, 'piece');
     }
     if (this.bomb.pos && this.bomb.state !== 'carried') {
       while (this.grid.solid(Math.floor(this.bomb.pos.x / CELL), Math.floor(this.bomb.pos.y / CELL), Math.floor(this.bomb.pos.z / CELL))) this.bomb.pos.y += CELL;

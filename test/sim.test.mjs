@@ -110,3 +110,14 @@ test('a human carrier plants on site and the defender side can defuse', () => {
   while (game.state === 'live' && safety++ < 60 * 45) { h.hp = 1e9; bot.hp = 1e9; game.step(TICK); }
   assert.equal(game.roundWinner, 'defenders', game.roundReason);
 });
+
+test('an invulnerable player survives a block landing on them and is lifted clear', () => {
+  const game = new Game({ seed: 9, teamSize: 1, god: true, pieces: true });
+  game.state = 'live'; game.timer = 100;
+  const h = game.human;
+  h.pos = { x: 15.5 * 3, y: 0, z: 15.5 * 3 };
+  game.piece = { shapeId: 1, cells: orient(1, 0, 0), x: 15, y: 0, z: 15, t: 2.2, drop: 60 };
+  for (let i = 0; i < 90; i++) game.stepPiece(TICK);
+  assert.equal(h.alive, true);
+  assert.ok(h.pos.y >= 3 - 0.01, `lifted to y=${h.pos.y}`);
+});

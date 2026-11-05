@@ -66,6 +66,12 @@ body[data-mode="menu"] #hud { display: none; }
 #board .me { color: #ffd76a; }
 
 #debug { position: absolute; bottom: 70px; left: 14px; background: var(--panel); padding: 3px 8px; font-size: 12px; }
+#specbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--panel); padding: 7px 14px; display: flex; gap: 14px; align-items: baseline; white-space: nowrap; max-width: 96vw; }
+#specbar b { color: #ffd76a; }
+#specbar span { font-size: 12px; opacity: .8; overflow: hidden; text-overflow: ellipsis; }
+body[data-view="free"] #vitals { display: none; }
+body:not([data-view="first"]) #cross { display: none; }
+.sub.spec { font-size: 12px; margin: 16px 0 0; line-height: 1.9; }
 #lockNote { position: absolute; bottom: 70px; right: 14px; background: var(--panel); padding: 4px 8px; font-size: 12px; }
 
 #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(35, 37, 40, .42); overflow: auto; }

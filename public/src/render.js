@@ -4,8 +4,8 @@ import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
 
-// Muted shape tints: readable as "which piece" without leaving the grey box look.
-export const SHAPE_TINT = [0x8fb0b8, 0xb8ae86, 0xa593b5, 0x8fb392, 0xb89090, 0x8f9ab8, 0xb8a088];
+// Classic Tetris colours, order matches SHAPES: I cyan, O yellow, T purple, S green, Z red, J blue, L orange.
+export const SHAPE_TINT = [0x00e5ff, 0xffe600, 0xb44dff, 0x2ee62e, 0xff2d2d, 0x3a63ff, 0xff9a1a];
 const TEAM_COLOUR = { [TEAM.ATT]: 0xd98a3d, [TEAM.DEF]: 0x4a8fd9 };
 
 const FACES = [
@@ -188,9 +188,10 @@ export class Renderer {
   // Ghost at the landing spot, beam to the sky, then the real block coming down.
   buildPieceView(p) {
     const ghost = new THREE.Group(), solid = new THREE.Group();
-    const ghostMat = new THREE.MeshBasicMaterial({ color: 0xff3b2f, transparent: true, opacity: 0.32, depthWrite: false });
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0xff3b2f, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide });
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0xff3b2f });
+    const tint = SHAPE_TINT[p.shapeId];
+    const ghostMat = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.32, depthWrite: false });
+    const beamMat = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff });
     const edgeGeo = new THREE.EdgesGeometry(this.cubeGeo);
     const solidMat = new THREE.MeshLambertMaterial({ color: SHAPE_TINT[p.shapeId], map: this.tex });
     const beamH = 90;
