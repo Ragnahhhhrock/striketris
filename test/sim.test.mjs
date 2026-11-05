@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import { Game } from '../public/src/game.js';
 import { buildMap, SITES, SPAWNS } from '../public/src/map.js';
 import { Nav } from '../public/src/nav.js';
-import { orient, restHeight, findLines, clearCells, SHAPES } from '../public/src/pieces.js';
+import { orient, restHeight, findLines, clearCells, validPlacement, SHAPES } from '../public/src/pieces.js';
 import { STATIC, EMPTY } from '../public/src/grid.js';
 import { TICK, MIN_LINE } from '../public/src/config.js';
 import { makeActor, resetActor, stepMovement } from '../public/src/actor.js';
+
+// Builds a hand-placed falling block that the director will not touch.
+function mkPiece(game, shapeId, x, z, drop = 54, rot = 0, pose = 0, mirror = false) {
+  const cells = orient(shapeId, rot, pose, mirror);
+  const y = validPlacement(game.grid, cells, x, z, null);
+  return { shapeId, rot, pose, mirror, cells, x, y, z, t: 0, drop, rev: 0, controlled: true, aiDone: true, fast: false };
+}
 
 test('every tetromino has four distinct cubes in every pose', () => {
   SHAPES.forEach((_, s) => { for (let r = 0; r < 4; r++) for (let p = 0; p < 3; p++) {
@@ -64,9 +71,9 @@ test('piece crushes an actor standing under it', () => {
   game.state = 'live'; game.timer = 100;
   const v = game.actors[0];
   v.pos = { x: 15.5 * 3, y: 0, z: 15.5 * 3 };
-  game.piece = { shapeId: 1, cells: orient(1, 0, 0), x: 15, y: 0, z: 15, t: 2.2, drop: 60 };
+  game.piece = mkPiece(game, 1, 15, 15, 5);
   v.brain = null;
-  for (let i = 0; i < 70; i++) game.stepPiece(TICK);
+  for (let i = 0; i < 60; i++) game.stepPiece(TICK);
   assert.equal(v.alive, false);
   assert.equal(game.grid.get(15, 0, 15), 2);
 });
@@ -116,8 +123,77 @@ test('an invulnerable player survives a block landing on them and is lifted clea
   game.state = 'live'; game.timer = 100;
   const h = game.human;
   h.pos = { x: 15.5 * 3, y: 0, z: 15.5 * 3 };
-  game.piece = { shapeId: 1, cells: orient(1, 0, 0), x: 15, y: 0, z: 15, t: 2.2, drop: 60 };
-  for (let i = 0; i < 90; i++) game.stepPiece(TICK);
+  game.piece = mkPiece(game, 1, 15, 15, 5);
+  for (let i = 0; i < 60; i++) game.stepPiece(TICK);
   assert.equal(h.alive, true);
   assert.ok(h.pos.y >= 3 - 0.01, `lifted to y=${h.pos.y}`);
+});
+
+test('flipping an S over gives a Z', () => {
+  const key = cells => cells.map(c => `${c.x},${c.z}`).sort().join('|');
+  const flipped = key(orient(3, 0, 0, true));
+  assert.ok([0, 1, 2, 3].some(r => key(orient(4, r, 0, false)) === flipped));
+});
+
+test('a falling block can be moved, rotated, flipped and tumbled', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1 });
+  game.state = 'live'; game.timer = 100;
+  game.piece = mkPiece(game, 2, 15, 14, 40);
+  game.piece.controlled = false;
+  assert.ok(game.adjustPiece({ dx: 1 }));
+  assert.equal(game.piece.x, 16);
+  assert.equal(game.piece.controlled, true, 'steering stops the AI director');
+  const before = game.piece.cells.map(c => `${c.x},${c.y},${c.z}`).join('|');
+  assert.ok(game.adjustPiece({ rot: 1 }));
+  assert.notEqual(game.piece.cells.map(c => `${c.x},${c.y},${c.z}`).join('|'), before);
+  assert.ok(game.adjustPiece({ mirror: true }));
+  assert.equal(game.piece.mirror, true);
+  assert.ok(game.adjustPiece({ tumble: 1 }));
+  assert.equal(game.piece.pose, 1);
+  assert.ok(game.piece.rev >= 4);
+  assert.ok(game.piece.drop > 30, 'altitude is preserved');
+});
+
+test('steering is refused near the ground and out of bounds', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1 });
+  game.state = 'live'; game.timer = 100;
+  game.piece = mkPiece(game, 1, 16, 14, 3);
+  assert.equal(game.adjustPiece({ dx: 1 }), false, 'locked in the last stretch');
+  game.piece = mkPiece(game, 1, 16, 14, 40);
+  assert.equal(game.adjustPiece({ dx: -50 }), false);
+  assert.equal(game.piece.x, 16);
+});
+
+test('a steered block lands where it was steered', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1 });
+  game.state = 'live'; game.timer = 100;
+  game.piece = mkPiece(game, 1, 16, 14, 40);
+  game.adjustPiece({ dx: 1 });
+  for (let i = 0; i < 60 * 5 && game.piece; i++) game.stepPiece(TICK);
+  assert.equal(game.piece, null);
+  assert.notEqual(game.grid.get(17, 0, 14), EMPTY);
+  assert.equal(game.grid.get(16, 0, 14), EMPTY);
+});
+
+test('hard drop lands much faster than a normal fall', () => {
+  const run = fast => {
+    const game = new Game({ seed: 4, human: false, teamSize: 1 });
+    game.state = 'live'; game.timer = 100;
+    game.piece = mkPiece(game, 1, 16, 14, 40);
+    if (fast) game.adjustPiece({ fast: true });
+    let n = 0;
+    while (game.piece && n < 2000) { game.stepPiece(TICK); n++; }
+    return n;
+  };
+  assert.ok(run(true) * 2 < run(false));
+});
+
+test('the director steers an unattended block once', () => {
+  const game = new Game({ seed: 8, human: false, teamSize: 1 });
+  game.state = 'live'; game.timer = 100;
+  game.piece = mkPiece(game, 0, 16, 14, 54);
+  game.piece.controlled = false; game.piece.aiDone = false;
+  for (let i = 0; i < 60; i++) game.stepPiece(TICK);
+  assert.equal(game.piece.aiDone, true);
+  assert.ok(game.piece.rev <= 1);
 });

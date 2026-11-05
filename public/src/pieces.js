@@ -1,4 +1,4 @@
-import { GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE } from './config.js';
 import { EMPTY, STATIC } from './grid.js';
 import { KEEPOUT, inRect, SITES, SPAWNS } from './map.js';
 
@@ -15,9 +15,10 @@ export const SHAPES = [
 
 const rot2 = ([a, b], r) => (r === 0 ? [a, b] : r === 1 ? [-b, a] : r === 2 ? [-a, -b] : [b, -a]);
 
-// Pose: 0 lies flat, 1 stands along X, 2 stands along Z. Offsets are normalised to >= 0.
-export function orient(shapeId, rot, pose) {
-  const raw = SHAPES[shapeId].cells.map(c => rot2(c, rot));
+// Pose: 0 lies flat, 1 stands along X, 2 stands along Z. Mirror flips the shape over (S becomes Z).
+// Offsets are normalised to >= 0.
+export function orient(shapeId, rot, pose, mirror = false) {
+  const raw = SHAPES[shapeId].cells.map(c => rot2(c, rot)).map(([a, b]) => (mirror ? [-a, b] : [a, b]));
   const minA = Math.min(...raw.map(c => c[0])), minB = Math.min(...raw.map(c => c[1]));
   return raw.map(([a0, b0]) => {
     const a = a0 - minA, b = b0 - minB;
@@ -80,7 +81,8 @@ export function choosePlacement(game, shapeId) {
   for (let i = 0; i < 40; i++) {
     const pose = rng() < 0.2 ? 1 + Math.floor(rng() * 2) : 0;
     const rot = Math.floor(rng() * 4);
-    const cells = orient(shapeId, rot, pose);
+    const mirror = rng() < 0.5;
+    const cells = orient(shapeId, rot, pose, mirror);
     let x, z;
     const recent = game.recentCells || [];
     if (recent.length && rng() < 0.45) {
@@ -95,14 +97,14 @@ export function choosePlacement(game, shapeId) {
     } else { x = 1 + Math.floor(rng() * (W - 3)); z = 1 + Math.floor(rng() * (D - 3)); }
     const y = validPlacement(grid, cells, x, z, game.bombColumn());
     if (y === null) continue;
-    candidates.push({ shapeId, cells, x, y, z, score: rng() + lineBonus(grid, cells, x, y, z) - y * 0.15 });
+    candidates.push({ shapeId, rot, pose, mirror, cells, x, y, z, score: rng() + lineBonus(grid, cells, x, y, z) - y * 0.15 });
   }
   candidates.sort((a, b) => b.score - a.score);
   for (const c of candidates) if (keepsMapOpen(game, c.cells, c.x, c.y, c.z)) return c;
   return null;
 }
 
-function lineBonus(grid, cells, x, y, z) {
+export function lineBonus(grid, cells, x, y, z) {
   const placed = cells.map(c => ({ x: x + c.x, y: y + c.y, z: z + c.z }));
   const isNew = (cx, cy, cz) => placed.some(p => p.x === cx && p.y === cy && p.z === cz);
   let best = 0;
@@ -167,4 +169,54 @@ export function clearCells(grid, cells) {
       grid.set(x, cy, z, EMPTY);
     }
   }
+}
+
+const extent = cells => ({ x: Math.max(...cells.map(c => c.x)) + 1, z: Math.max(...cells.map(c => c.z)) + 1 });
+const KICKS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]];
+
+// Try a move, rotation, flip or tumble on a block that is still falling. Altitude is kept, so the
+// block never jumps down: a change that would put it below the new landing spot is refused.
+// Rotations pivot around the block's centre and try small wall kicks, like classic Tetris.
+export function adjustPlacement(game, p, cmd) {
+  const rot = (p.rot + (cmd.rot || 0) + 4) % 4;
+  const mirror = cmd.mirror ? !p.mirror : p.mirror;
+  const pose = (p.pose + (cmd.tumble || 0) + 3) % 3;
+  const changed = rot !== p.rot || mirror !== p.mirror || pose !== p.pose;
+  const cells = changed ? orient(p.shapeId, rot, pose, mirror) : p.cells;
+  let bx = p.x + (cmd.dx || 0), bz = p.z + (cmd.dz || 0);
+  if (changed) {
+    const o = extent(p.cells), n = extent(cells);
+    bx += Math.round((o.x - n.x) / 2);
+    bz += Math.round((o.z - n.z) / 2);
+  }
+  const altitude = p.y * CELL + p.drop;
+  for (const [kx, kz] of changed ? KICKS : [[0, 0]]) {
+    const x = bx + kx, z = bz + kz;
+    const y = validPlacement(game.grid, cells, x, z, game.bombColumn());
+    if (y === null) continue;
+    const drop = altitude - y * CELL;
+    if (drop < 1) continue;
+    if (!keepsMapOpen(game, cells, x, y, z)) continue;
+    return { rot, pose, mirror, cells, x, y, z, drop };
+  }
+  return null;
+}
+
+// What the AI does with a block nobody is steering: one tidy-up that favours finishing lines.
+export function directorAdjust(game, p) {
+  const { rng, grid } = game;
+  const score = (cells, x, y, z) => lineBonus(grid, cells, x, y, z) - y * 0.15;
+  let best = null, bestScore = score(p.cells, p.x, p.y, p.z) + 0.25;
+  for (let i = 0; i < 10; i++) {
+    const cmd = { dx: Math.floor(rng() * 5) - 2, dz: Math.floor(rng() * 5) - 2 };
+    const k = rng();
+    if (k < 0.3) cmd.rot = rng() < 0.5 ? 1 : -1;
+    else if (k < 0.45) cmd.mirror = true;
+    else if (k < 0.5) cmd.tumble = 1;
+    const r = adjustPlacement(game, p, cmd);
+    if (!r) continue;
+    const s = score(r.cells, r.x, r.y, r.z) + rng() * 0.4;
+    if (s > bestScore) { best = r; bestScore = s; }
+  }
+  return best;
 }

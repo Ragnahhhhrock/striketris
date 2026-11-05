@@ -36,9 +36,12 @@ export const PIECE = {
   interval: 5,        // seconds between pieces at round start
   minInterval: 3.4,
   ramp: 0.97,         // interval multiplier per piece
-  telegraph: 2.2,     // ghost is visible before the drop
-  fallTime: 0.8,
-  dropHeight: 60,     // metres above the landing spot
+  dropHeight: 54,     // metres above the landing spot at spawn
+  fallSpeed: 12,      // m/s, so a block takes about 4.5s to land
+  fastSpeed: 42,      // m/s after a hard drop
+  lockHeight: 4.5,    // blocks cannot be steered once this close to landing
+  dangerHeight: 42,   // bots and the warning react below this height
+  directorAt: 44,     // the AI director steers an unattended block once, here
   clearBlastRadius: 5,
   clearBlastDamage: 35,
 };

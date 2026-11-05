@@ -34,6 +34,8 @@ export class Audio {
     const at = p => (viewer && p ? Math.max(0, 1 - Math.hypot(viewer.pos.x - p.x, viewer.pos.z - p.z) / 70) : 0.4);
     switch (e.type) {
       case 'shot': { const v = e.actor === viewer ? 0.32 : at(e.from) * 0.22; this.burst(v, e.weapon === 'rifle' ? 2400 : 3400, 0.13); break; }
+      case 'adjust': this.tone(e.by === 'ai' ? 0.03 : 0.08, 520, 700, 0.05, 'square'); break;
+      case 'blocked': this.tone(0.06, 150, 110, 0.08, 'sawtooth'); break;
       case 'telegraph': this.tone(0.1, 700, 1100, 0.5, 'square'); break;
       case 'land': this.burst(Math.max(0.15, at(e.pos)) * 0.9, 240, 0.8); this.tone(at(e.pos) * 0.7, 90, 28, 0.6); break;
       case 'lines': this.tone(0.25, 300, 1400, 0.55, 'sawtooth'); this.burst(0.4, 900, 0.5); break;

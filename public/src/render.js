@@ -3,6 +3,7 @@ import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE } from '
 import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
+import { SHAPES } from './pieces.js';
 
 // Classic Tetris colours, order matches SHAPES: I cyan, O yellow, T purple, S green, Z red, J blue, L orange.
 export const SHAPE_TINT = [0x00e5ff, 0xffe600, 0xb44dff, 0x2ee62e, 0xff2d2d, 0x3a63ff, 0xff9a1a];
@@ -32,13 +33,50 @@ function gridTexture() {
   return t;
 }
 
+// Classic Tetris cube: flat face inside a darker frame. Multiplied by the block colour.
+function bevelTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#c9c9c9'; x.fillRect(0, 0, 128, 128);
+  x.fillStyle = '#ffffff'; x.fillRect(12, 12, 104, 104);
+  x.strokeStyle = '#555'; x.lineWidth = 4; x.strokeRect(2, 2, 124, 124);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// One cell of see-through playfield wall, tiled.
+function glassTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(110,190,255,0.07)'; x.fillRect(0, 0, 64, 64);
+  x.strokeStyle = 'rgba(160,230,255,0.95)'; x.lineWidth = 2; x.strokeRect(1, 1, 62, 62);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function skyTexture() {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#04050d'); g.addColorStop(0.6, '#10142c'); g.addColorStop(1, '#232a55');
+  x.fillStyle = g; x.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function mesh(grid, wantStatic) {
   const pos = [], nor = [], uv = [], col = [], idx = [];
   const colour = new THREE.Color();
   for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
     const v = grid.get(x, y, z);
     if (v === EMPTY || (v === STATIC) !== wantStatic) continue;
-    colour.setHex(wantStatic ? (y >= 4 ? 0xd0d0d0 : 0xb4b4b4) : SHAPE_TINT[v - 1]);
+    colour.setHex(wantStatic ? (y >= 4 ? 0x9099ad : 0x7d869a) : SHAPE_TINT[v - 1]);
     for (const f of FACES) {
       if (grid.get(x + f.n[0], y + f.n[1], z + f.n[2]) !== EMPTY) continue;
       if (wantStatic && y + f.n[1] < 0) continue;
@@ -78,13 +116,13 @@ export class Renderer {
     this.r.autoClear = false;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xc9ced3);
-    this.scene.fog = new THREE.Fog(0xc9ced3, 90, 260);
+    this.scene.background = skyTexture();
+    this.scene.fog = new THREE.Fog(0x10142c, 150, 400);
     this.camera = new THREE.PerspectiveCamera(78, 1, 0.05, 500);
     this.camera.rotation.order = 'YXZ';
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xa0a0a0, 2));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.7);
+    this.scene.add(new THREE.HemisphereLight(0xc8d4ff, 0x4a4f66, 1.25));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.35);
     sun.position.set(30, 110, 50);
     sun.target.position.set(W * CELL / 2, 0, D * CELL / 2);
     sun.position.add(sun.target.position);
@@ -96,9 +134,11 @@ export class Renderer {
 
     this.tex = gridTexture();
     this.voxelMat = new THREE.MeshLambertMaterial({ map: this.tex, vertexColors: true });
+    this.bevelTex = bevelTexture();
+    this.pieceMat = new THREE.MeshLambertMaterial({ map: this.bevelTex, vertexColors: true });
 
     const floorTex = this.tex.clone(); floorTex.repeat.set(W, D); floorTex.needsUpdate = true;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, D * CELL), new THREE.MeshLambertMaterial({ map: floorTex, color: 0xa6a6a6 }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, D * CELL), new THREE.MeshLambertMaterial({ map: floorTex, color: 0x6c7488 }));
     floor.rotation.x = -Math.PI / 2; floor.position.set(W * CELL / 2, 0, D * CELL / 2); floor.receiveShadow = true;
     this.scene.add(floor);
 
@@ -115,6 +155,9 @@ export class Renderer {
     this.fx = new THREE.Group();
     this.scene.add(this.dynamicGroup, this.fx);
     this.cubeGeo = new THREE.BoxGeometry(CELL, CELL, CELL);
+    this.pieceLight = new THREE.PointLight(0xffffff, 0, 80, 2);
+    this.scene.add(this.pieceLight);
+    this.buildArena();
     this.effects = [];
     this.shake = 0;
 
@@ -183,21 +226,26 @@ export class Renderer {
   clearEffects() { for (const e of this.effects) { this.fx.remove(e.obj); e.dispose?.(); } this.effects = []; }
   clearPieceViews() {
     if (this.pieceView) { this.scene.remove(this.pieceView.ghost, this.pieceView.solid); this.pieceView = null; }
+    this.pieceLight.intensity = 0;
   }
 
-  // Ghost at the landing spot, beam to the sky, then the real block coming down.
-  buildPieceView(p) {
+  // Ghost at the landing spot with a beam up to the sky, plus the real block above it.
+  // Rebuilt whenever the block is steered; the new copy slides from where the old one was.
+  buildPieceView(p, prev) {
     const ghost = new THREE.Group(), solid = new THREE.Group();
     const tint = SHAPE_TINT[p.shapeId];
     const ghostMat = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.32, depthWrite: false });
     const beamMat = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
     const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const solidEdge = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
     const edgeGeo = new THREE.EdgesGeometry(this.cubeGeo);
-    const solidMat = new THREE.MeshLambertMaterial({ color: SHAPE_TINT[p.shapeId], map: this.tex });
-    const beamH = 90;
+    const solidMat = new THREE.MeshLambertMaterial({ color: tint, map: this.bevelTex, emissive: tint, emissiveIntensity: 0.3 });
+    const beamH = 160;
     const columns = new Set();
+    let sx = 0, sz = 0, sy = 0;
     for (const c of p.cells) {
       const x = (p.x + c.x + 0.5) * CELL, y = (p.y + c.y + 0.5) * CELL, z = (p.z + c.z + 0.5) * CELL;
+      sx += x; sy += y; sz += z;
       const m = new THREE.Mesh(this.cubeGeo, ghostMat); m.position.set(x, y, z);
       const e = new THREE.LineSegments(edgeGeo, edgeMat); e.position.copy(m.position);
       ghost.add(m, e);
@@ -209,11 +257,77 @@ export class Renderer {
         ghost.add(b);
       }
       const s = new THREE.Mesh(this.cubeGeo, solidMat); s.position.set(x, y, z); s.castShadow = true;
-      solid.add(s);
+      const se = new THREE.LineSegments(edgeGeo, solidEdge); se.position.copy(s.position);
+      solid.add(s, se);
     }
-    solid.visible = false;
+    const n = p.cells.length;
     this.scene.add(ghost, solid);
-    this.pieceView = { ghost, solid, ghostMat, source: p };
+    this.pieceLight.color.setHex(tint);
+    this.pieceLight.intensity = 700;
+    const view = { ghost, solid, ghostMat, source: p, rev: p.rev, cx: sx / n, cy: sy / n, cz: sz / n, slide: { x: 0, z: 0 } };
+    if (prev) view.slide = { x: prev.cx - view.cx + prev.slide.x, z: prev.cz - view.cz + prev.slide.z };
+    this.pieceView = view;
+  }
+
+  // Coloured rim and corner towers, glass walls to the sky, and distant blocks drifting down.
+  buildArena() {
+    const rimMat = new THREE.MeshLambertMaterial({ map: this.bevelTex });
+    const spots = [];
+    for (let i = 0; i < W; i++) spots.push([i, 8, 0], [i, 8, D - 1]);
+    for (let k = 1; k < D - 1; k++) spots.push([0, 8, k], [W - 1, 8, k]);
+    for (const [cx, cz] of [[0, 0], [W - 1, 0], [0, D - 1], [W - 1, D - 1]]) for (let y = 9; y < 37; y++) spots.push([cx, y, cz]);
+    const rim = new THREE.InstancedMesh(this.cubeGeo, rimMat, spots.length);
+    const m = new THREE.Matrix4(), col = new THREE.Color();
+    spots.forEach(([x, y, z], i) => {
+      m.makeTranslation((x + 0.5) * CELL, (y + 0.5) * CELL, (z + 0.5) * CELL);
+      rim.setMatrixAt(i, m); rim.setColorAt(i, col.setHex(SHAPE_TINT[i % 7]));
+    });
+    rim.frustumCulled = false;
+    this.scene.add(rim);
+
+    const glassH = 135, glassTex = glassTexture();
+    glassTex.repeat.set(W, glassH / CELL);
+    const glassMat = new THREE.MeshBasicMaterial({ map: glassTex, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    const y0 = 9 * CELL + glassH / 2, half = CELL / 2;
+    for (const [px, pz, ry] of [[W * CELL / 2, half, 0], [W * CELL / 2, D * CELL - half, 0], [half, D * CELL / 2, Math.PI / 2], [W * CELL - half, D * CELL / 2, Math.PI / 2]]) {
+      const g = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, glassH), glassMat);
+      g.position.set(px, y0, pz); g.rotation.y = ry;
+      this.scene.add(g);
+    }
+
+    this.sky = [];
+    const total = 28;
+    const cubes = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ fog: false }), total * 4);
+    for (let i = 0; i < total; i++) {
+      const shapeId = i % 7, ang = Math.random() * Math.PI * 2, rad = 120 + Math.random() * 120;
+      this.sky.push({
+        i0: i * 4, cells: SHAPES[shapeId].cells,
+        x: W * CELL / 2 + Math.cos(ang) * rad, z: D * CELL / 2 + Math.sin(ang) * rad, y: Math.random() * 260,
+        fall: 3 + Math.random() * 6, spin: (Math.random() - 0.5) * 0.8, ang: Math.random() * 6.28,
+        tx: (Math.random() - 0.5) * 0.8, tz: (Math.random() - 0.5) * 0.8, size: 6 + Math.random() * 5,
+      });
+      for (let k = 0; k < 4; k++) cubes.setColorAt(i * 4 + k, col.setHex(SHAPE_TINT[shapeId]).multiplyScalar(0.6));
+    }
+    cubes.frustumCulled = false;
+    this.skyCubes = cubes;
+    this.scene.add(cubes);
+  }
+
+  updateArena(dt) {
+    const q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), m = new THREE.Matrix4(), sc = new THREE.Vector3();
+    for (const p of this.sky) {
+      p.y -= p.fall * dt;
+      if (p.y < -30) p.y = 260;
+      p.ang += p.spin * dt;
+      e.set(p.tx, p.ang, p.tz); q.setFromEuler(e); sc.setScalar(p.size);
+      p.cells.forEach(([a, b], k) => {
+        v.set((a - 1.5) * p.size, 0, (b - 0.5) * p.size).applyQuaternion(q);
+        v.x += p.x; v.y += p.y; v.z += p.z;
+        m.compose(v, q, sc);
+        this.skyCubes.setMatrixAt(p.i0 + k, m);
+      });
+    }
+    this.skyCubes.instanceMatrix.needsUpdate = true;
   }
 
   addEffect(obj, life, update) { this.fx.add(obj); this.effects.push({ obj, t: 0, life, update }); }
@@ -266,7 +380,7 @@ export class Renderer {
     if (this.gridVersion !== game.grid.version) {
       this.gridVersion = game.grid.version;
       if (this.dynamicMesh) { this.dynamicGroup.remove(this.dynamicMesh); this.dynamicMesh.geometry.dispose(); }
-      this.dynamicMesh = new THREE.Mesh(mesh(game.grid, false), this.voxelMat);
+      this.dynamicMesh = new THREE.Mesh(mesh(game.grid, false), this.pieceMat);
       this.dynamicMesh.castShadow = this.dynamicMesh.receiveShadow = true;
       this.dynamicGroup.add(this.dynamicMesh);
     }
@@ -284,12 +398,22 @@ export class Renderer {
 
     const p = game.piece;
     if (this.pieceView && this.pieceView.source !== p) this.clearPieceViews();
+    if (p && this.pieceView && this.pieceView.rev !== p.rev) {
+      const prev = this.pieceView;
+      this.scene.remove(prev.ghost, prev.solid);
+      this.pieceView = null;
+      this.buildPieceView(p, prev);
+    }
     if (p && !this.pieceView) this.buildPieceView(p);
     if (this.pieceView) {
       const v = this.pieceView;
       v.ghostMat.opacity = 0.22 + 0.16 * Math.sin(p.t * 12);
-      if (p.t >= PIECE.telegraph) { v.solid.visible = true; v.solid.position.y = p.drop; }
+      v.slide.x *= Math.exp(-16 * dt); v.slide.z *= Math.exp(-16 * dt);
+      v.ghost.position.set(v.slide.x, 0, v.slide.z);
+      v.solid.position.set(v.slide.x, p.drop, v.slide.z);
+      this.pieceLight.position.set(v.cx + v.slide.x, v.cy + p.drop + 2, v.cz + v.slide.z);
     }
+    this.updateArena(dt);
 
     for (const v of this.actorViews) {
       const a = v.actor;

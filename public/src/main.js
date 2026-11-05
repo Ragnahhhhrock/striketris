@@ -84,6 +84,27 @@ function requestLock() {
   } catch { lockFailed = true; $('lockNote').hidden = false; }
 }
 
+// Anyone not playing a body (spectating, dead, or invulnerable) can steer the falling block.
+const controllable = () => mode === 'play' && (!game.human || !game.human.alive || game.opts.god);
+function snap(x, z) { return Math.abs(x) > Math.abs(z) ? [Math.sign(x), 0] : [0, Math.sign(z)]; }
+function blockCmd(code) {
+  const yaw = lastView ? lastView.yaw : 0;
+  const [fx, fz] = snap(-Math.sin(yaw), -Math.cos(yaw));
+  const [rx, rz] = [-fz, fx];
+  switch (code) {
+    case 'ArrowUp': return { dx: fx, dz: fz };
+    case 'ArrowDown': return { dx: -fx, dz: -fz };
+    case 'ArrowRight': return { dx: rx, dz: rz };
+    case 'ArrowLeft': return { dx: -rx, dz: -rz };
+    case 'KeyZ': return { rot: -1 };
+    case 'KeyX': return { rot: 1 };
+    case 'KeyV': return { mirror: true };
+    case 'KeyB': return { tumble: 1 };
+    case 'Enter': return { fast: true };
+  }
+  return null;
+}
+
 const freeActive = () => mode === 'play' && camFree && (!game.human || !game.human.alive);
 
 document.addEventListener('pointerlockchange', () => {
@@ -116,6 +137,10 @@ addEventListener('keydown', e => {
   if (mode !== 'play') return;
   keys.add(e.code);
   const h = game.human;
+  if (controllable()) {
+    const c = blockCmd(e.code);
+    if (c && (!e.repeat || c.dx || c.dz)) game.adjustPiece(c);
+  }
   if (e.repeat) return;
   if (e.code === 'Tab') hud.scoreboard(true);
   if (e.code === 'KeyG' && game.opts.pieces && !game.piece) game.spawnPiece();
@@ -170,7 +195,7 @@ function updateFree(dt) {
   free.x += (fx * f + rx * r) * sp;
   free.y += (fy * f + u) * sp;
   free.z += (fz * f + rz * r) * sp;
-  free.y = Math.max(1, Math.min(160, free.y));
+  free.y = Math.max(1, Math.min(220, free.y));
 }
 
 function chooseView(now) {
@@ -220,7 +245,7 @@ function specText(view) {
   const speed = simPaused ? 'Paused' : `${timeScale}x`;
   const cam = view.mode === 'free' ? 'Free camera' : `Following ${view.actor?.name ?? ''}`;
   const hint = view.mode === 'free'
-    ? 'WASD fly, Space up, C down, Shift fast, F follow, 1-4 speed, P pause, G drop block'
+    ? 'WASD fly, Space up, C down, Shift fast, F follow, 1-4 speed, P pause, G new block'
     : 'Space or E next, Q previous, F free camera, 1-4 speed, P pause';
   return [`${who}: ${cam}, ${speed}`, hint];
 }
@@ -244,6 +269,7 @@ function frame(now) {
   const cam = view.mode === 'free' ? { alive: true, pos: { x: view.x, z: view.z }, yaw: view.yaw } : null;
   hud.update(dt, h?.alive ? h : view.actor, cam);
   document.body.dataset.view = view.mode;
+  $('ctrlbar').hidden = !(controllable() && game.piece && game.piece.drop >= 4.5);
   const [a, b] = specText(view);
   if (a + b !== specShown) { specShown = a + b; $('specState').textContent = a; $('specHint').textContent = b; $('specbar').hidden = !a; }
   frames++; fpsT += dt;

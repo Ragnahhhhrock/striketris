@@ -21,6 +21,8 @@ Connect this repo in Workers & Pages, leave the build command empty, set the out
 - **Spectate:** pick "Spectate only" in the menu, or press F after you die, for a free-fly camera. 1-4 set speed, P pauses, G drops a block. "Play, invulnerable" lets you walk the map without dying.
 - **Blocks:** classic Tetris colours (I cyan, O yellow, T purple, S green, Z red, J blue, L orange).
 - **Blocks:** a tetromino drops every few seconds. A red ghost and sky beam show where, about 3 seconds ahead. It kills anything underneath.
+- **Steering:** a block takes about 4.5 seconds to fall and can be moved, rotated, flipped over and tumbled upright the whole way down, until the last 1.5 cells. Arrow keys move (relative to your camera), Z and X rotate, V flips, B tumbles, Enter hard drops. Rotations pivot around the centre and try small wall kicks. Anyone spectating, dead or invulnerable can steer. If nobody does, an AI director nudges the block once to help finish a line. A steered block can never seal off a site or trap a player.
+- **Arena:** a dark Tetris well with a coloured rim and corner towers, glass walls up to the sky and blocks drifting in the distance. The falling block glows and lights the map in its own colour.
 - **Stacks are terrain:** blocks stay for the round as cover, walls and high ground. Hold Space at a ledge to climb up to one cube.
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
 - **No softlocks:** a block never lands on a spawn or plant spot, and is rejected if it would cut off a site or trap a player.

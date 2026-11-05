@@ -43,7 +43,7 @@ export class Hud {
     const g = this.game;
     const a = viewer;
     $('score').textContent = `${g.score.attackers} : ${g.score.defenders}`;
-    $('round').textContent = `Round ${g.round}`;
+    $('round').textContent = `Round ${g.round}  ·  Lines ${g.linesCleared}`;
     const b = g.bomb;
     let timerText = fmt(g.timer);
     let timerState = '';

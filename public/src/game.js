@@ -2,7 +2,7 @@ import { CELL, TICK, MOVE, WEAPONS, ROUND, PIECE, SKILL, TEAM } from './config.j
 import { rayBox, cellCentre } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
-import { SHAPES, choosePlacement, findLines, clearCells } from './pieces.js';
+import { SHAPES, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
 import { makeActor, resetActor, stepMovement, eyePos, aimDir, actorHeight, hitsWorld } from './actor.js';
 import { updateBot, initBrains } from './bots.js';
 
@@ -233,13 +233,14 @@ export class Game {
     const p = this.piece;
     if (p) {
       p.t += dt;
-      const fallStart = PIECE.telegraph;
-      if (p.t >= fallStart) {
-        const u = Math.min(1, (p.t - fallStart) / PIECE.fallTime);
-        p.drop = PIECE.dropHeight * (1 - u * u);
-        this.crushCheck(p);
-        if (u >= 1) this.landPiece(p);
+      if (!p.controlled && !p.aiDone && p.drop <= PIECE.directorAt) {
+        p.aiDone = true;
+        const r = directorAdjust(this, p);
+        if (r) { Object.assign(p, r); p.rev++; this.emit('adjust', { piece: p, by: 'ai' }); }
       }
+      p.drop = Math.max(0, p.drop - (p.fast ? PIECE.fastSpeed : PIECE.fallSpeed) * dt);
+      this.crushCheck(p);
+      if (p.drop === 0) this.landPiece(p);
       return;
     }
     if (this.state !== 'live') return;
@@ -253,14 +254,29 @@ export class Game {
     this.pieceTimer = this.pieceInterval;
     if (!c) return false;
     this.nextShape = this.bagNext();
-    this.piece = { ...c, t: 0, drop: PIECE.dropHeight };
+    this.piece = { ...c, t: 0, drop: PIECE.dropHeight, rev: 0, controlled: false, aiDone: false, fast: false };
     this.emit('telegraph', { piece: this.piece });
+    return true;
+  }
+
+  // Steer the falling block: { dx, dz } move, { rot: +-1 } rotate, { mirror } flip over,
+  // { tumble } stand it up or lay it down, { fast } hard drop. Returns whether it applied.
+  adjustPiece(cmd, by = 'player') {
+    const p = this.piece;
+    if (!p || p.drop < PIECE.lockHeight) return false;
+    p.controlled = true;
+    if (cmd.fast) { p.fast = true; this.emit('adjust', { piece: p, by }); return true; }
+    const r = adjustPlacement(this, p, cmd);
+    if (!r) { this.emit('blocked'); return false; }
+    Object.assign(p, r);
+    p.rev++;
+    this.emit('adjust', { piece: p, by });
     return true;
   }
 
   // Columns a piece will hit. Bots treat them as dangerous while it is on its way.
   dangerColumns() {
-    if (!this.piece) return null;
+    if (!this.piece || this.piece.drop > PIECE.dangerHeight) return null;
     const s = new Set();
     for (const c of this.piece.cells) s.add((this.piece.x + c.x) + (this.piece.z + c.z) * 32);
     return s;

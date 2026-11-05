@@ -32,6 +32,7 @@
   </div>
   <div id="banner" hidden><h2 id="bannerA"></h2><p id="bannerB"></p></div>
   <div id="board" hidden></div>
+  <div id="ctrlbar" hidden><b>Steer block</b><span>Arrows move</span><span>Z X rotate</span><span>V flip</span><span>B tumble</span><span>Enter hard drop</span></div>
   <div id="specbar" hidden><b id="specState"></b><span id="specHint"></span></div>
   <div id="debug" hidden>debug</div>
   <div id="lockNote" hidden>Mouse lock is blocked here. Hold right mouse to look.</div>
@@ -42,7 +43,7 @@
     <h1>StrikeTris</h1>
     <p class="sub">Plant or defuse while giant blocks rebuild the map. Grey box build.</p>
     <div class="opts">
-      <label>Mode <select id="optMode"><option value="play">Play</option><option value="god">Play, invulnerable</option><option value="spectate">Spectate only</option></select></label>
+      <label>Mode <select id="optMode"><option value="play">Play</option><option value="god">Play, invulnerable</option><option value="spectate">Spectate and steer blocks</option></select></label>
       <label>Side <select id="optSide"><option value="attackers">Attackers</option><option value="defenders">Defenders</option></select></label>
       <label>Team size <select id="optSize"><option value="2">2 v 2</option><option value="3">3 v 3</option><option value="5" selected>5 v 5</option></select></label>
       <label>Bots <select id="optSkill"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
@@ -56,9 +57,9 @@
       <div><kbd>WASD</kbd> Move</div><div><kbd>Mouse</kbd> Aim and fire</div>
       <div><kbd>Space</kbd> Jump. Hold at a ledge to climb</div><div><kbd>E</kbd> Hold to plant or defuse</div>
       <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> Weapons <kbd>R</kbd> Reload</div>
-      <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Drop a block <kbd>`</kbd> Debug</div>
+      <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Call a new block <kbd>`</kbd> Debug</div>
     </div>
-    <p class="sub spec">Spectating (or after you die, press F): <kbd>WASD</kbd> fly, <kbd>Space</kbd> up, <kbd>C</kbd> down, <kbd>Shift</kbd> fast, <kbd>1</kbd>-<kbd>4</kbd> speed, <kbd>P</kbd> pause, <kbd>Q</kbd> <kbd>E</kbd> switch player.</p>
+    <p class="sub spec">Spectating (or after you die, press F): <kbd>WASD</kbd> fly, <kbd>Space</kbd> up, <kbd>C</kbd> down, <kbd>Shift</kbd> fast, <kbd>1</kbd>-<kbd>4</kbd> speed, <kbd>P</kbd> pause, <kbd>Q</kbd> <kbd>E</kbd> switch player.<br>Steering the falling block (spectating, after you die, or invulnerable): <kbd>Arrows</kbd> move, <kbd>Z</kbd> <kbd>X</kbd> rotate, <kbd>V</kbd> flip, <kbd>B</kbd> tumble, <kbd>Enter</kbd> hard drop.</p>
     <p class="touch">Needs a keyboard and mouse.</p>
   </div>
 </div>
