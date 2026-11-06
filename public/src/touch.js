@@ -52,8 +52,22 @@ export class TouchControls {
   constructor(api) {
     this.api = api;
     this.move = { f: 0, r: 0 };
-    this.enabled = isTouch();
-    if (!this.enabled) return;
+    this.enabled = false;
+    if (isTouch()) return this.enable();
+    // Detection can miss on some phones/browsers: the first real finger touch turns controls on.
+    if (new URLSearchParams(location.search).get('touch') === '0') return;
+    const onTouch = e => {
+      if (e.type === 'pointerdown' && e.pointerType !== 'touch') return;
+      removeEventListener('pointerdown', onTouch, true); removeEventListener('touchstart', onTouch, true);
+      this.enable();
+    };
+    addEventListener('pointerdown', onTouch, true);
+    addEventListener('touchstart', onTouch, true);
+  }
+
+  enable() {
+    if (this.enabled) return;
+    this.enabled = true;
     document.body.classList.add('touch');
     this.build();
   }

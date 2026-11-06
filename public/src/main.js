@@ -4,7 +4,7 @@ import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
-import { TouchControls } from './touch.js';
+import { TouchControls } from './touch.js?v=3';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
