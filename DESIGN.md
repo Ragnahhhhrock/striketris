@@ -4,12 +4,12 @@ Source of truth: `public/design/tokens.css`. Live reference: `/style-guide.html`
 
 ## Direction
 
-StrikeTris is a grey box prototype of a bomb-defusal shooter with falling Tetris blocks. The look comes from that: a flat concrete world, a dark well, and seven saturated block colours that are the only decoration. UI is plain, square and monospaced, like a debug overlay that grew up.
+StrikeTris is a prototype of a bomb-defusal shooter with falling Tetris blocks. The look comes from that: a dark well, a shifting arena in bright base colours with neon blocks, and seven saturated block colours. UI is plain, square and monospaced, like a debug overlay that grew up.
 
 ## Principles
 
 1. **Colour carries meaning.** Each signal colour has one job (below). If a colour is not in the table, it does not go in the UI.
-2. **Blocks are the only rainbow.** The seven tetromino colours appear on blocks, the next-block preview and the brand strip. Never on buttons, panels or text.
+2. **The world and blocks are the rainbow.** The seven tetromino colours appear on blocks, the next-block preview and the brand strip. The arena uses bright base colours (`BASE_COLOURS`) and neon colours (`NEON_COLOURS`) in `public/src/arenaFx.js`. Never on buttons, panels or text.
 3. **Square everything.** Radius is 0. Panels are flat translucent slabs.
 4. **Legible over a moving scene.** HUD text sits on `--panel` and carries a soft text shadow. Never place text directly on the 3D view.
 5. **One loud thing per screen.** The bomb red is the single accent: the main button, the bomb timer, the block warning.
@@ -66,7 +66,7 @@ Body line height `--leading-body` (1.45). Keep copy lines under 80 characters. S
 
 ## Motion
 
-Motion answers game state only: hit marker (0.2s), damage vignette (0.4s), block warning pulse. No decorative animation. Respect `prefers-reduced-motion` for the warning pulse.
+Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s), block warning pulse. The arena is the one decorative exception: walls and floor tiles rotate, flip and slide in waves, visual only. Respect `prefers-reduced-motion` for the warning pulse and the arena movement.
 
 ## Copy
 

@@ -4,6 +4,7 @@ import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
 import { SHAPES } from './pieces.js';
+import { ArenaFx, NEON_COLOURS, neonTexture } from './arenaFx.js';
 
 // Classic Tetris colours, order matches SHAPES: I cyan, O yellow, T purple, S green, Z red, J blue, L orange.
 export const SHAPE_TINT = [0x00e5ff, 0xffe600, 0xb44dff, 0x2ee62e, 0xff2d2d, 0x3a63ff, 0xff9a1a];
@@ -137,10 +138,8 @@ export class Renderer {
     this.bevelTex = bevelTexture();
     this.pieceMat = new THREE.MeshLambertMaterial({ map: this.bevelTex, vertexColors: true });
 
-    const floorTex = this.tex.clone(); floorTex.repeat.set(W, D); floorTex.needsUpdate = true;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, D * CELL), new THREE.MeshLambertMaterial({ map: floorTex, color: 0x6c7488 }));
-    floor.rotation.x = -Math.PI / 2; floor.position.set(W * CELL / 2, 0, D * CELL / 2); floor.receiveShadow = true;
-    this.scene.add(floor);
+    this.neonTex = neonTexture();
+    this.fxT = 0;
 
     for (const site of Object.values(SITES)) {
       const [x0, x1, z0, z1] = site.zone;
@@ -189,10 +188,9 @@ export class Renderer {
 
   setGame(game) {
     this.game = game;
-    if (this.staticMesh) { this.scene.remove(this.staticMesh); this.staticMesh.geometry.dispose(); }
-    this.staticMesh = new THREE.Mesh(mesh(game.grid, true), this.voxelMat);
-    this.staticMesh.castShadow = this.staticMesh.receiveShadow = true;
-    this.scene.add(this.staticMesh);
+    if (this.arenaFx) { this.scene.remove(this.arenaFx.group); this.arenaFx.dispose(); }
+    this.arenaFx = new ArenaFx(game.grid, { tex: this.tex, neonTex: this.neonTex, calm: matchMedia('(prefers-reduced-motion: reduce)').matches });
+    this.scene.add(this.arenaFx.group);
     this.gridVersion = -1;
     if (this.actorViews) for (const v of this.actorViews) this.scene.remove(v.group);
     this.actorViews = game.actors.map(a => this.makeActorView(a));
@@ -271,7 +269,7 @@ export class Renderer {
 
   // Coloured rim and corner towers, glass walls to the sky, and distant blocks drifting down.
   buildArena() {
-    const rimMat = new THREE.MeshLambertMaterial({ map: this.bevelTex });
+    const rimMat = new THREE.MeshBasicMaterial({ map: this.neonTex, fog: false });
     const spots = [];
     for (let i = 0; i < W; i++) spots.push([i, 8, 0], [i, 8, D - 1]);
     for (let k = 1; k < D - 1; k++) spots.push([0, 8, k], [W - 1, 8, k]);
@@ -280,7 +278,7 @@ export class Renderer {
     const m = new THREE.Matrix4(), col = new THREE.Color();
     spots.forEach(([x, y, z], i) => {
       m.makeTranslation((x + 0.5) * CELL, (y + 0.5) * CELL, (z + 0.5) * CELL);
-      rim.setMatrixAt(i, m); rim.setColorAt(i, col.setHex(SHAPE_TINT[i % 7]));
+      rim.setMatrixAt(i, m); rim.setColorAt(i, col.setHex(NEON_COLOURS[i % NEON_COLOURS.length]));
     });
     rim.frustumCulled = false;
     this.scene.add(rim);
@@ -306,7 +304,7 @@ export class Renderer {
         fall: 3 + Math.random() * 6, spin: (Math.random() - 0.5) * 0.8, ang: Math.random() * 6.28,
         tx: (Math.random() - 0.5) * 0.8, tz: (Math.random() - 0.5) * 0.8, size: 6 + Math.random() * 5,
       });
-      for (let k = 0; k < 4; k++) cubes.setColorAt(i * 4 + k, col.setHex(SHAPE_TINT[shapeId]).multiplyScalar(0.6));
+      for (let k = 0; k < 4; k++) cubes.setColorAt(i * 4 + k, col.setHex(NEON_COLOURS[shapeId % NEON_COLOURS.length]));
     }
     cubes.frustumCulled = false;
     this.skyCubes = cubes;
@@ -414,6 +412,8 @@ export class Renderer {
       this.pieceLight.position.set(v.cx + v.slide.x, v.cy + p.drop + 2, v.cz + v.slide.z);
     }
     this.updateArena(dt);
+    this.fxT += dt;
+    this.arenaFx.update(this.fxT);
 
     for (const v of this.actorViews) {
       const a = v.actor;
