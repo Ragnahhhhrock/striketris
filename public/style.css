@@ -196,3 +196,8 @@ body.touch #lockNote { display: none; }
   #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; text-align: center; padding: 32px; background: var(--well-900); color: var(--ink); font-size: 18px; font-weight: 700; }
   body:not([data-mode="play"]) #rotate { display: none; }
 }
+
+.tip { text-align: center; }
+.tip a { display: inline-block; font-weight: 700; padding: 8px 16px; background: var(--well-500); color: var(--ink); text-decoration: none; }
+.tip a:hover { background: var(--well-400); }
+.tip a:focus-visible { outline: var(--focus); outline-offset: 2px; }
