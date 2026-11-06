@@ -33,6 +33,15 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
 - **No softlocks:** a block never lands on a spawn or plant spot, and is rejected if it would cut off a site or trap a player.
 
+## Characters
+
+Every fighter is a procedural rig of merged box meshes with a real skeleton: head, torso, two-bone arms and legs. Nothing is loaded from disk.
+
+- **Looks:** `public/src/looks.js` holds a hand-made look for each bot name plus a seeded generator for anyone else. Skin, hair (8 styles), moustaches (4), beards (6), eyewear (5), headwear (11), build, vest, backpack, scarf and gloves. Shirts and sleeves always take the team colour so allies and enemies read at range.
+- **Animation:** `public/src/characters.js` drives the rig from live actor state. Gait follows velocity (strafe and backpedal turn the legs while the torso keeps aiming), crouch is a real squat, jumps tuck the legs, ledge climbs reach up, weapons follow your pitch and recoil, reloads swap the magazine, and the dead fall and drop their gun. Arms use two-bone IK, so hands stay on the weapon at any aim angle.
+- **Bomb:** the carrier wears it on their back.
+- **Viewer:** open `/characters.html` for the full lineup. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `focus`, `team=def`, `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
+
 ## Design
 
 Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live reference at `/style-guide.html`. Share images (`og-image.png`, `twitter-card.png`) and app icons are built from `tools/share/share.html` with `npm run share` (needs Chrome and rsvg-convert).
@@ -48,6 +57,8 @@ Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live r
 | `public/src/nav.js` | Bot pathfinding on the changing grid |
 | `public/src/game.js` | Rounds, bomb, weapons, blocks. Runs headless |
 | `public/src/bots.js` | Bot behaviour |
+| `public/src/looks.js` | Who each fighter is: hats, hair, facial hair, kit |
+| `public/src/characters.js` | Character rigs and animation |
 | `public/src/render.js`, `hud.js`, `audio.js`, `main.js` | Browser layer |
 
 The simulation has no rendering dependency, which keeps a later move to a multiplayer server open.

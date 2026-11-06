@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
 import { SHAPES } from './pieces.js';
 import { ArenaFx, NEON_COLOURS, neonTexture } from './arenaFx.js';
+import { makeRig } from './characters.js';
 
 // Classic Tetris colours, order matches SHAPES: I cyan, O yellow, T purple, S green, Z red, J blue, L orange.
 export const SHAPE_TINT = [0x00e5ff, 0xffe600, 0xb44dff, 0x2ee62e, 0xff2d2d, 0x3a63ff, 0xff9a1a];
-const TEAM_COLOUR = { [TEAM.ATT]: 0xd98a3d, [TEAM.DEF]: 0x4a8fd9 };
 
 const FACES = [
   { n: [1, 0, 0], v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], s: 0.82 },
@@ -209,16 +209,9 @@ export class Renderer {
   }
 
   makeActorView(a) {
-    const group = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({ color: TEAM_COLOUR[a.team] });
-    const dark = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
-    const add = (w, h, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; group.add(b); return b; };
-    const legs = add(0.5, 0.8, 0.3, 0, 0.4, 0, dark);
-    const body = add(0.6, 0.72, 0.36, 0, 1.15, 0, mat);
-    const head = add(0.28, 0.28, 0.28, 0, 1.66, 0, mat);
-    const gun = add(0.08, 0.1, 0.65, 0.22, 1.25, -0.3, dark);
-    this.scene.add(group);
-    return { actor: a, group, legs, body, head, gun, downT: 0 };
+    const rig = makeRig(a);
+    this.scene.add(rig.group);
+    return { actor: a, rig, group: rig.group };
   }
 
   clearEffects() { for (const e of this.effects) { this.fx.remove(e.obj); e.dispose?.(); } this.effects = []; }
@@ -341,6 +334,7 @@ export class Renderer {
           puff.position.set(e.to.x, e.to.y, e.to.z);
           this.addEffect(puff, 0.5, (o, u) => { o.material.opacity = 1 - u; });
         }
+        this.actorViews[e.actor.id]?.rig.shot();
         if (e.actor === viewer) { this.vmKick = 1; this.flash.visible = true; this.flashT = 0.04; }
         break;
       }
@@ -416,17 +410,9 @@ export class Renderer {
     this.arenaFx.update(this.fxT);
 
     for (const v of this.actorViews) {
-      const a = v.actor;
-      const self = view.actor === a && view.mode === 'first';
+      const self = view.actor === v.actor && view.mode === 'first';
       v.group.visible = !self;
-      if (self) continue;
-      v.group.position.set(a.pos.x, a.pos.y, a.pos.z);
-      v.group.rotation.y = a.yaw;
-      const c = a.crouching ? MOVE.crouchHeight / MOVE.height : 1;
-      v.group.scale.y = c;
-      v.downT = a.alive ? 0 : Math.min(1, v.downT + dt * 3);
-      v.group.rotation.x = -v.downT * Math.PI / 2;
-      v.group.position.y += v.downT * 0.2;
+      if (!self) v.rig.update(dt);
     }
 
     const b = game.bomb;
