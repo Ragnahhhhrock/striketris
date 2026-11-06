@@ -192,9 +192,35 @@ body.touch #specbar { bottom: calc(var(--sb) + 10px); left: 38%; transform: none
 body.touch #debug { bottom: calc(var(--sb) + 70px); }
 body.touch #lockNote { display: none; }
 
+/* Portrait: play upright instead of asking for landscape. Sizes shrink so both thumbs fit in ~360px. */
 @media (orientation: portrait) {
-  body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; text-align: center; padding: 32px; background: var(--well-900); color: var(--ink); font-size: 18px; font-weight: 700; }
-  body.touch:not([data-mode="play"]) #rotate { display: none; }
+  body.touch { --sb: calc(env(safe-area-inset-bottom, 0px) + 44px); }
+  body.touch #vitals { left: 14px; right: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); gap: 14px; }
+  body.touch #vitals b { font-size: 22px; }
+  body.touch #vitals .bar { width: 80px; }
+  body.touch #specbar { left: 14px; max-width: 60vw; }
+  body.touch #feed { max-width: 55vw; top: calc(var(--st) + 130px); }
+  body.touch #top { left: 50%; transform: translateX(-50%); }
+  body.touch #prompt { bottom: 220px; }
+  body.touch #progress { bottom: 200px; }
+  #tStickZone { top: 45%; width: 50%; }
+  #tStick { left: calc(var(--sl) + 80px); bottom: calc(var(--sb) + 70px); }
+  #tStickZone:not(.on) #tStick { left: calc(var(--sl) + 80px) !important; bottom: calc(var(--sb) + 70px); }
+  #touch .tb { width: 52px; height: 52px; font-size: 12px; }
+  #touch .tb[data-g="all"], #touch .tb[data-g="steerable"] { height: 40px; width: 52px; }
+  #tScores { right: calc(var(--sr) + 62px); }
+  #tSteer { right: calc(var(--sr) + 120px); }
+  #tFire, #tDrop, #tNext, #tUpFly { right: calc(var(--sr) + 14px); bottom: calc(var(--sb) + 20px); width: 84px !important; height: 84px !important; }
+  #tJump, #tTumble, #tPrev, #tDownFly { right: calc(var(--sr) + 106px); bottom: calc(var(--sb) + 24px); width: 62px !important; height: 62px !important; }
+  #tReload, #tRotL, #tCam { right: calc(var(--sr) + 14px); bottom: calc(var(--sb) + 112px); }
+  #tUse, #tRotR, #tPause { right: calc(var(--sr) + 74px); bottom: calc(var(--sb) + 112px); }
+  #tCrouch, #tFlip, #tFast { right: calc(var(--sr) + 134px); bottom: calc(var(--sb) + 96px); }
+  #tSwap { right: calc(var(--sr) + 14px); bottom: calc(var(--sb) + 172px); }
+  #tUp { left: calc(var(--sl) + 62px); bottom: calc(var(--sb) + 80px); }
+  #tLeft { left: calc(var(--sl) + 8px); bottom: calc(var(--sb) + 28px); }
+  #tDown { left: calc(var(--sl) + 62px); bottom: calc(var(--sb) - 24px); }
+  #tRight { left: calc(var(--sl) + 116px); bottom: calc(var(--sb) + 28px); }
+}
 }
 
 .tip { text-align: center; }
