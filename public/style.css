@@ -92,8 +92,8 @@ button.alt:hover { background: var(--well-400); }
 button:focus-visible, select:focus-visible { outline: var(--focus); outline-offset: 2px; }
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 7px 18px; font-size: 12px; opacity: .85; }
 kbd { font: inherit; background: var(--well-600); padding: 1px 5px; border: 1px solid var(--line); }
-.touch { display: none; color: var(--gold); font-size: 13px; margin: 16px 0 0; }
-body.touch .touch { display: block; }
+p.touch { display: none; color: var(--gold); font-size: 13px; margin: 16px 0 0; }
+body.touch p.touch { display: block; }
 .touchkeys { display: none; }
 .credit { margin: 18px 0 0; font-size: 12px; opacity: .7; text-align: center; }
 .credit a { color: var(--gold); text-decoration: underline; }
@@ -220,7 +220,6 @@ body.touch #lockNote { display: none; }
   #tLeft { left: calc(var(--sl) + 8px); bottom: calc(var(--sb) + 28px); }
   #tDown { left: calc(var(--sl) + 62px); bottom: calc(var(--sb) - 24px); }
   #tRight { left: calc(var(--sl) + 116px); bottom: calc(var(--sb) + 28px); }
-}
 }
 
 .tip { text-align: center; }
