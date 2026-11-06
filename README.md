@@ -42,6 +42,20 @@ Every fighter is a procedural rig of merged box meshes with a real skeleton: hea
 - **Bomb:** the carrier wears it on their back.
 - **Viewer:** open `/characters.html` for the full lineup. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `focus`, `team=def`, `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
 
+## Classes
+
+Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is the difference. Pick one in the menu (it applies from the next round; bots fill the other kits on both teams). Weapon stats are identical across sides, only the names differ (Axis/Allies, attackers/defenders).
+
+| Class | Primary | Secondary | Gadget (`F`) | Trait |
+| --- | --- | --- | --- | --- |
+| Assault | SMG (MP 40 / Thompson) | Pistol | 3 hand grenades | Best up close |
+| Scout | Scoped bolt rifle (Kar 98k / Springfield) | Pistol | Binoculars | `Right mouse` (or `T`) zooms 3.2x; spots enemies onto the minimap and shows a marker for the team |
+| Medic | LMG (MG 34 / BAR) | Pistol | Medic kit, 4 charges | Heals the most hurt teammate in reach, else yourself |
+| Engineer | Rifle (Kar 98k / M1 Garand) | Pistol | 3 mines | The wrench: plants in 0.6x and defuses in 0.55x the time |
+| Anti-Tank | Rocket launcher (Panzerschreck / Bazooka) | Pistol | none | Splash damage, slow reload, hurts you at point blank |
+
+Adaptations: there are no vehicles here, so mines and rockets are used against infantry; there is no kit pickup mid-round. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, red-cross pack, mines, spare rockets).
+
 ## Design
 
 Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live reference at `/style-guide.html`. Share images (`og-image.png`, `twitter-card.png`) and app icons are built from `tools/share/share.html` with `npm run share` (needs Chrome and rsvg-convert).
@@ -58,7 +72,7 @@ Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live r
 | `public/src/game.js` | Rounds, bomb, weapons, blocks. Runs headless |
 | `public/src/bots.js` | Bot behaviour |
 | `public/src/looks.js` | Who each fighter is: hats, hair, facial hair, kit |
-| `public/src/characters.js` | Character rigs and animation |
+| `public/src/characters.js` | Character rigs, weapons, kit gear and animation |
 | `public/src/render.js`, `hud.js`, `audio.js`, `main.js` | Browser layer |
 
 The simulation has no rendering dependency, which keeps a later move to a multiplayer server open.

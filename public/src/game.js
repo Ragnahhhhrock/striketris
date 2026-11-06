@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, ROUND, PIECE, SKILL, TEAM } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, ROUND, PIECE, SKILL, TEAM, GADGETS, CLASSES, CLASS_ORDER, weaponName } from './config.js';
 import { rayBox, cellCentre } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -17,6 +17,7 @@ export function mulberry(seed) {
   };
 }
 
+const KILL_NAMES = { grenade: 'Grenade', mine: 'Mine', rocket: 'Rocket' };
 const ATT_NAMES = ['Ash', 'Brick', 'Cole', 'Dune', 'Echo', 'Flint'];
 const DEF_NAMES = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 
@@ -36,12 +37,18 @@ export class Game {
     this.linesCleared = 0;
     this.piecesLanded = 0;
     this.nextShape = this.bagNext();
+    this.time = 0;
 
     for (const team of [TEAM.ATT, TEAM.DEF]) {
       const names = team === TEAM.ATT ? ATT_NAMES : DEF_NAMES;
       for (let i = 0; i < this.opts.teamSize; i++) {
         const human = this.opts.human && team === this.opts.humanTeam && i === 0;
-        const a = makeActor(this.actors.length, team, human ? 'You' : names[i], human);
+        const hc = this.opts.humanClass && CLASSES[this.opts.humanClass] ? this.opts.humanClass : 'assault';
+        // The human takes their pick; teammates fill the other kits in order so every side is mixed.
+        const rest = CLASS_ORDER.filter(c => c !== hc);
+        const humanHere = this.opts.human && team === this.opts.humanTeam;
+        const cls = human ? hc : humanHere ? rest[(i - 1) % rest.length] : CLASS_ORDER[i % CLASS_ORDER.length];
+        const a = makeActor(this.actors.length, team, human ? 'You' : names[i], human, cls);
         this.actors.push(a);
         if (human) this.human = a;
       }
@@ -70,6 +77,7 @@ export class Game {
     this.bomb = { state: 'carried', carrier: null, pos: null, fuse: 0, site: null };
     this.plantProgress = 0; this.defuseProgress = 0;
     this.piece = null;
+    this.projectiles = []; this.mines = []; this.nextProj = 1;
     this.recentCells = [];
     this.pieceTimer = PIECE.firstDelay;
     this.pieceInterval = this.opts.pieceInterval;
@@ -92,6 +100,9 @@ export class Game {
     this.emit('round', { round: this.round });
   }
 
+  // Takes effect at the start of the next round, as in a kit-select screen.
+  setClass(a, cls) { if (CLASSES[cls]) a.nextCls = cls; }
+
   bombColumn() {
     if (this.bomb.state === 'carried' || !this.bomb.pos) return null;
     return { x: Math.floor(this.bomb.pos.x / CELL), z: Math.floor(this.bomb.pos.z / CELL) };
@@ -104,6 +115,7 @@ export class Game {
     if (this.state === 'post') {
       this.timer -= dt;
       this.stepActors(dt, false);
+      this.stepProjectiles(dt);
       this.stepPiece(dt);
       if (this.timer <= 0) {
         if (Math.max(this.score.attackers, this.score.defenders) >= ROUND.winScore) { this.matchOver = true; this.emit('match', { winner: this.score.attackers > this.score.defenders ? TEAM.ATT : TEAM.DEF }); } else this.startRound();
@@ -118,6 +130,7 @@ export class Game {
     }
     this.timer -= dt;
     this.stepActors(dt, false);
+    this.stepProjectiles(dt);
     this.stepPiece(dt);
     this.stepBomb(dt);
     this.checkRoundEnd();
@@ -148,11 +161,17 @@ export class Game {
   stepWeapon(a, dt) {
     const inp = a.input;
     a.fireCd -= dt;
-    if (inp.weapon && inp.weapon !== a.cur && WEAPONS[inp.weapon]) { a.cur = inp.weapon; a.reloadT = 0; a.fireCd = 0.3; a.shotStreak = 0; this.emit('switch', { actor: a }); }
+    a.gadgetCd -= dt;
+    if (inp.weapon && inp.weapon !== a.cur && inp.weapon in a.weapons) { a.cur = inp.weapon; a.reloadT = 0; a.fireCd = 0.3; a.shotStreak = 0; this.emit('switch', { actor: a }); }
     inp.weapon = null;
     const w = WEAPONS[a.cur];
+    a.scoped = !!(w.scope && inp.scope && a.reloadT <= 0 && !a.mantle);
+    const g = inp.gadget && !a.lastGadget;
+    a.lastGadget = inp.gadget;
+    if (g) this.useGadget(a);
     if (a.reloadT > 0) {
       a.reloadT -= dt;
+      a.scoped = false;
       if (a.reloadT <= 0) a.weapons[a.cur] = w.mag;
       a.lastFireHeld = inp.fire;
       return;
@@ -175,11 +194,22 @@ export class Game {
     const moving = Math.hypot(a.vel.x, a.vel.z) / MOVE.run;
     let spread = w.spread + w.moveSpread * Math.max(0, moving - 0.3) + (a.onGround ? 0 : 0.05) + Math.min(a.shotStreak, 12) * 0.0018;
     if (a.crouching) spread *= 0.7;
+    if (a.scoped) spread *= 0.25;
     const d = aimDir(a);
     const dx = d.x + (this.rng() - 0.5) * 2 * spread, dy = d.y + (this.rng() - 0.5) * 2 * spread, dz = d.z + (this.rng() - 0.5) * 2 * spread;
     const n = Math.hypot(dx, dy, dz);
     const dir = { x: dx / n, y: dy / n, z: dz / n };
     const eye = eyePos(a);
+    if (w.proj) {
+      a.shotStreak += 1;
+      a.recoil = Math.min(w.kickMax, a.recoil + w.kick);
+      const o = { x: eye.x + dir.x * 0.9, y: eye.y - 0.15 + dir.y * 0.9, z: eye.z + dir.z * 0.9 };
+      this.projectiles.push({ id: this.nextProj++, kind: w.proj.kind, owner: a, team: a.team, pos: o, vel: { x: dir.x * w.proj.speed, y: dir.y * w.proj.speed, z: dir.z * w.proj.speed }, life: w.proj.life, weapon: a.cur });
+      this.emit('launch', { actor: a, kind: w.proj.kind, from: o, weapon: a.cur });
+      this.emit('shot', { actor: a, from: eye, to: o, hit: false, weapon: a.cur, rocket: true });
+      for (const t of this.actors) if (t.alive && t.brain && t.team !== a.team && dist2d(t.pos, a.pos) < 55) t.brain.heard = { ...a.pos };
+      return;
+    }
     let dist = this.grid.raycast(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, 200);
     let victim = null, head = false;
     for (const t of this.actors) {
@@ -223,8 +253,112 @@ export class Game {
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
     const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', line: 'was caught in a line clear' }[cause];
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${KILL_NAMES[cause] ?? weaponName(by?.team, cause)}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
+  }
+
+  // ---- gadgets and projectiles ----
+  useGadget(a) {
+    if (!a.gadget || a.gadgetCd > 0 || a.gadgetN <= 0 || this.isChannelling(a) || a.mantle) return false;
+    const g = GADGETS[a.gadget];
+    if (a.gadget === 'grenade') {
+      const d = aimDir(a), eye = eyePos(a);
+      const up = 0.22;
+      const n = Math.hypot(d.x, d.y + up, d.z);
+      const pos = { x: eye.x + d.x * 0.5, y: eye.y - 0.1, z: eye.z + d.z * 0.5 };
+      this.projectiles.push({ id: this.nextProj++, kind: 'grenade', owner: a, team: a.team, pos, vel: { x: d.x / n * g.speed + a.vel.x * 0.5, y: (d.y + up) / n * g.speed, z: d.z / n * g.speed + a.vel.z * 0.5 }, life: g.fuse, weapon: 'grenade' });
+      this.emit('launch', { actor: a, kind: 'grenade', from: pos });
+    } else if (a.gadget === 'mine') {
+      if (!a.onGround || this.mines.filter(m => m.owner === a).length >= g.n) return false;
+      const m = { id: this.nextProj++, owner: a, team: a.team, pos: { x: a.pos.x, y: a.pos.y, z: a.pos.z }, arm: g.arm };
+      this.mines.push(m);
+      this.emit('mine', { mine: m, actor: a });
+    } else if (a.gadget === 'medkit') {
+      // Heals the most hurt teammate in reach. With nobody hurt nearby it patches the medic instead.
+      let best = null, need = 0;
+      for (const t of this.actors) {
+        if (!t.alive || t.team !== a.team || t === a || t.hp >= 100) continue;
+        if (Math.hypot(t.pos.x - a.pos.x, t.pos.y - a.pos.y, t.pos.z - a.pos.z) > g.range) continue;
+        if (100 - t.hp > need) { need = 100 - t.hp; best = t; }
+      }
+      const who = best || (a.hp < 100 ? a : null);
+      if (!who) return false;
+      who.hp = Math.min(100, who.hp + g.heal);
+      this.emit('heal', { actor: who, by: a });
+    } else if (a.gadget === 'binoculars') {
+      const d = aimDir(a), eye = eyePos(a);
+      let n = 0;
+      for (const t of this.actors) {
+        if (!t.alive || t.team === a.team) continue;
+        const dx = t.pos.x - eye.x, dy = t.pos.y + 1 - eye.y, dz = t.pos.z - eye.z, dist = Math.hypot(dx, dy, dz);
+        if (dist > g.range || (dx * d.x + dy * d.y + dz * d.z) / dist < 1 - g.cone * g.cone / 2) continue;
+        if (!this.grid.los(eye, { x: t.pos.x, y: t.pos.y + 1.3, z: t.pos.z })) continue;
+        t.spottedUntil = this.time + g.time; n++;
+      }
+      this.emit('spot', { actor: a, count: n });
+    }
+    if (g.n !== Infinity) a.gadgetN--;
+    a.gadgetCd = g.cd;
+    return true;
+  }
+
+  explode(pos, radius, damage, owner, cause) {
+    this.emit('boom', { pos: { ...pos }, radius, cause });
+    for (const t of this.actors) {
+      if (!t.alive) continue;
+      if (t.team === owner.team && t !== owner) continue;
+      const c = { x: t.pos.x, y: t.pos.y + 0.9, z: t.pos.z };
+      const d = Math.hypot(c.x - pos.x, c.y - pos.y, c.z - pos.z);
+      if (d > radius) continue;
+      if (d > 0.6 && !this.grid.los({ x: pos.x, y: pos.y + 0.1, z: pos.z }, c)) continue;
+      const k = 1 - d / radius;
+      this.damage(t, damage * k * (t === owner ? 0.5 : 1), owner, cause);
+    }
+  }
+
+  stepProjectiles(dt) {
+    this.time = (this.time || 0) + dt;
+    for (const m of this.mines) {
+      if (m.arm > 0) { m.arm -= dt; continue; }
+      const g = GADGETS.mine;
+      const hit = this.actors.find(t => t.alive && t.team !== m.team && Math.hypot(t.pos.x - m.pos.x, t.pos.z - m.pos.z) < g.trigger && Math.abs(t.pos.y - m.pos.y) < 1.2);
+      if (hit) { m.dead = true; this.explode({ x: m.pos.x, y: m.pos.y + 0.2, z: m.pos.z }, g.radius, g.damage, m.owner, 'mine'); }
+    }
+    this.mines = this.mines.filter(m => !m.dead);
+    if (!this.projectiles.length) return;
+    for (const p of this.projectiles) {
+      p.life -= dt;
+      if (p.kind === 'rocket') {
+        const spd = Math.hypot(p.vel.x, p.vel.y, p.vel.z), len = spd * dt;
+        const dx = p.vel.x / spd, dy = p.vel.y / spd, dz = p.vel.z / spd;
+        let hit = this.grid.raycast(p.pos.x, p.pos.y, p.pos.z, dx, dy, dz, len), direct = null;
+        for (const t of this.actors) {
+          if (!t.alive || t.team === p.team) continue;
+          const h = actorHeight(t), r = MOVE.radius + 0.1;
+          const d = rayBox(p.pos.x, p.pos.y, p.pos.z, dx, dy, dz, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h, t.pos.z + r);
+          if (d !== null && d < hit) { hit = d; direct = t; }
+        }
+        if (hit < len || p.life <= 0) {
+          const at = { x: p.pos.x + dx * Math.min(hit, len), y: p.pos.y + dy * Math.min(hit, len), z: p.pos.z + dz * Math.min(hit, len) };
+          p.dead = true;
+          const cfg = WEAPONS.launcher.proj;
+          if (direct) this.damage(direct, cfg.direct, p.owner, 'rocket');
+          this.explode(at, cfg.radius, cfg.splash, p.owner, 'rocket');
+        } else { p.pos.x += dx * len; p.pos.y += dy * len; p.pos.z += dz * len; }
+      } else {
+        p.vel.y -= MOVE.gravity * dt;
+        for (const ax of ['x', 'y', 'z']) {
+          const n = { ...p.pos }; n[ax] += p.vel[ax] * dt;
+          if (this.grid.boxHits(n.x - 0.1, n.y - 0.1, n.z - 0.1, n.x + 0.1, n.y + 0.1, n.z + 0.1)) {
+            p.vel[ax] *= -0.35;
+            for (const o of ['x', 'y', 'z']) if (o !== ax) p.vel[o] *= 0.8;
+          } else p.pos[ax] = n[ax];
+        }
+        if (p.pos.y < -5) p.life = 0;
+        if (p.life <= 0) { p.dead = true; this.explode(p.pos, GADGETS.grenade.radius, GADGETS.grenade.damage, p.owner, 'grenade'); }
+      }
+    }
+    this.projectiles = this.projectiles.filter(p => !p.dead);
   }
 
   // ---- falling pieces ----
@@ -356,7 +490,7 @@ export class Game {
       const site = this.siteAt(a.pos);
       if (a.alive && a.input.use && site && a.onGround) {
         this.planter = a;
-        this.plantProgress += dt / ROUND.plantTime;
+        this.plantProgress += dt / (ROUND.plantTime * CLASSES[a.cls].plant);
         if (this.plantProgress >= 1) {
           a.hasBomb = false;
           b.state = 'planted'; b.carrier = null; b.pos = { ...a.pos }; b.site = site.name; b.fuse = ROUND.bombFuse;
@@ -372,7 +506,7 @@ export class Game {
       if (d) {
         if (this.defuser !== d) this.defuseProgress = 0;
         this.defuser = d;
-        this.defuseProgress += dt / ROUND.defuseTime;
+        this.defuseProgress += dt / (ROUND.defuseTime * CLASSES[d.cls].defuse);
         if (this.defuseProgress >= 1) {
           b.state = 'defused'; this.defuseProgress = 0; this.defuser = null;
           this.emit('feed', { text: `${d.name} defused the bomb` });

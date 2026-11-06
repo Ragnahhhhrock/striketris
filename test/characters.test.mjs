@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
-import { TEAM, MOVE } from '../public/src/config.js';
-import { makeActor } from '../public/src/actor.js';
+import { TEAM, MOVE, CLASSES, CLASS_ORDER } from '../public/src/config.js';
+import { makeActor, resetActor } from '../public/src/actor.js';
 import { ROSTER, generateLook, lookFor, silhouette } from '../public/src/looks.js';
 
 register('./three-loader.mjs', import.meta.url);
@@ -12,9 +12,9 @@ const { makeRig, BODY } = await import('../public/src/characters.js');
 const ATT = ['Ash', 'Brick', 'Cole', 'Dune', 'Echo', 'Flint'];
 const DEF = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 
-function fighter(name = 'Ash', team = TEAM.ATT, id = 0) {
-  const a = makeActor(id, team, name, false);
-  a.weapons = { rifle: 30, pistol: 12 };
+function fighter(name = 'Ash', team = TEAM.ATT, id = 0, cls = 'engineer') {
+  const a = makeActor(id, team, name, false, cls);
+  resetActor(a);
   return a;
 }
 const settle = (rig, frames = 90, dt = 1 / 60) => { for (let i = 0; i < frames; i++) rig.update(dt); rig.group.updateMatrixWorld(true); };
@@ -108,9 +108,9 @@ test('legs actually swing while running and stay still when idle', () => {
 });
 
 test('both hands reach the weapon in every stance and while looking up or down', () => {
-  for (const cur of ['rifle', 'pistol']) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
+  for (const [cls, cur] of [['assault', 'smg'], ['medic', 'lmg'], ['engineer', 'rifle'], ['scout', 'sniper'], ['antitank', 'launcher'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
     for (const stance of ['stand', 'crouch', 'run', 'fire']) {
-      const a = fighter(n); a.cur = cur; a.pitch = pitch;
+      const a = fighter(n, TEAM.ATT, 0, cls); a.cur = cur; a.pitch = pitch;
       if (stance === 'crouch') a.crouching = true;
       if (stance === 'run') a.vel.z = -6.5;
       if (stance === 'fire') a.recoil = 0.1;
@@ -123,7 +123,7 @@ test('both hands reach the weapon in every stance and while looking up or down',
 test('reloading takes the magazine out and puts it back', () => {
   const a = fighter('Ash'); const rig = makeRig(a);
   settle(rig);
-  const mag = rig.guns.rifle.mag;
+  const mag = rig.guns.rifle.mag; // engineer kit
   assert.equal(mag.visible, true);
   a.reloadT = 1.2; rig.update(1 / 60); // halfway through a 2.4 s reload
   assert.equal(mag.visible, false);
@@ -165,4 +165,24 @@ test('climbing a ledge raises both hands above the head', () => {
   for (const arm of rig.arms) { arm.fore.getWorldPosition(hand); hand.y += 0; }
   const ys = rig.arms.map(arm => { const p = new THREE.Vector3(0, -BODY.fore, 0); arm.fore.localToWorld(p); return p.y; });
   assert.ok(ys.every(y => y > 1.4), `hands at ${ys}`);
+});
+
+test('every class carries its own weapons and wears its own kit', () => {
+  const sizes = new Set();
+  for (const c of CLASS_ORDER) {
+    const a = fighter('Ash', TEAM.ATT, 0, c); const rig = makeRig(a); settle(rig, 5);
+    const k = CLASSES[c];
+    assert.deepEqual(Object.keys(rig.guns).sort(), [k.primary, k.secondary].sort(), `${c} guns`);
+    assert.equal(rig.guns[k.primary].group.visible, true, `${c} draws its primary`);
+    sizes.add(rig.kit.children[0].geometry.attributes.position.count);
+  }
+  assert.equal(sizes.size, CLASS_ORDER.length, 'each class has different gear');
+});
+
+test('a rig re-dresses when the actor changes class between rounds', () => {
+  const a = fighter('Ash', TEAM.ATT, 0, 'assault'); const rig = makeRig(a); settle(rig, 5);
+  assert.ok(rig.guns.smg);
+  a.nextCls = 'antitank'; resetActor(a); settle(rig, 5);
+  assert.ok(rig.guns.launcher && !rig.guns.smg);
+  assert.equal(rig.kitCls, 'antitank');
 });

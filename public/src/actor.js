@@ -1,14 +1,14 @@
-import { MOVE, WEAPONS } from './config.js';
+import { MOVE, WEAPONS, CLASSES, GADGETS } from './config.js';
 
-export function makeActor(id, team, name, isHuman) {
+export function makeActor(id, team, name, isHuman, cls = 'assault') {
   return {
-    id, team, name, isHuman,
+    id, team, name, isHuman, cls, nextCls: cls, loadout: ['smg', 'pistol'], gadget: null, gadgetN: 0, gadgetCd: 0, lastGadget: false, spottedUntil: 0, scoped: false,
     pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 },
     yaw: 0, pitch: 0, recoil: 0,
     hp: 100, alive: true, onGround: true, crouching: false, mantle: null,
-    weapons: {}, cur: 'rifle', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
+    weapons: {}, cur: 'smg', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
     hasBomb: false, kills: 0, deaths: 0,
-    input: { f: 0, r: 0, jump: false, crouch: false, walk: false, fire: false, use: false, reload: false, weapon: null },
+    input: { f: 0, r: 0, jump: false, crouch: false, walk: false, fire: false, use: false, reload: false, weapon: null, gadget: false, scope: false },
     brain: null,
   };
 }
@@ -16,8 +16,13 @@ export function makeActor(id, team, name, isHuman) {
 export function resetActor(a) {
   a.hp = 100; a.alive = true; a.vel = { x: 0, y: 0, z: 0 }; a.mantle = null;
   a.hasBomb = false; a.recoil = 0; a.crouching = false; a.onGround = true;
-  a.weapons = { rifle: WEAPONS.rifle.mag, pistol: WEAPONS.pistol.mag };
-  a.cur = 'rifle'; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
+  a.cls = a.nextCls || a.cls;
+  const k = CLASSES[a.cls];
+  a.loadout = [k.primary, k.secondary];
+  a.weapons = { [k.primary]: WEAPONS[k.primary].mag, [k.secondary]: WEAPONS[k.secondary].mag };
+  a.gadget = k.gadget; a.gadgetN = k.gadget ? GADGETS[k.gadget].n : 0; a.gadgetCd = 0; a.lastGadget = false;
+  a.spottedUntil = 0; a.scoped = false;
+  a.cur = k.primary; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
   a.brain = null;
 }
 
@@ -84,7 +89,7 @@ export function stepMovement(grid, a, dt) {
   let wx = -sin * inp.f + cos * inp.r, wz = -cos * inp.f - sin * inp.r;
   const len = Math.hypot(wx, wz);
   if (len > 1) { wx /= len; wz /= len; }
-  const speed = a.crouching ? MOVE.crouch : inp.walk ? MOVE.walk : MOVE.run;
+  const speed = (a.crouching ? MOVE.crouch : inp.walk ? MOVE.walk : MOVE.run) * (WEAPONS[a.cur]?.slow ?? 1) * (a.scoped ? 0.55 : 1);
   const k = 1 - Math.exp(-(a.onGround ? MOVE.groundAccel : MOVE.airAccel) * dt);
   a.vel.x += (wx * speed - a.vel.x) * k;
   a.vel.z += (wz * speed - a.vel.z) * k;

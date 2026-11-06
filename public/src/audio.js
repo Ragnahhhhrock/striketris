@@ -33,7 +33,12 @@ export class Audio {
   event(e, viewer) {
     const at = p => (viewer && p ? Math.max(0, 1 - Math.hypot(viewer.pos.x - p.x, viewer.pos.z - p.z) / 70) : 0.4);
     switch (e.type) {
-      case 'shot': { const v = e.actor === viewer ? 0.32 : at(e.from) * 0.22; this.burst(v, e.weapon === 'rifle' ? 2400 : 3400, 0.13); break; }
+      case 'shot': { const v = e.actor === viewer ? 0.32 : at(e.from) * 0.22; const W = { pistol: [3400, 0.1], smg: [3000, 0.09], lmg: [1800, 0.14], rifle: [2200, 0.18], sniper: [1300, 0.32], launcher: [700, 0.4] }[e.weapon] ?? [2400, 0.13];
+        this.burst(v * (e.weapon === 'sniper' || e.weapon === 'launcher' ? 1.6 : 1), W[0], W[1]); if (e.weapon === 'launcher') this.tone(v, 140, 50, 0.35, 'sawtooth'); break; }
+      case 'boom': this.burst(at(e.pos) * 1.1, 600, 0.9); this.tone(at(e.pos) * 0.7, 90, 25, 0.8); break;
+      case 'mine': if (e.actor === viewer) this.tone(0.1, 400, 300, 0.1, 'square'); break;
+      case 'heal': this.tone(0.14, 500, 900, 0.3); break;
+      case 'spot': if (e.actor === viewer) this.tone(0.12, e.count ? 1200 : 600, e.count ? 1500 : 500, 0.12, 'square'); break;
       case 'adjust': this.tone(e.by === 'ai' ? 0.03 : 0.08, 520, 700, 0.05, 'square'); break;
       case 'blocked': this.tone(0.06, 150, 110, 0.08, 'sawtooth'); break;
       case 'telegraph': this.tone(0.1, 700, 1100, 0.5, 'square'); break;

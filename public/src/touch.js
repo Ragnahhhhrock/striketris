@@ -27,6 +27,8 @@ const BUTTONS = [
   ['tReload', 'Reload', 'KeyR', 'play', true],
   ['tCrouch', 'Crouch', 'KeyC', 'play', true],
   ['tSwap', 'Swap', '@swap', 'play', false],
+  ['tGadget', 'Kit', 'KeyF', 'play', false],
+  ['tScope', 'Scope', 'KeyT', 'play', true],
   ['tScores', 'Scores', 'Tab', 'all', true],
   ['tSteer', 'Steer', '@steer', 'steerable', false],
   ['tUp', '▲', 'ArrowUp', 'steer', false],

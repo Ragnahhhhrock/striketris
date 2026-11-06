@@ -166,14 +166,31 @@ export class Renderer {
     this.vmCam = new THREE.PerspectiveCamera(60, 1, 0.01, 10);
     this.vm = new THREE.Group();
     const vmMat = new THREE.MeshLambertMaterial({ color: 0x4d4d4d });
-    const part = (w, h, d, x, y, z, m = vmMat) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); this.vm.add(b); return b; };
-    part(0.06, 0.09, 0.42, 0, 0, 0); part(0.03, 0.035, 0.34, 0, 0.012, -0.34); part(0.05, 0.14, 0.06, 0, -0.1, -0.06); part(0.045, 0.1, 0.14, 0, -0.03, 0.26);
-    this.flash = part(0.11, 0.11, 0.02, 0, 0.012, -0.53, new THREE.MeshBasicMaterial({ color: 0xffdf8a }));
-    this.flash.visible = false;
+    const wood = new THREE.MeshLambertMaterial({ color: 0x6a4527 });
+    const olive = new THREE.MeshLambertMaterial({ color: 0x4a5236 });
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffdf8a });
+    // One first-person model per weapon: [w, h, d, x, y, z, material], muzzle z for the flash.
+    const VM = {
+      pistol: { muzzle: -0.3, parts: [[0.04, 0.06, 0.26, 0, 0, -0.1], [0.04, 0.12, 0.05, 0, -0.08, 0.02]] },
+      smg: { muzzle: -0.62, parts: [[0.06, 0.09, 0.4, 0, 0, -0.05], [0.04, 0.04, 0.3, 0, 0.01, -0.4], [0.03, 0.2, 0.05, 0, -0.14, -0.1], [0.05, 0.1, 0.05, 0, -0.08, 0.1, wood], [0.045, 0.08, 0.16, 0, -0.02, 0.28, wood]] },
+      lmg: { muzzle: -0.9, parts: [[0.08, 0.12, 0.5, 0, 0, -0.08], [0.05, 0.05, 0.5, 0, 0.01, -0.58], [0.1, 0.12, 0.14, 0, -0.12, -0.1], [0.05, 0.1, 0.05, 0, -0.1, 0.1, wood], [0.05, 0.1, 0.22, 0, -0.02, 0.32, wood], [0.012, 0.16, 0.012, -0.04, -0.08, -0.7], [0.012, 0.16, 0.012, 0.04, -0.08, -0.7]] },
+      rifle: { muzzle: -0.82, parts: [[0.06, 0.09, 0.42, 0, 0, 0], [0.03, 0.035, 0.34, 0, 0.012, -0.34], [0.05, 0.14, 0.06, 0, -0.1, -0.06], [0.045, 0.1, 0.14, 0, -0.03, 0.26, wood], [0.06, 0.08, 0.3, 0, 0.0, -0.2, wood]] },
+      sniper: { muzzle: -0.82, parts: [[0.06, 0.09, 0.42, 0, 0, 0], [0.03, 0.035, 0.34, 0, 0.012, -0.34], [0.05, 0.1, 0.06, 0, -0.08, -0.06], [0.045, 0.1, 0.14, 0, -0.03, 0.26, wood], [0.06, 0.08, 0.3, 0, 0.0, -0.2, wood], [0.04, 0.04, 0.3, 0, 0.09, -0.1], [0.06, 0.06, 0.05, 0, 0.09, -0.26], [0.055, 0.055, 0.05, 0, 0.09, 0.06]] },
+      launcher: { muzzle: -1.1, parts: [[0.14, 0.14, 1.3, 0, 0.0, -0.4, olive], [0.18, 0.18, 0.08, 0, 0, -1.04, olive], [0.18, 0.18, 0.08, 0, 0, 0.26, olive], [0.05, 0.12, 0.05, 0, -0.12, -0.1], [0.03, 0.08, 0.14, 0.1, 0.1, -0.5]] },
+    };
+    this.vmGuns = {};
+    for (const [k, def] of Object.entries(VM)) {
+      const g = new THREE.Group();
+      for (const [w, h, d, x, y, z, m] of def.parts) { const bx = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? vmMat); bx.position.set(x, y, z); g.add(bx); }
+      const f = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.02), flashMat); f.position.set(0, 0.012, def.muzzle); f.visible = false; g.add(f);
+      g.visible = false; g.userData.flash = f;
+      this.vm.add(g); this.vmGuns[k] = g;
+    }
+    this.vmCur = null;
     this.vm.position.set(0.2, -0.17, -0.42);
     this.vm.scale.setScalar(0.62);
     this.vmScene.add(this.vm);
-    this.vmKick = 0;
+    this.vmKick = 0; this.zoom = 1;
 
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -211,7 +228,10 @@ export class Renderer {
   makeActorView(a) {
     const rig = makeRig(a);
     this.scene.add(rig.group);
-    return { actor: a, rig, group: rig.group };
+    const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), new THREE.MeshBasicMaterial({ color: 0xff3b30, depthTest: false, transparent: true }));
+    marker.position.y = 2.35; marker.renderOrder = 20; marker.visible = false;
+    rig.group.add(marker);
+    return { actor: a, rig, group: rig.group, marker };
   }
 
   clearEffects() { for (const e of this.effects) { this.fx.remove(e.obj); e.dispose?.(); } this.effects = []; }
@@ -323,6 +343,52 @@ export class Renderer {
 
   addEffect(obj, life, update) { this.fx.add(obj); this.effects.push({ obj, t: 0, life, update }); }
 
+  stepProjectiles(dt, game) {
+    this.projViews ??= new Map();
+    const seen = new Set();
+    const make = kind => {
+      const m = new THREE.Mesh(
+        kind === 'rocket' ? new THREE.BoxGeometry(0.16, 0.16, 0.85) : kind === 'mine' ? new THREE.BoxGeometry(0.62, 0.12, 0.62) : new THREE.BoxGeometry(0.14, 0.2, 0.14),
+        new THREE.MeshLambertMaterial({ color: kind === 'rocket' ? 0x6b6f4a : kind === 'mine' ? 0x4a5a30 : 0x3a4030 }),
+      );
+      if (kind === 'rocket') { const tip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.2), new THREE.MeshBasicMaterial({ color: 0xff6a30 })); tip.position.z = -0.5; m.add(tip); }
+      if (kind === 'mine') { const led = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); led.position.y = 0.08; m.add(led); m.userData.led = led; }
+      this.scene.add(m);
+      return m;
+    };
+    const touch = (id, kind) => {
+      let m = this.projViews.get(id);
+      if (!m) { m = make(kind); this.projViews.set(id, m); }
+      seen.add(id);
+      return m;
+    };
+    for (const p of game.projectiles) {
+      const m = touch('p' + p.id, p.kind);
+      m.position.set(p.pos.x, p.pos.y, p.pos.z);
+      if (p.kind === 'rocket') {
+        m.lookAt(p.pos.x + p.vel.x, p.pos.y + p.vel.y, p.pos.z + p.vel.z);
+        if ((m.userData.t = (m.userData.t || 0) + dt) > 0.025) {
+          m.userData.t = 0;
+          const puff = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, depthWrite: false }));
+          puff.position.copy(m.position);
+          this.addEffect(puff, 0.7, (o, u) => { o.material.opacity = 0.7 * (1 - u); o.scale.setScalar(1 + u * 2.4); });
+        }
+      } else { m.rotation.x += dt * 9; m.rotation.z += dt * 5; }
+    }
+    for (const mine of game.mines) {
+      const m = touch('m' + mine.id, 'mine');
+      m.position.set(mine.pos.x, mine.pos.y + 0.06, mine.pos.z);
+      const armed = mine.arm <= 0;
+      m.userData.led.visible = armed ? Math.sin(performance.now() / 150 + mine.id) > 0 : true;
+      m.userData.led.material.color.setHex(armed ? 0xff2a1a : 0xffb000);
+    }
+    for (const [id, m] of this.projViews) {
+      if (seen.has(id)) continue;
+      this.scene.remove(m); m.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+      this.projViews.delete(id);
+    }
+  }
+
   handleEvent(e, viewer) {
     switch (e.type) {
       case 'shot': {
@@ -335,7 +401,7 @@ export class Renderer {
           this.addEffect(puff, 0.5, (o, u) => { o.material.opacity = 1 - u; });
         }
         this.actorViews[e.actor.id]?.rig.shot();
-        if (e.actor === viewer) { this.vmKick = 1; this.flash.visible = true; this.flashT = 0.04; }
+        if (e.actor === viewer) { this.vmKick = 1; const f = this.vmGuns[e.weapon]?.userData.flash; if (f) { f.visible = true; this.flashT = 0.04; this.flashObj = f; } }
         break;
       }
       case 'land': {
@@ -352,6 +418,23 @@ export class Renderer {
         for (const c of e.cells) { const b = new THREE.Mesh(this.cubeGeo, m); b.position.set((c.x + 0.5) * CELL, (c.y + 0.5) * CELL, (c.z + 0.5) * CELL); g.add(b); }
         this.addEffect(g, 0.7, (o, u) => { m.opacity = 1 - u; o.children.forEach(k => k.scale.setScalar(1 + u * 0.3)); });
         this.shake = Math.max(this.shake, 0.3);
+        break;
+      }
+      case 'boom': {
+        const d = viewer ? Math.hypot(viewer.pos.x - e.pos.x, viewer.pos.z - e.pos.z) : 30;
+        this.shake = Math.max(this.shake, 0.5 * Math.max(0, 1 - d / 30));
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, depthWrite: false }));
+        ball.position.set(e.pos.x, e.pos.y, e.pos.z);
+        this.addEffect(ball, 0.45, (o, u) => { o.scale.setScalar(0.4 + u * e.radius * 0.55); o.material.opacity = 0.9 * (1 - u); });
+        const smoke = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ color: 0x555555, transparent: true, depthWrite: false }));
+        smoke.position.set(e.pos.x, e.pos.y + 0.5, e.pos.z);
+        this.addEffect(smoke, 1.2, (o, u) => { o.scale.setScalar(0.5 + u * e.radius * 0.5); o.position.y += 0.012; o.material.opacity = 0.5 * (1 - u); });
+        break;
+      }
+      case 'heal': {
+        const a = e.actor, ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.6, 24), new THREE.MeshBasicMaterial({ color: 0x4cff7a, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        ring.rotation.x = -Math.PI / 2;
+        this.addEffect(ring, 0.8, (o, u) => { o.position.set(a.pos.x, a.pos.y + 0.1 + u * 1.7, a.pos.z); o.scale.setScalar(1 + u * 0.4); o.material.opacity = 0.9 * (1 - u); });
         break;
       }
       case 'explode': {
@@ -413,7 +496,13 @@ export class Renderer {
       const self = view.actor === v.actor && view.mode === 'first';
       v.group.visible = !self;
       if (!self) v.rig.update(dt);
+      const myTeam = view.actor?.team ?? game.human?.team;
+      v.marker.visible = !self && v.actor.alive && v.actor.team !== myTeam && v.actor.spottedUntil > game.time;
+      if (v.marker.visible) v.marker.rotation.y += dt * 3;
     }
+
+    // Rockets, grenades and mines.
+    this.stepProjectiles(dt, game);
 
     const b = game.bomb;
     const showBomb = b.pos && b.state !== 'carried' && b.state !== 'exploded';
@@ -436,15 +525,19 @@ export class Renderer {
     this.camera.rotation.set(view.pitch + (Math.random() - 0.5) * this.shake * 0.06, view.yaw + (Math.random() - 0.5) * this.shake * 0.06, 0);
     if (view.mode === 'first') this.camera.position.y += (Math.random() - 0.5) * this.shake * 0.4;
 
+    if (view.weapon !== this.vmCur) { this.vmCur = view.weapon; for (const [k, g] of Object.entries(this.vmGuns)) g.visible = k === view.weapon; }
+    this.zoom += ((view.scoped ? view.zoom : 1) - this.zoom) * (1 - Math.exp(-14 * dt));
+    const fov = 78 / this.zoom;
+    if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     this.vmKick *= Math.exp(-14 * dt);
     this.vm.position.z = -0.42 + this.vmKick * 0.05;
     this.vm.rotation.x = this.vmKick * 0.05;
     this.vm.position.y = -0.17 - (view.reloading ? 0.16 : 0);
-    if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.flash.visible = false; }
+    if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0 && this.flashObj) this.flashObj.visible = false; }
 
     this.r.clear();
     this.r.render(this.scene, this.camera);
-    if (view.mode === 'first' && view.actor?.alive) {
+    if (view.mode === 'first' && view.actor?.alive && !(view.scoped && this.zoom > 1.6)) {
       this.r.clearDepth();
       this.r.render(this.vmScene, this.vmCam);
     }

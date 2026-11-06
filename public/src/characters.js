@@ -390,10 +390,111 @@ function buildPistol() {
   return { body, mag, right: [0, -0.045, 0.02], left: [-0.045, -0.06, 0.02], magWell: [0, -0.12, 0.03], muzzle: [0, 0.045, -0.22] };
 }
 
+
+// Submachine gun: short receiver, perforated jacket, long straight magazine.
+function buildSmg() {
+  const body = new Mesher();
+  body.box(0.05, 0.09, 0.28, 0, 0.04, -0.08, GUN);
+  body.box(0.045, 0.045, 0.3, 0, 0.045, -0.37, GUN_MID);
+  body.box(0.022, 0.022, 0.12, 0, 0.045, -0.58, GUN_DARK);
+  body.box(0.012, 0.035, 0.012, 0, 0.09, -0.6, GUN_DARK);
+  body.box(0.046, 0.12, 0.05, 0, -0.06, 0.03, 0x5a3a22, [-0.2, 0, 0]);
+  body.box(0.04, 0.07, 0.16, 0, 0.03, 0.2, 0x5a3a22);
+  const mag = new Mesher().box(0.032, 0.2, 0.05, 0, -0.12, -0.12, GUN_DARK);
+  return { body, mag, right: [0, -0.07, 0.03], left: [0, -0.04, -0.3], magWell: [0, -0.2, -0.12], muzzle: [0, 0.045, -0.66] };
+}
+
+// Light machine gun: heavy barrel, bipod folded under the muzzle, box magazine.
+function buildLmg() {
+  const body = new Mesher();
+  body.box(0.07, 0.11, 0.42, 0, 0.04, -0.1, GUN);
+  body.box(0.05, 0.05, 0.4, 0, 0.055, -0.5, GUN_MID);
+  body.box(0.03, 0.03, 0.16, 0, 0.055, -0.78, GUN_DARK);
+  body.box(0.07, 0.07, 0.07, 0, 0.055, -0.62, GUN_DARK);
+  body.box(0.014, 0.05, 0.014, 0, 0.11, -0.84, GUN_DARK);
+  for (const x of [-1, 1]) body.box(0.012, 0.16, 0.012, x * 0.035, -0.04, -0.62, GUN_DARK, [0.5, 0, x * 0.1]);
+  body.box(0.05, 0.12, 0.05, 0, -0.07, 0.04, 0x5a3a22, [-0.25, 0, 0]);
+  body.box(0.05, 0.1, 0.2, 0, 0.0, 0.27, 0x5a3a22);
+  body.box(0.03, 0.05, 0.12, 0, 0.13, -0.05, GUN_DARK);
+  const mag = new Mesher().box(0.1, 0.13, 0.13, 0, -0.1, -0.1, GUN_DARK).box(0.12, 0.02, 0.15, 0, -0.17, -0.1, 0x6b5a2a);
+  return { body, mag, right: [0, -0.075, 0.04], left: [0, -0.02, -0.33], magWell: [0, -0.15, -0.1], muzzle: [0, 0.055, -0.88] };
+}
+
+// Bolt-action sniper: the rifle with a scope on top.
+function buildSniper() {
+  const r = buildRifle();
+  r.body.box(0.042, 0.042, 0.3, 0, 0.17, -0.12, GUN_DARK);
+  r.body.box(0.06, 0.06, 0.06, 0, 0.17, -0.3, GUN_DARK);
+  r.body.box(0.055, 0.055, 0.05, 0, 0.17, 0.04, GUN_DARK);
+  r.body.box(0.02, 0.03, 0.02, 0, 0.12, -0.2, GUN_DARK);
+  r.body.box(0.02, 0.03, 0.02, 0, 0.12, -0.02, GUN_DARK);
+  r.body.box(0.03, 0.04, 0.012, 0, 0.17, -0.335, 0x6ec6ff);
+  r.muzzle = [0, 0.045, -0.7];
+  return r;
+}
+
+// Rocket launcher: a long open tube rested on the shoulder.
+function buildLauncher() {
+  const body = new Mesher();
+  body.box(0.13, 0.13, 1.3, 0, 0.1, -0.15, 0x4a5236);
+  body.box(0.16, 0.16, 0.08, 0, 0.1, -0.84, 0x2d3320);
+  body.box(0.16, 0.16, 0.08, 0, 0.1, 0.52, 0x2d3320);
+  body.box(0.05, 0.12, 0.05, 0, 0.0, 0.0, GUN_DARK, [-0.1, 0, 0]);
+  body.box(0.05, 0.12, 0.05, 0, 0.0, -0.4, GUN_DARK);
+  body.box(0.03, 0.08, 0.14, 0.09, 0.19, -0.3, GUN_MID);
+  body.box(0.02, 0.03, 0.02, 0.09, 0.25, -0.34, 0xff5a3a);
+  body.box(0.12, 0.12, 0.06, 0, 0.1, 0.56, 0x1d2016);
+  const mag = new Mesher().box(0.09, 0.09, 0.2, 0, 0.1, -0.78, 0x6b6f4a).box(0.07, 0.07, 0.06, 0, 0.1, -0.9, 0xb04a2a);
+  return { body, mag, right: [0, -0.06, 0.0], left: [0, -0.06, -0.4], magWell: [0, 0.1, -0.7], muzzle: [0, 0.1, -0.9] };
+}
+
+const BUILDERS = { rifle: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, launcher: buildLauncher };
+
+// Gear worn by each kit, in spine space (waist origin, front is -Z). Silhouettes read at a glance.
+function buildKit(cls, look, bw) {
+  const m = new Mesher();
+  const fz = -0.15 * bw, bz = 0.15 * bw;
+  switch (cls) {
+    case 'assault': // grenades on the belt, ammo pouches across the chest
+      for (const x of [-0.2, -0.12, 0.12, 0.2]) { m.box(0.055, 0.12, 0.055, x * bw, 0.06, fz - 0.01, 0x6a6e4a); m.box(0.04, 0.03, 0.04, x * bw, 0.14, fz - 0.01, 0x333333); }
+      for (const x of [-0.12, 0, 0.12]) m.box(0.09, 0.1, 0.05, x * bw, 0.38, fz - 0.03, 0x4b3f2a);
+      break;
+    case 'scout': // binoculars on a strap, camouflage netting over the shoulders
+      m.box(0.13, 0.07, 0.07, 0, 0.36, fz - 0.05, 0x1d1d1d); m.box(0.05, 0.06, 0.05, -0.04, 0.36, fz - 0.1, 0x111111); m.box(0.05, 0.06, 0.05, 0.04, 0.36, fz - 0.1, 0x111111);
+      m.box(0.02, 0.2, 0.02, 0, 0.5, fz - 0.01, 0x3a2f20);
+      for (const s of [-1, 1]) m.box(0.2, 0.05, 0.3 * bw, s * 0.2 * bw, 0.59, 0, 0x4b5a32);
+      break;
+    case 'medic': { // white pack with a red cross front and back, red armband
+      const white = 0xf2f2f2, red = 0xc8232a;
+      m.box(0.2, 0.2, 0.025, 0, 0.38, fz - 0.025, white); m.box(0.14, 0.05, 0.03, 0, 0.38, fz - 0.03, red); m.box(0.05, 0.14, 0.03, 0, 0.38, fz - 0.03, red);
+      m.box(0.34 * bw, 0.3, 0.14, 0, 0.3, bz + 0.1, white); m.box(0.2, 0.05, 0.03, 0, 0.3, bz + 0.18, red); m.box(0.05, 0.2, 0.03, 0, 0.3, bz + 0.18, red);
+      m.box(0.1, 0.1, 0.1, 0.2 * bw, 0.04, fz, white); m.box(0.05, 0.02, 0.1, 0.2 * bw, 0.1, fz, red);
+      break;
+    }
+    case 'engineer': // wrench at the belt, mines strapped to the back, satchel
+      m.box(0.035, 0.34, 0.035, -0.22 * bw, 0.0, fz, 0x8a8f96, [0, 0, 0.25]); m.box(0.08, 0.06, 0.04, -0.27 * bw, -0.17, fz, 0x8a8f96);
+      for (const y of [0.2, 0.32, 0.44]) { m.box(0.26, 0.08, 0.26, 0, y, bz + 0.12, 0x5d6b3a); m.box(0.08, 0.02, 0.08, 0, y + 0.05, bz + 0.12, 0x222222); }
+      m.box(0.2, 0.18, 0.1, 0.24 * bw, 0.06, bz - 0.03, 0x4b3f2a);
+      break;
+    case 'antitank': // spare rocket on the back, ammo bag
+      m.box(0.1, 0.5, 0.1, 0.1 * bw, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, 0.04]);
+      m.box(0.11, 0.12, 0.11, 0.1 * bw, 0.58, bz + 0.12, 0xb04a2a);
+      m.box(0.1, 0.5, 0.1, -0.1 * bw, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, -0.04]);
+      m.box(0.11, 0.12, 0.11, -0.1 * bw, 0.58, bz + 0.12, 0xb04a2a);
+      m.box(0.24, 0.14, 0.1, 0, 0.12, fz - 0.04, 0x4b3f2a);
+      break;
+  }
+  return m;
+}
+
 // Where each weapon is held, in spine space (origin at the waist, chest pivot at shoulderY).
 const HOLD = {
   rifle: { pos: [0.04, 0.4, -0.26] },
   pistol: { pos: [0.06, 0.47, -0.36] },
+  smg: { pos: [0.04, 0.42, -0.24] },
+  lmg: { pos: [0.04, 0.4, -0.22] },
+  sniper: { pos: [0.04, 0.4, -0.26] },
+  launcher: { pos: [0.1, 0.46, -0.12] },
 };
 
 // ---------------------------------------------------------------------------
@@ -482,17 +583,8 @@ export class Rig {
     // Weapons share one group so the hands only have to follow that.
     const weapon = new THREE.Group();
     this.guns = {};
-    for (const [name, make] of [['rifle', buildRifle], ['pistol', buildPistol]]) {
-      const spec = make();
-      const g = new THREE.Group();
-      const flash = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), flashMat());
-      flash.position.set(...spec.muzzle); flash.visible = false;
-      const mag = bone(spec.mag, `${name}Mag`);
-      g.add(bone(spec.body, name), mag, flash);
-      g.visible = false;
-      weapon.add(g);
-      this.guns[name] = { group: g, mag, flash, right: new THREE.Vector3(...spec.right), left: new THREE.Vector3(...spec.left), magWell: new THREE.Vector3(...spec.magWell) };
-    }
+    this.weaponGroup = weapon;
+    this.kit = new THREE.Group(); spine.add(this.kit);
     spine.add(weapon);
 
     // The bomb rides on the carrier's back.
@@ -502,6 +594,8 @@ export class Rig {
 
     this.group = root;
     this.parts = { root, fall, body, lower, spine, head, weapon, bomb, pelvis };
+    this.loadoutKey = ''; this.kitCls = null;
+    this.sync(actor);
     this.meshCount = 0;
     root.traverse(o => { if (o.isMesh) this.meshCount++; });
 
@@ -576,9 +670,10 @@ export class Rig {
     // Weapon: aimed along the actor's view, kicked by recoil and shots.
     this.kick *= Math.exp(-16 * dt);
     if (this.flashT > 0) this.flashT -= dt;
+    this.sync(a);
     if (a.cur !== this.curGun) { this.curGun = a.cur; this.swapT = 0.28; for (const [n, g] of Object.entries(this.guns)) g.group.visible = n === a.cur; }
     this.swapT = Math.max(0, this.swapT - dt);
-    const gun = this.guns[a.cur] ?? this.guns.rifle;
+    const gun = this.guns[a.cur] ?? Object.values(this.guns)[0];
     for (const [n, g] of Object.entries(this.guns)) g.flash.visible = n === a.cur && this.flashT > 0 && !a.mantle;
     if (gun.flash.visible) gun.flash.scale.setScalar(0.7 + Math.random() * 0.8);
 
@@ -668,6 +763,33 @@ export class Rig {
     const tp = T.tmp.set(0.55 * (a.id % 3 - 1 || 1), 0.05, -0.45), tq = T.q.setFromEuler(T.eu.set(0, 0.7 + a.id, Math.PI / 2));
     P.weapon.position.lerp(tp, 1 - Math.exp(-6 * dt));
     P.weapon.quaternion.slerp(tq, 1 - Math.exp(-6 * dt));
+  }
+
+  // Rebuild the carried weapons and worn gear when the kit changes (a new round can change class).
+  sync(a) {
+    const key = (a.loadout ?? ['rifle', 'pistol']).join();
+    if (key !== this.loadoutKey) {
+      this.loadoutKey = key;
+      for (const g of Object.values(this.guns)) { this.weaponGroup.remove(g.group); g.group.traverse(o => o.geometry?.dispose()); }
+      this.guns = {};
+      for (const name of key.split(',')) {
+        const spec = BUILDERS[name]();
+        const g = new THREE.Group();
+        const flash = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), flashMat());
+        flash.position.set(...spec.muzzle); flash.visible = false;
+        const mag = bone(spec.mag, `${name}Mag`);
+        g.add(bone(spec.body, name), mag, flash);
+        g.visible = false;
+        this.weaponGroup.add(g);
+        this.guns[name] = { group: g, mag, flash, right: new THREE.Vector3(...spec.right), left: new THREE.Vector3(...spec.left), magWell: new THREE.Vector3(...spec.magWell) };
+      }
+      this.curGun = null;
+    }
+    if (a.cls !== this.kitCls) {
+      this.kitCls = a.cls;
+      for (const c of [...this.kit.children]) { this.kit.remove(c); c.geometry.dispose(); }
+      this.kit.add(bone(buildKit(a.cls, this.look, this.bw), 'kit'));
+    }
   }
 
   pickUp() {

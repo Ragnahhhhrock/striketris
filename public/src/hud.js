@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM, CLASSES, GADGETS, weaponName } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SHAPES, orient } from './pieces.js';
 import { SITES } from './map.js';
@@ -56,7 +56,11 @@ export class Hud {
       $('hp').textContent = Math.ceil(a.hp);
       $('hpbar').style.width = `${Math.max(0, a.hp)}%`;
       const w = WEAPONS[a.cur];
-      $('weapon').textContent = w.name + (a.hasBomb ? '  +  Bomb' : '');
+      $('weapon').textContent = weaponName(a.team, a.cur) + (a.hasBomb ? '  +  Bomb' : '');
+      $('cls').textContent = CLASSES[a.cls].name;
+      const gd = a.gadget ? GADGETS[a.gadget] : null;
+      $('gadget').textContent = !gd ? '' : gd.n === Infinity ? `[F] ${gd.name}${a.gadgetCd > 0 ? ` ${Math.ceil(a.gadgetCd)}s` : ''}` : `[F] ${gd.name} x${a.gadgetN}`;
+      $('scope').hidden = !(a.scoped && a === this.game.human);
       $('ammo').textContent = a.reloadT > 0 ? 'Reloading' : `${a.weapons[a.cur]} / ${w.mag}`;
       const spread = 6 + Math.hypot(a.vel.x, a.vel.z) * 1.6 + a.shotStreak * 1.4;
       document.documentElement.style.setProperty('--gap', `${Math.min(40, spread).toFixed(1)}px`);
@@ -136,7 +140,7 @@ export class Hud {
     for (const a of g.actors) {
       if (!a.alive) continue;
       const friend = !human || a.team === human.team || this.revealAll;
-      if (!friend && !this.spotted.has(a)) continue;
+      if (!friend && !this.spotted.has(a) && !(a.spottedUntil > g.time)) continue;
       c.fillStyle = a.team === TEAM.ATT ? '#e8953f' : '#4f9be8';
       c.beginPath(); c.arc(a.pos.x * m, a.pos.z * m, 3, 0, 7); c.fill();
     }
@@ -155,8 +159,8 @@ export class Hud {
     const el = $('board');
     el.hidden = !show;
     if (!show) return;
-    const row = a => `<tr class="${a.alive ? '' : 'dead'} ${a.isHuman ? 'me' : ''}"><td>${a.name}</td><td>${a.kills}</td><td>${a.deaths}</td></tr>`;
-    const table = (t, title) => `<div><h3 class="${t}">${title}</h3><table><tr><th>Name</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
+    const row = a => `<tr class="${a.alive ? '' : 'dead'} ${a.isHuman ? 'me' : ''}"><td>${a.name}</td><td>${CLASSES[a.cls].name}</td><td>${a.kills}</td><td>${a.deaths}</td></tr>`;
+    const table = (t, title) => `<div><h3 class="${t}">${title}</h3><table><tr><th>Name</th><th>Class</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
     el.innerHTML = table(TEAM.ATT, 'Attackers') + table(TEAM.DEF, 'Defenders');
   }
 }

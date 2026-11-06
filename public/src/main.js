@@ -1,10 +1,10 @@
-import { TICK, PIECE, CELL, GRID_W as W, GRID_D as D } from './config.js';
+import { TICK, PIECE, CELL, GRID_W as W, GRID_D as D, WEAPONS, CLASSES, CLASS_ORDER, GADGETS, weaponName } from './config.js';
 import { Game } from './game.js';
 import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
-import { TouchControls } from './touch.js?v=4';
+import { TouchControls } from './touch.js?v=5';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -35,7 +35,7 @@ const touch = new TouchControls({
   key: (code, down) => dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true, cancelable: true })),
   look: (dx, dy) => look(dx, dy),
   pause: () => pause(),
-  swap: () => { const h = game?.human; if (mode === 'play' && h?.alive) h.input.weapon = h.cur === 'rifle' ? 'pistol' : 'rifle'; },
+  swap: () => { const h = game?.human; if (mode === 'play' && h?.alive) h.input.weapon = h.cur === h.loadout[0] ? h.loadout[1] : h.loadout[0]; },
   toggleSteer: () => { steerOpen = !steerOpen; },
 });
 
@@ -43,6 +43,17 @@ function resetFree() { Object.assign(free, { x: W * CELL / 2, y: 78, z: D * CELL
 resetFree();
 
 function load(g) { game = g; renderer.setGame(g); hud.setGame(g); window.__game = g; }
+
+const sideEl = () => $('optSide').value;
+function fillClasses() {
+  const side = sideEl(), keep = $('optClass').value || 'assault';
+  $('optClass').innerHTML = CLASS_ORDER.map(c => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
+  $('optClass').value = keep;
+  const k = CLASSES[keep], g = k.gadget ? GADGETS[k.gadget].name : 'none';
+  $('classBlurb').textContent = `${weaponName(side, k.primary)} + ${weaponName(side, k.secondary)} · ${g}. ${k.blurb}`;
+}
+$('optClass').onchange = $('optSide').onchange = fillClasses;
+fillClasses();
 
 function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
 
@@ -54,6 +65,7 @@ function start(keep) {
     human: m !== 'spectate',
     god: m === 'god',
     humanTeam: $('optSide').value,
+    humanClass: $('optClass').value,
     teamSize: Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
@@ -149,11 +161,12 @@ document.addEventListener('mousemove', e => {
 canvas.addEventListener('mousedown', e => {
   if (mode !== 'play') return;
   if (e.button === 2 && lockFailed) { dragging = true; return; }
+  if (e.button === 2) { keys.add('Mouse2'); return; }
   if (!document.pointerLockElement && !lockFailed) { requestLock(); return; }
   keys.add('Mouse0');
   audio.unlock();
 });
-addEventListener('mouseup', e => { if (e.button === 2) dragging = false; keys.delete('Mouse0'); });
+addEventListener('mouseup', e => { if (e.button === 2) { dragging = false; keys.delete('Mouse2'); } else keys.delete('Mouse0'); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 addEventListener('keydown', e => {
@@ -171,8 +184,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG' && game.opts.pieces && !game.piece) game.spawnPiece();
   if (e.code === 'Backquote') $('debug').hidden = !$('debug').hidden;
   if (h?.alive) {
-    if (e.code === 'Digit1') h.input.weapon = 'rifle';
-    if (e.code === 'Digit2') h.input.weapon = 'pistol';
+    if (e.code === 'Digit1') h.input.weapon = h.loadout[0];
+    if (e.code === 'Digit2') h.input.weapon = h.loadout[1];
   } else {
     if (e.code === 'KeyF') {
       if (!camFree && lastView) Object.assign(free, { x: lastView.x, y: lastView.y, z: lastView.z, yaw: lastView.yaw, pitch: lastView.pitch });
@@ -197,7 +210,7 @@ function humanInput() {
   const h = game.human;
   if (!h) return;
   const i = h.input;
-  if (mode !== 'play') { i.f = i.r = 0; i.jump = i.fire = i.use = i.reload = i.crouch = i.walk = false; return; }
+  if (mode !== 'play') { i.f = i.r = 0; i.jump = i.fire = i.use = i.reload = i.crouch = i.walk = i.gadget = i.scope = false; return; }
   i.f = clamp1((keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0) + touch.move.f);
   i.r = clamp1((keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + touch.move.r);
   i.jump = keys.has('Space');
@@ -206,6 +219,8 @@ function humanInput() {
   i.fire = keys.has('Mouse0');
   i.use = keys.has('KeyE');
   i.reload = keys.has('KeyR');
+  i.gadget = keys.has('KeyF') || keys.has('KeyQ');
+  i.scope = keys.has('Mouse2') || keys.has('KeyT');
 }
 
 // Free camera ignores walls and the sim clock, so it keeps flying while time is paused or slowed.
@@ -233,7 +248,7 @@ function chooseView(now) {
   }
   if (h?.alive) {
     const e = eyePos(h);
-    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0 };
+    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
   }
   if (!camFree) {
     const mates = h ? game.alive(h.team) : [];

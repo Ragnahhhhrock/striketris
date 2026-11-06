@@ -50,6 +50,14 @@ body.touch #countdown { top: 22%; font-size: 72px; }
 #hpbar { height: 100%; background: var(--go); width: 100%; }
 #vitals .right { text-align: right; }
 #weapon { font-size: 13px; opacity: .85; }
+#cls { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
+#gadget { display: block; font-size: 12px; opacity: .85; margin-top: 2px; }
+#scope { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, transparent 0, transparent 30vmin, #000 30.4vmin); }
+#scope::before, #scope::after { content: ''; position: absolute; background: #000; }
+#scope::before { left: 0; right: 0; top: 50%; height: 1px; }
+#scope::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+#scope:not([hidden]) ~ #cross { display: none; }
+.blurb { margin: 4px 0 10px; font-size: 13px; opacity: .8; min-height: 2.6em; }
 
 #banner { position: absolute; top: 26%; left: 0; right: 0; text-align: center; background: var(--panel); padding: 12px; }
 #banner h2 { margin: 0 0 2px; font-size: 26px; }
@@ -146,6 +154,8 @@ body[data-ctl="play"][data-pad=""] #touch .tb[data-g="play"] { display: block; }
 #tUse { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); }
 #tCrouch { right: calc(var(--sr) + 156px); bottom: calc(var(--sb) + 120px); }
 #tSwap { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 200px); }
+#tGadget { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 200px); }
+#tScope { right: calc(var(--sr) + 156px); bottom: calc(var(--sb) + 188px); }
 
 /* Steer pad (falling block): arrows left, actions right */
 body[data-pad="steer"] #touch .tb[data-g="steer"] { display: block; border-color: var(--steer); }
@@ -216,6 +226,8 @@ body.touch #lockNote { display: none; }
   #tUse, #tRotR, #tPause { right: calc(var(--sr) + 74px); bottom: calc(var(--sb) + 112px); }
   #tCrouch, #tFlip, #tFast { right: calc(var(--sr) + 134px); bottom: calc(var(--sb) + 96px); }
   #tSwap { right: calc(var(--sr) + 14px); bottom: calc(var(--sb) + 172px); }
+  #tGadget { right: calc(var(--sr) + 74px); bottom: calc(var(--sb) + 172px); }
+  #tScope { right: calc(var(--sr) + 134px); bottom: calc(var(--sb) + 160px); }
   #tUp { left: calc(var(--sl) + 62px); bottom: calc(var(--sb) + 80px); }
   #tLeft { left: calc(var(--sl) + 8px); bottom: calc(var(--sb) + 28px); }
   #tDown { left: calc(var(--sl) + 62px); bottom: calc(var(--sb) - 24px); }

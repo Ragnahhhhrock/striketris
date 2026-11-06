@@ -1,4 +1,4 @@
-import { CELL, GRID_W, TEAM, ROUND } from './config.js';
+import { CELL, GRID_W, TEAM, ROUND, WEAPONS, GADGETS } from './config.js';
 import { cellCentre } from './grid.js';
 import { SITES, POSTS } from './map.js';
 import { eyePos } from './actor.js';
@@ -25,7 +25,7 @@ export function initBrains(game) {
 const newBrain = game => ({
   path: null, step: 0, goal: null, repath: game.rng() * 0.5, version: -1,
   target: null, seenFor: 0, sightCd: game.rng() * 0.1, heard: null, aimErrX: 0, aimErrY: 0,
-  stuck: 0, lastPos: null, strafe: 1, strafeT: 0, burstT: 0, burstPause: 0, lookT: 0, lookYaw: null,
+  stuck: 0, tog: false, gadT: 3 + game.rng() * 5, lastPos: null, strafe: 1, strafeT: 0, burstT: 0, burstPause: 0, lookT: 0, lookYaw: null,
 });
 
 function goalFor(game, a) {
@@ -141,7 +141,7 @@ function turnTowards(a, yaw, pitch, rate, dt) {
 export function updateBot(game, a, dt, frozen) {
   const b = a.brain, inp = a.input;
   if (!b) return;
-  inp.f = inp.r = 0; inp.jump = false; inp.fire = false; inp.use = false; inp.reload = false; inp.walk = false; inp.crouch = false;
+  inp.f = inp.r = 0; inp.jump = false; inp.fire = false; inp.use = false; inp.reload = false; inp.walk = false; inp.crouch = false; inp.gadget = false; inp.scope = false;
   if (frozen) return;
   perceive(game, a, dt);
 
@@ -170,14 +170,25 @@ export function updateBot(game, a, dt, frozen) {
     turnTowards(a, yaw, pitch, game.skill.turn * 3, dt);
     b.aimErrX *= Math.exp(-1.6 * dt); b.aimErrY *= Math.exp(-1.6 * dt);
     const offAim = Math.abs(wrap(yaw - a.yaw)) + Math.abs(pitch - a.pitch);
-    if (b.seenFor > game.skill.reaction && offAim < 0.09) {
-      if (b.burstPause > 0) b.burstPause -= dt;
+    // Pick the right tool: rockets hurt the shooter at point-blank, so switch to the sidearm up close.
+    const want = a.cur === a.loadout[0] && a.loadout[0] === 'launcher' && d < 7 ? a.loadout[1] : (a.cur === a.loadout[1] && d >= 9 ? a.loadout[0] : a.cur);
+    if (want !== a.cur) inp.weapon = want;
+    const w = WEAPONS[a.cur];
+    if (w.scope && d > 22) inp.scope = true;
+    const tight = w.scope ? 0.03 : w.proj ? 0.05 : 0.09;
+    const wait = game.skill.reaction + (w.scope ? 0.35 : 0);
+    if (b.seenFor > wait && offAim < tight) {
+      if (!w.auto) { b.tog = !b.tog; inp.fire = b.tog; }
+      else if (b.burstPause > 0) b.burstPause -= dt;
       else {
         inp.fire = true;
         b.burstT += dt;
-        if (b.burstT > (d > 28 ? 0.22 : 0.55)) { b.burstT = 0; b.burstPause = d > 28 ? 0.4 : 0.22; }
+        const far = d > 28;
+        if (b.burstT > (w.interval > 0.09 ? (far ? 0.22 : 0.55) : (far ? 0.3 : 0.7))) { b.burstT = 0; b.burstPause = far ? 0.4 : 0.22; }
       }
     }
+    // Grenades are thrown at targets in the sweet spot between cover-fire and splash range.
+    if (a.gadget === 'grenade' && d > 9 && d < 24 && b.seenFor > 0.5 && a.gadgetCd <= 0 && game.rng() < 0.02) { inp.gadget = true; }
     // Duck and weave rather than stand still; carriers keep pushing at distance.
     b.strafeT -= dt;
     if (b.strafeT <= 0) { b.strafe = game.rng() < 0.5 ? -1 : 1; b.strafeT = 0.4 + game.rng() * 0.8; }
@@ -195,7 +206,9 @@ export function updateBot(game, a, dt, frozen) {
       if (b.heard) b.heard = null;
     }
     setWish(a, dirX, dirZ);
-    if (a.weapons[a.cur] < 12) inp.reload = true;
+    if (a.weapons[a.cur] < Math.ceil(WEAPONS[a.cur].mag * 0.4)) inp.reload = true;
+    if (a.cur !== a.loadout[0]) inp.weapon = a.loadout[0];
+    classUtility(game, a, b, dt);
   }
 
   // Unstick: if a walking bot has barely moved, hop and find a new route.
@@ -203,6 +216,21 @@ export function updateBot(game, a, dt, frozen) {
     if (b.lastPos && Math.hypot(a.pos.x - b.lastPos.x, a.pos.z - b.lastPos.z) < 0.01 && !a.mantle) b.stuck += dt; else b.stuck = 0;
     b.lastPos = { ...a.pos };
     if (b.stuck > 0.8) { inp.jump = true; b.repath = 0; if (b.stuck > 2.5) { b.heard = null; b.stuck = 0; } }
+  }
+}
+
+// Off-duty behaviour for the kit gadgets: heal friends, lay mines, spot ahead.
+function classUtility(game, a, b, dt) {
+  const inp = a.input;
+  b.gadT -= dt;
+  if (a.gadget === 'medkit') {
+    const g = GADGETS.medkit;
+    const hurt = game.actors.some(t => t.alive && t.team === a.team && t !== a && t.hp < 70 && Math.hypot(t.pos.x - a.pos.x, t.pos.z - a.pos.z) < g.range);
+    if (hurt || a.hp < 50) inp.gadget = true;
+  } else if (b.gadT <= 0) {
+    if (a.gadget === 'mine' && a.onGround && a.gadgetN > 0) { inp.gadget = true; b.gadT = 7 + game.rng() * 6; }
+    else if (a.gadget === 'binoculars') { inp.gadget = true; b.gadT = GADGETS.binoculars.cd + 1; }
+    else b.gadT = 5;
   }
 }
 

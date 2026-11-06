@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { TEAM, WEAPONS } from './config.js';
-import { makeActor } from './actor.js';
+import { TEAM, WEAPONS, CLASSES, CLASS_ORDER } from './config.js';
+import { makeActor, resetActor } from './actor.js';
 import { makeRig } from './characters.js';
 import { ROSTER, describeLook } from './looks.js';
 
@@ -39,10 +39,10 @@ const fighters = [];
 let id = 0;
 for (const row of rows) {
   row.names.forEach((name, i) => {
-    const a = makeActor(id++, row.team, name, false);
+    const a = makeActor(id++, row.team, name, false, CLASS_ORDER[i % CLASS_ORDER.length]);
+    resetActor(a);
     a.pos = { x: (i - (row.names.length - 1) / 2) * SPACING, y: 0, z: row.z };
     a.yaw = Math.PI;      // face the default camera
-    a.weapons = { rifle: WEAPONS.rifle.mag, pistol: WEAPONS.pistol.mag };
     a.home = { ...a.pos };
     const rig = makeRig(a);
     scene.add(rig.group);
@@ -98,7 +98,7 @@ function drive(f, dt) {
   a.vel.z = (-Math.cos(yaw) * lf - Math.sin(yaw) * lr) / len * speed;
   a.crouching = !!p.crouch;
   a.pitch = Number($('pitch').value);
-  a.cur = $('gun').value;
+  a.cur = $('gun').value === 'side' ? a.loadout[1] : a.loadout[0];
   a.hasBomb = $('bomb').checked;
   a.recoil *= Math.exp(-5 * dt);
   a.fireCd = 0;
@@ -160,6 +160,15 @@ if (params.get('focus')) { const f = fighters.find(g => g.name === params.get('f
 if (params.get('dist')) { goal.dist = orbit.dist = Number(params.get('dist')); }
 if (params.get('fixed')) $('spin').checked = false;
 const solo = !!params.get('solo');
+// Class picker: "mixed" gives each fighter a different kit, otherwise everyone wears the chosen one.
+$('cls').innerHTML = '<option value="mixed">Mixed (one of each)</option>' + CLASS_ORDER.map(c => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
+function applyClass() {
+  const v = $('cls').value;
+  fighters.forEach((f, i) => { f.a.nextCls = v === 'mixed' ? CLASS_ORDER[i % CLASS_ORDER.length] : v; resetActor(f.a); });
+}
+$('cls').onchange = applyClass;
+if (params.get('class')) { $('cls').value = params.get('class'); applyClass(); }
+if (params.get('gun')) $('gun').value = params.get('gun');
 window.__fighters = fighters;
 
 function resize() {
