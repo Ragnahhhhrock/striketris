@@ -1,7 +1,8 @@
-import { CELL, GRID_W, TEAM, ROUND } from './config.js';
+import { CELL, GRID_W, TEAM, ROUND, WEAPONS } from './config.js';
 import { cellCentre } from './grid.js';
 import { SITES, POSTS } from './map.js';
-import { eyePos } from './actor.js';
+import { eyePos, aimDir } from './actor.js';
+import { wants } from './pickups.js';
 
 const wrap = a => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 const eyeOf = t => ({ x: t.pos.x, y: t.pos.y + (t.crouching ? 1.1 : 1.5), z: t.pos.z });
@@ -25,7 +26,7 @@ export function initBrains(game) {
 const newBrain = game => ({
   path: null, step: 0, goal: null, repath: game.rng() * 0.5, version: -1,
   target: null, seenFor: 0, sightCd: game.rng() * 0.1, heard: null, aimErrX: 0, aimErrY: 0,
-  stuck: 0, lastPos: null, strafe: 1, strafeT: 0, burstT: 0, burstPause: 0, lookT: 0, lookYaw: null,
+  stuck: 0, weaponT: 0, lastPos: null, strafe: 1, strafeT: 0, burstT: 0, burstPause: 0, lookT: 0, lookYaw: null,
 });
 
 function goalFor(game, a) {
@@ -36,6 +37,8 @@ function goalFor(game, a) {
     const esc = escapeCell(game, a, danger);
     if (esc) return esc;
   }
+  const item = pickupGoal(game, a);
+  if (item) return item;
   if (a.team === TEAM.ATT) {
     if (bomb.state === 'dropped') {
       const nearest = game.alive(TEAM.ATT).filter(t => !t.isHuman).sort((p, q) => d2(p.pos, bomb.pos) - d2(q.pos, bomb.pos))[0];
@@ -49,6 +52,30 @@ function goalFor(game, a) {
   if (b.heard && !a.hasBomb && bomb.state !== 'planted') return nav.nearest(b.heard);
   const [x, z] = b.post;
   return nav.nearest(cellCentre(x, 0, z));
+}
+
+// How far a bot will go for an item, or 0 if it has no use for it. Health when hurt, the launcher when it has none
+// (or is nearly out), rockets when low. The bomb carrier only stops for health, and nobody wanders off with the
+// bomb planted or the clock nearly out.
+function pickupReach(game, a, p) {
+  if (!p.up || !wants(a, p) || game.bomb.state === 'planted') return 0;
+  const rockets = a.weapons.rocket;
+  if (p.kind === 'health') return a.hp < (a.hasBomb ? 45 : 65) ? (a.hasBomb ? 16 : 38) : 0;
+  if (a.hasBomb || game.timer < 50) return 0;
+  if (p.kind === 'rocket') return rockets === undefined ? 28 : rockets < 3 ? 20 : 0;
+  return rockets !== undefined && rockets < 4 ? 20 : 0;
+}
+
+// Only the nearest bot on a team that wants an item goes for it, so the whole squad never trails after one launcher.
+function pickupGoal(game, a) {
+  let best = null, bestD = Infinity;
+  for (const p of game.pickups) {
+    const d = Math.hypot(p.x - a.pos.x, p.z - a.pos.z);
+    if (d >= pickupReach(game, a, p) || d >= bestD) continue;
+    const beaten = game.actors.some(t => t !== a && t.alive && t.brain && t.team === a.team && Math.hypot(p.x - t.pos.x, p.z - t.pos.z) < d && Math.hypot(p.x - t.pos.x, p.z - t.pos.z) < pickupReach(game, t, p));
+    if (!beaten) { best = p; bestD = d; }
+  }
+  return best ? game.nav.nearest({ x: best.x, y: 0, z: best.z }) : null;
 }
 
 function offsetPost(game, a, n) {
@@ -164,13 +191,30 @@ export function updateBot(game, a, dt, frozen) {
   if (b.target && b.target.alive && !inDanger) {
     b.seenFor += dt;
     const t = b.target, eye = eyePos(a);
-    const dx = t.pos.x - eye.x, dz = t.pos.z - eye.z, dy = eyeOf(t).y - 0.3 - eye.y, d = Math.hypot(dx, dz);
+    // Rocket in hand: aim low at the feet and lead the target, since the splash does the work.
+    const rocket = a.cur === 'rocket';
+    const range = Math.hypot(t.pos.x - eye.x, t.pos.z - eye.z), lead = rocket ? range / WEAPONS.rocket.speed : 0;
+    const dx = t.pos.x + (rocket ? t.vel.x * lead : 0) - eye.x, dz = t.pos.z + (rocket ? t.vel.z * lead : 0) - eye.z;
+    const dy = (rocket ? t.pos.y + 0.3 : eyeOf(t).y - 0.3) - eye.y, d = Math.hypot(dx, dz);
+    // The launcher is a mid-range tool: with a clear flight to the target's feet and room to spare it comes out,
+    // and the moment the target is close or the path is cluttered the bot goes back to the rifle.
+    b.weaponT -= dt;
+    if (a.weapons.rocket > 0) {
+      const feet = { x: t.pos.x, y: t.pos.y + 0.3, z: t.pos.z };
+      const fx = feet.x - eye.x, fy = feet.y - eye.y, fz = feet.z - eye.z, fl = Math.hypot(fx, fy, fz) || 1;
+      const clear = game.grid.raycast(eye.x, eye.y, eye.z, fx / fl, fy / fl, fz / fl, fl) >= fl - 0.5;
+      if (rocket && (range < 7 || !clear)) { inp.weapon = 'rifle'; b.weaponT = 2.5; }
+      else if (!rocket && range > 11 && range < 45 && clear && b.weaponT <= 0) inp.weapon = 'rocket';
+    } else if (rocket) inp.weapon = 'rifle';
     const yaw = Math.atan2(-dx, -dz) + b.aimErrX;
     const pitch = Math.atan2(dy, d) + b.aimErrY;
     turnTowards(a, yaw, pitch, game.skill.turn * 3, dt);
     b.aimErrX *= Math.exp(-1.6 * dt); b.aimErrY *= Math.exp(-1.6 * dt);
     const offAim = Math.abs(wrap(yaw - a.yaw)) + Math.abs(pitch - a.pitch);
-    if (b.seenFor > game.skill.reaction && offAim < 0.09) {
+    // Never fire a rocket into a wall right in front of you.
+    const ad = aimDir(a);
+    const blocked = rocket && game.grid.raycast(eye.x, eye.y, eye.z, ad.x, ad.y, ad.z, 6) < 6;
+    if (b.seenFor > game.skill.reaction && offAim < (rocket ? 0.13 : 0.09) && !blocked) {
       if (b.burstPause > 0) b.burstPause -= dt;
       else {
         inp.fire = true;

@@ -50,6 +50,10 @@ body.touch #countdown { top: 22%; font-size: 72px; }
 #hpbar { height: 100%; background: var(--go); width: 100%; }
 #vitals .right { text-align: right; }
 #weapon { font-size: 13px; opacity: .85; }
+#slots { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 6px; font-size: 12px; }
+#slots i { font-style: normal; background: var(--panel); padding: 2px 7px; opacity: .6; border-bottom: 2px solid transparent; }
+#slots i.cur { opacity: 1; color: var(--gold); border-bottom-color: var(--gold); }
+#slots i.empty { opacity: .3; }
 
 #banner { position: absolute; top: 26%; left: 0; right: 0; text-align: center; background: var(--panel); padding: 12px; }
 #banner h2 { margin: 0 0 2px; font-size: 26px; }

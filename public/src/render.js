@@ -124,6 +124,63 @@ function letterTexture(text, colour) {
   return new THREE.CanvasTexture(c);
 }
 
+// Rocket launcher built from tubes, drawn along -Z (muzzle forward). Used for the pickup and the first-person gun.
+function launcherModel() {
+  const g = new THREE.Group();
+  const olive = new THREE.MeshLambertMaterial({ color: 0x55672f }), dark = new THREE.MeshLambertMaterial({ color: 0x24282c });
+  const orange = new THREE.MeshLambertMaterial({ color: 0xff8a2a, emissive: 0x7a3000 });
+  const tube = (r, len, z, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12), mat); m.rotation.x = Math.PI / 2; m.position.z = z; g.add(m); return m; };
+  const box = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+  tube(0.075, 0.7, -0.22, olive);           // main tube
+  tube(0.095, 0.12, -0.6, dark);            // muzzle collar
+  tube(0.088, 0.1, 0.16, dark);             // rear flare
+  tube(0.079, 0.05, -0.34, orange);         // warning band
+  box(0.03, 0.05, 0.22, 0, 0.1, -0.22, dark);   // sight rail
+  box(0.014, 0.03, 0.014, 0, 0.14, -0.4, orange);
+  box(0.045, 0.16, 0.06, 0, -0.14, -0.12, dark); // grip
+  box(0.04, 0.1, 0.05, 0, -0.1, -0.34, dark);    // fore grip
+  return g;
+}
+
+function pickupModel(kind) {
+  const g = new THREE.Group();
+  const lam = (colour, emissive = 0x000000) => new THREE.MeshLambertMaterial({ color: colour, emissive });
+  const box = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+  if (kind === 'health') {
+    box(0.78, 0.56, 0.48, 0, 0, 0, lam(0xf2f2f2, 0x383838));
+    const red = lam(0xe8231a, 0x7a0c08);
+    box(0.44, 0.14, 0.5, 0, 0, 0, red); box(0.14, 0.4, 0.5, 0, 0, 0, red);
+    box(0.3, 0.06, 0.2, 0, 0.31, 0, lam(0xcfcfcf));       // handle
+  } else if (kind === 'ammo') {
+    box(0.82, 0.46, 0.54, 0, 0, 0, lam(0x59652b, 0x1a2008));
+    box(0.84, 0.1, 0.56, 0, 0, 0, lam(0xffd76a, 0x6a5010));
+    for (const x of [-0.24, 0, 0.24]) {                      // three rocket noses poking out of the lid
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 10), lam(0xe8231a, 0x6a0a06)); nose.position.set(x, 0.34, 0); g.add(nose);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.16, 10), lam(0xbfc4b4)); body.position.set(x, 0.2, 0); g.add(body);
+    }
+  } else {
+    const l = launcherModel(); l.scale.setScalar(1.7); l.rotation.y = Math.PI / 2; l.rotation.z = 0.12; l.position.set(0.1, 0, 0);
+    l.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    g.add(l);
+  }
+  return g;
+}
+
+const PICKUP_GLOW = { health: 0x5dff7d, ammo: 0xffd76a, rocket: 0xff4a3d };
+
+function rocketModel() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 10), new THREE.MeshBasicMaterial({ color: 0xcfd3d8 }));
+  body.rotation.x = Math.PI / 2; g.add(body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.2, 10), new THREE.MeshBasicMaterial({ color: 0xff3a2a }));
+  nose.rotation.x = Math.PI / 2; nose.position.z = 0.35; g.add(nose);
+  for (let i = 0; i < 3; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.14), new THREE.MeshBasicMaterial({ color: 0x555a60 }));
+    fin.position.z = -0.22; fin.rotation.z = i * Math.PI / 3; g.add(fin);
+  }
+  return g;
+}
+
 export class Renderer {
   constructor(canvas) {
     this.r = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -194,6 +251,12 @@ export class Renderer {
     // One light that jumps to whoever fired last, so muzzle flashes light the walls without recompiling shaders.
     this.muzzleLight = new THREE.PointLight(0xffaa44, 0, 24, 2);
     this.scene.add(this.muzzleLight);
+    // Rockets share one light that rides the newest one; blasts and trails reuse these materials.
+    this.rocketLight = new THREE.PointLight(0xff9a40, 0, 34, 2);
+    this.scene.add(this.rocketLight);
+    this.fireMat = new THREE.MeshBasicMaterial({ color: 0xffa040, fog: false });
+    this.smokeMat = new THREE.MeshBasicMaterial({ color: 0x80848a, fog: false });
+    this.rocketGeo = rocketModel();
 
     // Weapon drawn in its own pass so it never clips into walls.
     this.vmScene = new THREE.Scene();
@@ -234,8 +297,12 @@ export class Renderer {
     this.pistolFlashAt = new THREE.Vector3(0, 0.035, -0.23);
     this.vmPistol.position.set(0, 0.02, 0.05);
 
-    this.vm.add(this.vmRifle, this.vmPistol);
-    this.vmPistol.visible = false;
+    // Rocket launcher: a fat olive tube riding high on the right, with a glowing band.
+    this.vmRocket = launcherModel();
+    this.vmRocket.position.set(0.02, 0.02, 0.08);
+    this.rocketFlashAt = new THREE.Vector3(0.02, 0.02, -0.74);
+    this.vm.add(this.vmRifle, this.vmPistol, this.vmRocket);
+    this.vmPistol.visible = false; this.vmRocket.visible = false;
     // Muzzle flash on the gun model: a glow sprite plus a short hot core.
     this.vmFlash = new THREE.Sprite(this.flashMats.rifle.clone());
     this.vmFlash.visible = false;
@@ -291,6 +358,28 @@ export class Renderer {
       return { L, shaft, cap };
     });
     this.liftViews.forEach(v => this.updateLift(v));
+
+    this.pickupGroup && this.scene.remove(this.pickupGroup);
+    this.pickupGroup = new THREE.Group(); this.scene.add(this.pickupGroup);
+    this.pickupViews = game.pickups.map(p => this.makePickupView(p));
+    this.rocketGroup && this.scene.remove(this.rocketGroup);
+    this.rocketGroup = new THREE.Group(); this.scene.add(this.rocketGroup);
+    this.rocketViews = new Map();
+  }
+
+  // A spinning item over a glowing ring and a faint beam. Taken items leave only a dim ring.
+  makePickupView(p) {
+    const colour = PICKUP_GLOW[p.kind];
+    const item = pickupModel(p.kind);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.25, 32), new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 9, 20, 1, true), new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    const group = new THREE.Group();
+    group.position.set(p.x, 0, p.z);
+    ring.position.y = 0.05; beam.position.y = 4.5; item.position.y = 1.2; item.scale.setScalar(1.35);
+    group.add(ring, beam, item);
+    this.pickupGroup.add(group);
+    return { p, group, item, ring, beam };
   }
 
   // Shaft fills the floor up to the cap; the cap turns orange while the lift is moving.
@@ -299,6 +388,52 @@ export class Renderer {
     shaft.scale.y = h; shaft.position.y = h / 2;
     cap.position.y = L.y1 - 0.15;
     cap.material.color.setHex(L.moving ? 0xff6a00 : 0xfff700);
+  }
+
+  updatePickups(dt) {
+    const t = this.fxT;
+    for (const v of this.pickupViews) {
+      const up = v.p.up;
+      v.item.visible = v.beam.visible = up;
+      v.ring.material.opacity = up ? 0.75 + 0.2 * Math.sin(t * 4 + v.p.id) : 0.18;
+      if (!up) continue;
+      v.item.rotation.y = t * 1.8 + v.p.id;
+      v.item.position.y = 1.2 + Math.sin(t * 2.4 + v.p.id) * 0.12;
+    }
+  }
+
+  // One mesh per rocket in flight, pointed along its path, with a smoky trail and a light on the newest.
+  updateRockets(dt) {
+    const live = new Set();
+    let newest = null;
+    for (const p of this.game.projectiles) {
+      live.add(p.id);
+      let v = this.rocketViews.get(p.id);
+      if (!v) {
+        v = { mesh: this.rocketGeo.clone(), glow: new THREE.Sprite(this.flashMats.rocket), trail: 0 };
+        v.glow.scale.set(1.1, 1.1, 1);
+        v.mesh.add(v.glow);
+        this.rocketGroup.add(v.mesh);
+        this.rocketViews.set(p.id, v);
+      }
+      // For its first moments a rocket is drawn at the barrel instead of the eye, so it appears to leave the gun.
+      const k = Math.max(0, 1 - p.age / 0.25), yaw = p.owner.yaw;
+      const x = p.pos.x + Math.cos(yaw) * 0.22 * k, y = p.pos.y - 0.2 * k, z = p.pos.z - Math.sin(yaw) * 0.22 * k;
+      v.mesh.position.set(x, y, z);
+      v.mesh.lookAt(x + p.dir.x, y + p.dir.y, z + p.dir.z);
+      v.glow.scale.setScalar(0.9 + Math.random() * 0.3);
+      v.trail -= dt;
+      if (v.trail <= 0) {
+        v.trail = 0.03;
+        const hot = Math.random() < 0.5, puff = new THREE.Mesh(this.puffGeo, hot ? this.fireMat : this.smokeMat);
+        puff.position.set(x - p.dir.x * 0.3 + (Math.random() - 0.5) * 0.08, y - p.dir.y * 0.3 + (Math.random() - 0.5) * 0.08, z - p.dir.z * 0.3 + (Math.random() - 0.5) * 0.08);
+        const size = hot ? 2.4 : 3.6;
+        this.addEffect(puff, hot ? 0.18 : 0.5, (o, u) => o.scale.setScalar(Math.max(0.01, size * (1 - u))));
+      }
+      newest = v;
+    }
+    for (const [id, v] of this.rocketViews) if (!live.has(id)) { this.rocketGroup.remove(v.mesh); this.rocketViews.delete(id); }
+    if (newest) { this.rocketLight.position.copy(newest.mesh.position); this.rocketLight.intensity = 520; } else this.rocketLight.intensity = 0;
   }
 
   makeActorView(a) {
@@ -521,6 +656,61 @@ export class Renderer {
         this.shake = 1;
         break;
       }
+      case 'rocket': {
+        const w = WEAPONS.rocket, mine = e.actor === viewer;
+        const yaw = e.actor.yaw;
+        const muzzle = new THREE.Vector3(e.from.x + e.proj.dir.x * 0.8 + Math.cos(yaw) * 0.2, e.from.y + e.proj.dir.y * 0.8 - 0.16, e.from.z + e.proj.dir.z * 0.8 - Math.sin(yaw) * 0.2);
+        const flash = new THREE.Sprite(this.flashMats.rocket);
+        const size = w.flash.size * (mine ? 0 : 0.6);
+        flash.position.copy(muzzle);
+        if (size > 0) this.addEffect(flash, w.flash.life, (o, u) => { const k = size * (1 - u * u); o.scale.set(k, k, 1); });
+        this.muzzleLight.color.setHex(w.flash.colour); this.muzzleLight.position.copy(muzzle); this.muzzleLight.intensity = w.flash.light * 25 * (mine ? 1 : 0.7);
+        if (mine) {
+          this.vmKick = Math.min(1.5, this.vmKick + 1);
+          this.shotShake = Math.max(this.shotShake, w.shake);
+          this.flashT = w.flash.life; this.flashFresh = true;
+          this.vmFlash.material.color.setHex(w.flash.colour);
+          this.vmFlash.visible = this.vmCore.visible = true;
+          this.vmFlash.position.copy(this.rocketFlashAt); this.vmCore.position.copy(this.rocketFlashAt).z -= 0.04;
+          const s = 0.4 * (0.85 + Math.random() * 0.4);
+          this.vmFlash.scale.set(s, s, 1);
+          this.vmFlash.material.rotation = Math.random() * 6.28;
+          this.vmCore.material.color.setHex(w.flash.colour).lerp(new THREE.Color(0xffffff), 0.6);
+        }
+        break;
+      }
+      case 'rocketExplode': {
+        const { pos, radius } = e;
+        const d = viewer ? Math.hypot(viewer.pos.x - pos.x, viewer.pos.y - pos.y, viewer.pos.z - pos.z) : 40;
+        this.shake = Math.max(this.shake, 0.9 * Math.max(0, 1 - d / 45));
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), new THREE.MeshBasicMaterial({ color: 0xffa83a, transparent: true, depthWrite: false, fog: false }));
+        ball.position.set(pos.x, pos.y, pos.z);
+        this.addEffect(ball, 0.42, (o, u) => { o.scale.setScalar(0.4 + u * radius * 0.85); o.material.opacity = 0.9 * (1 - u) * (1 - u); }, () => ball.material.dispose());
+        const core = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, fog: false }));
+        core.position.copy(ball.position);
+        this.addEffect(core, 0.16, (o, u) => { o.scale.setScalar(0.3 + u * radius * 0.45); o.material.opacity = 1 - u; }, () => core.material.dispose());
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.1, 32), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        ring.position.copy(ball.position); ring.rotation.x = -Math.PI / 2;
+        this.addEffect(ring, 0.5, (o, u) => { o.scale.setScalar(1 + u * radius * 1.3); o.material.opacity = 0.7 * (1 - u); }, () => ring.material.dispose());
+        this.impactFx(pos, { x: 0, y: 1, z: 0 }, 22, 2.2);
+        this.muzzleLight.color.setHex(0xffa040); this.muzzleLight.position.set(pos.x, pos.y + 1, pos.z);
+        this.muzzleLight.intensity = Math.max(this.muzzleLight.intensity, 2600);
+        break;
+      }
+      case 'pickup': {
+        const v = this.pickupViews[e.pickup.id], colour = PICKUP_GLOW[e.pickup.kind];
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.9, 28), new THREE.MeshBasicMaterial({ color: colour, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        ring.position.set(v.p.x, 0.1, v.p.z); ring.rotation.x = -Math.PI / 2;
+        this.addEffect(ring, 0.5, (o, u) => { o.scale.setScalar(1 + u * 2.5); o.material.opacity = 0.9 * (1 - u); }, () => ring.material.dispose());
+        break;
+      }
+      case 'pickupSpawn': {
+        const v = this.pickupViews[e.pickup.id], colour = PICKUP_GLOW[e.pickup.kind];
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.2, 28), new THREE.MeshBasicMaterial({ color: colour, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        ring.position.set(v.p.x, 0.1, v.p.z); ring.rotation.x = -Math.PI / 2;
+        this.addEffect(ring, 0.6, (o, u) => { o.scale.setScalar(2.6 - u * 1.6); o.material.opacity = 0.8 * u; }, () => ring.material.dispose());
+        break;
+      }
       case 'round':
         this.clearEffects(); this.clearPieceViews();
         break;
@@ -593,6 +783,9 @@ export class Renderer {
       this.bombLed.visible = b.state === 'planted' ? Math.sin(performance.now() / 1000 * rate * 3) > 0 : false;
     }
 
+    this.updatePickups(dt);
+    this.updateRockets(dt);
+
     for (const e of [...this.effects]) {
       // Every effect gets one rendered frame at full strength, even when a slow frame is longer than its whole life.
       if (e.fresh) { e.fresh = false; e.update?.(e.obj, 0); continue; }
@@ -611,8 +804,8 @@ export class Renderer {
     if (view.mode === 'first') this.camera.position.y += (Math.random() - 0.5) * this.shake * 0.4;
 
     // Gun model: the model for the held weapon, kicked back and up by each shot.
-    const cur = view.actor?.cur === 'pistol' ? 'pistol' : 'rifle', wp = WEAPONS[cur];
-    this.vmRifle.visible = cur === 'rifle'; this.vmPistol.visible = cur === 'pistol';
+    const cur = ['pistol', 'rocket'].includes(view.actor?.cur) ? view.actor.cur : 'rifle', wp = WEAPONS[cur];
+    this.vmRifle.visible = cur === 'rifle'; this.vmPistol.visible = cur === 'pistol'; this.vmRocket.visible = cur === 'rocket';
     this.vmKick *= Math.exp(-wp.vmRecover * dt);
     const k = this.vmKick;
     this.vm.position.set(0.2 + (Math.random() - 0.5) * k * 0.004, -0.17 - (view.reloading ? 0.16 : 0) - k * 0.012, -0.42 + k * wp.vmBack);
@@ -627,9 +820,10 @@ export class Renderer {
     for (const v of this.actorViews) {
       if (v.gunCur === v.actor.cur) continue;
       v.gunCur = v.actor.cur;
-      const pistol = v.gunCur === 'pistol';
-      v.gun.scale.z = pistol ? 0.45 : 1; v.gun.position.z = pistol ? -0.16 : -0.3;
-      v.gunMat.color.setHex(pistol ? 0xd2d7de : 0x2c2f36);
+      const pistol = v.gunCur === 'pistol', rocket = v.gunCur === 'rocket';
+      v.gun.scale.set(rocket ? 2.4 : 1, rocket ? 1.8 : 1, pistol ? 0.45 : rocket ? 1.4 : 1);
+      v.gun.position.y = rocket ? 1.4 : 1.25; v.gun.position.z = pistol ? -0.16 : rocket ? -0.38 : -0.3;
+      v.gunMat.color.setHex(pistol ? 0xd2d7de : rocket ? 0x55672f : 0x2c2f36);
     }
 
     this.r.clear();

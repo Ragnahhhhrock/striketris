@@ -35,9 +35,18 @@ const touch = new TouchControls({
   key: (code, down) => dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true, cancelable: true })),
   look: (dx, dy) => look(dx, dy),
   pause: () => pause(),
-  swap: () => { const h = game?.human; if (mode === 'play' && h?.alive) h.input.weapon = h.cur === 'rifle' ? 'pistol' : 'rifle'; },
+  swap: () => cycleWeapon(1),
   toggleSteer: () => { steerOpen = !steerOpen; },
 });
+
+// Next or previous weapon you can use right now: the rifle, pistol, and a launcher that has rockets.
+function cycleWeapon(dir) {
+  const h = game?.human;
+  if (mode !== 'play' || !h?.alive) return;
+  const ids = ['rifle', 'pistol', 'rocket'].filter(id => game.canSelect(h, id));
+  if (ids.length < 2) return;
+  h.input.weapon = ids[(ids.indexOf(h.cur) + dir + ids.length) % ids.length];
+}
 
 function resetFree() { Object.assign(free, { x: W * CELL / 2, y: 78, z: D * CELL / 2 + 46, yaw: 0, pitch: -0.85 }); }
 resetFree();
@@ -156,6 +165,7 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 2) dragging = false; keys.delete('Mouse0'); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('wheel', e => { if (mode === 'play') { cycleWeapon(e.deltaY > 0 ? 1 : -1); e.preventDefault(); } }, { passive: false });
 
 addEventListener('keydown', e => {
   if (mode === 'play' && !['F5', 'F12'].includes(e.code)) e.preventDefault();
@@ -174,6 +184,7 @@ addEventListener('keydown', e => {
   if (h?.alive) {
     if (e.code === 'Digit1') h.input.weapon = 'rifle';
     if (e.code === 'Digit2') h.input.weapon = 'pistol';
+    if (e.code === 'Digit3') h.input.weapon = 'rocket';
   } else {
     if (e.code === 'KeyF') {
       if (!camFree && lastView) Object.assign(free, { x: lastView.x, y: lastView.y, z: lastView.z, yaw: lastView.yaw, pitch: lastView.pitch });

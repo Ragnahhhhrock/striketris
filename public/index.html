@@ -87,7 +87,7 @@
   <div id="progress" hidden><div id="progressbar"></div></div>
   <div id="vitals">
     <div><b id="hp">100</b><div class="bar"><div id="hpbar"></div></div></div>
-    <div class="right"><span id="weapon"></span><b id="ammo"></b></div>
+    <div class="right"><div id="slots"></div><span id="weapon"></span><b id="ammo"></b></div>
   </div>
   <div id="banner" hidden><h2 id="bannerA"></h2><p id="bannerB"></p></div>
   <div id="board" hidden></div>
@@ -115,8 +115,9 @@
     <div class="keys">
       <div><kbd>WASD</kbd> Move</div><div><kbd>Mouse</kbd> Aim and fire</div>
       <div><kbd>Space</kbd> Jump. Hold at a ledge to climb</div><div><kbd>E</kbd> Hold to plant or defuse</div>
-      <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> Weapons <kbd>R</kbd> Reload</div>
+      <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Weapons <kbd>Wheel</kbd> Cycle <kbd>R</kbd> Reload</div>
       <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Call a new block <kbd>`</kbd> Debug</div>
+      <div>Walk over items for the rocket launcher, ammo and health. Rocket jumps work</div>
     </div>
     <p class="sub spec">Spectating (or after you die, press F): <kbd>WASD</kbd> fly, <kbd>Space</kbd> up, <kbd>C</kbd> down, <kbd>Shift</kbd> fast, <kbd>1</kbd>-<kbd>4</kbd> speed, <kbd>P</kbd> pause, <kbd>Q</kbd> <kbd>E</kbd> switch player.<br>Steering the falling block (spectating, after you die, or invulnerable): <kbd>Arrows</kbd> move, <kbd>Z</kbd> <kbd>X</kbd> rotate, <kbd>V</kbd> flip, <kbd>B</kbd> tumble, <kbd>Enter</kbd> hard drop.</p>
     <div class="touchkeys">
@@ -130,6 +131,6 @@
   </div>
 </div>
 
-<script type="module" src="src/main.js?v=4"></script>
+<script type="module" src="src/main.js?v=5"></script>
 </body>
 </html>

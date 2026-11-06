@@ -98,7 +98,7 @@ for (const seed of [1, 2, 3, 4]) {
 }
 
 test('a human carrier plants on site and the defender side can defuse', () => {
-  const game = new Game({ seed: 5, teamSize: 1, humanTeam: 'attackers', pieces: false });
+  const game = new Game({ seed: 5, teamSize: 1, humanTeam: 'attackers', pieces: false, items: false });
   const h = game.human, bot = game.actors.find(a => !a.isHuman);
   game.state = 'live'; game.timer = 100;
   for (const a of game.actors) { a.hasBomb = false; }
@@ -352,4 +352,256 @@ test('pieces never land on a lift', () => {
 test('lifts and floor tiles do not share a cell', () => {
   const g = buildMap();
   for (const L of g.lifts) for (let z = L.cz0; z <= L.cz1; z++) for (let x = L.cx0; x <= L.cx1; x++) assert.ok(g.liftAt(x, z) && g.get(x, 0, z) === EMPTY);
+});
+
+// ---- Quake 3 style pickups and the rocket launcher ----
+import { PICKUP_SPOTS, makePickups, wants } from '../public/src/pickups.js';
+import { KEEPOUT, inRect } from '../public/src/map.js';
+import { PICKUP, PIECE } from '../public/src/config.js';
+import { CELL } from '../public/src/config.js';
+
+// Two attackers and two defenders on the real map, nobody thinking for themselves, round live.
+function pickupGame(opts = {}) {
+  const game = new Game({ seed: 11, human: false, teamSize: 2, pieces: false, ...opts });
+  game.state = 'live'; game.timer = 100;
+  for (const a of game.actors) { a.brain = null; a.input.f = a.input.r = 0; a.pos = { x: 3, y: 0, z: 3 }; }
+  game.drainEvents();
+  return game;
+}
+const stand = (a, p) => { a.pos = { x: p.x, y: 0, z: p.z }; };
+const spot = (game, kind, n = 0) => game.pickups.filter(p => p.kind === kind)[n];
+
+test('every pickup sits on open floor, off crates and lifts, and blocks keep off its column', () => {
+  const g = buildMap(), nav = new Nav(g);
+  assert.ok(PICKUP_SPOTS.some(s => s.kind === 'rocket') && PICKUP_SPOTS.some(s => s.kind === 'health') && PICKUP_SPOTS.some(s => s.kind === 'ammo'));
+  for (const s of PICKUP_SPOTS) {
+    assert.equal(g.get(s.x, 0, s.z), EMPTY, `${s.kind} at ${s.x},${s.z} is open`);
+    assert.equal(g.get(s.x, 1, s.z), EMPTY);
+    assert.ok(!g.crates.some(c => c.cx === s.x && c.cz === s.z), 'not under a crate');
+    assert.ok(!g.liftAt(s.x, s.z), 'not on a lift');
+    assert.ok(KEEPOUT.some(r => inRect(r, s.x, s.z)), 'blocks cannot bury it');
+    for (const team of Object.values(SPAWNS)) {
+      const [sx, sz] = team.cells[0];
+      assert.ok(nav.path({ x: sx, y: 0, z: sz }, { x: s.x, y: 0, z: s.z }), `${s.kind} at ${s.x},${s.z} is reachable`);
+    }
+  }
+});
+
+test('pieces never land on a pickup spot', () => {
+  const game = new Game({ seed: 9, human: false, teamSize: 1 });
+  for (const s of PICKUP_SPOTS) assert.equal(validPlacement(game.grid, orient(1, 0, 0), s.x, s.z, null) === null, true, `refused at ${s.x},${s.z}`);
+});
+
+test('a health pack heals up to 100, is refused at full health, and comes back later', () => {
+  const game = pickupGame();
+  const a = game.actors[0], p = spot(game, 'health');
+  stand(a, p); a.hp = 100;
+  game.step(TICK);
+  assert.equal(p.up, true, 'full health leaves it for someone else');
+  a.hp = 50; game.step(TICK);
+  assert.equal(a.hp, 50 + PICKUP.health.amount);
+  assert.equal(p.up, false);
+  assert.ok(game.drainEvents().some(e => e.type === 'pickup' && e.what === 'health' && e.actor === a));
+  a.hp = 10; game.step(TICK);
+  assert.equal(a.hp, 10, 'spent pack gives nothing');
+  stand(a, { x: 3, z: 3 });
+  for (let i = 0; i < PICKUP.health.respawn * 60 + 5; i++) game.step(TICK);
+  assert.equal(p.up, true);
+  assert.ok(game.drainEvents().some(e => e.type === 'pickupSpawn'));
+  a.hp = 95; stand(a, p); game.step(TICK);
+  assert.equal(a.hp, 100, 'never above 100');
+});
+
+test('only the nearest eligible player takes an item', () => {
+  const game = pickupGame();
+  const [a, b] = game.actors, p = spot(game, 'health');
+  a.hp = b.hp = 40;
+  a.pos = { x: p.x + 1.2, y: 0, z: p.z }; b.pos = { x: p.x + 0.3, y: 0, z: p.z };
+  game.step(TICK);
+  assert.equal(b.hp, 40 + PICKUP.health.amount);
+  assert.equal(a.hp, 40);
+});
+
+test('the launcher is not carried at the start; picking it up gives rockets and puts it in your hands', () => {
+  const game = pickupGame();
+  const a = game.actors[0], p = spot(game, 'rocket');
+  assert.equal(a.weapons.rocket, undefined);
+  assert.equal(game.canSelect(a, 'rocket'), false);
+  stand(a, p); game.step(TICK);
+  assert.equal(a.weapons.rocket, WEAPONS.rocket.start);
+  assert.equal(a.cur, 'rocket');
+  assert.ok(game.drainEvents().some(e => e.type === 'pickup' && e.what === 'launcher'));
+  // A second launcher only tops up the rockets, capped at the maximum.
+  const q = spot(game, 'rocket', 1);
+  a.weapons.rocket = WEAPONS.rocket.max - 2; a.cur = 'rifle';
+  stand(a, q); game.step(TICK);
+  assert.equal(a.weapons.rocket, WEAPONS.rocket.max);
+  assert.equal(a.cur, 'rifle', 'a spare launcher does not change your weapon');
+  const r = spot(game, 'rocket');
+  r.up = true; stand(a, r); game.step(TICK);
+  assert.equal(r.up, true, 'full of rockets, leave it');
+});
+
+test('ammo refills magazines and adds rockets only for someone who has the launcher', () => {
+  const game = pickupGame();
+  const [a, b] = game.actors, p = spot(game, 'ammo');
+  assert.equal(wants(a, p), false, 'full magazines, no launcher');
+  a.weapons.rifle = 3; a.weapons.pistol = 2;
+  stand(a, p); game.step(TICK);
+  assert.equal(a.weapons.rifle, WEAPONS.rifle.mag);
+  assert.equal(a.weapons.pistol, WEAPONS.pistol.mag);
+  assert.equal(a.weapons.rocket, undefined, 'ammo does not hand out a launcher');
+  const q = spot(game, 'ammo', 1);
+  b.weapons.rocket = 1; stand(b, q); game.step(TICK);
+  assert.equal(b.weapons.rocket, 1 + PICKUP.ammo.rockets);
+});
+
+test('a new round puts every item back', () => {
+  const game = pickupGame();
+  for (const p of game.pickups) { p.up = false; p.timer = 99; }
+  game.projectiles.push({ id: 99, owner: game.actors[0], pos: { x: 1, y: 1, z: 1 }, dir: { x: 1, y: 0, z: 0 }, speed: 20, age: 0 });
+  game.startRound();
+  assert.ok(game.pickups.every(p => p.up));
+  assert.equal(game.projectiles.length, 0);
+});
+
+// An open arena for rocket tests: shooter at the south end facing north, a teammate and two enemies to place.
+function rocketRange() {
+  const game = new Game({ seed: 9, teamSize: 2, human: false, pieces: false });
+  game.grid.cells.fill(EMPTY); game.grid.crates = []; game.grid.lifts = [];
+  game.state = 'live'; game.timer = 100;
+  const [s, mate] = game.actors.filter(a => a.team === 'attackers'), [e1, e2] = game.actors.filter(a => a.team === 'defenders');
+  for (const a of game.actors) { a.brain = null; a.pos = { x: 6, y: 0, z: 6 }; }
+  s.isHuman = true; s.pos = { x: 48, y: 0, z: 80 }; s.yaw = 0; s.pitch = 0; s.cur = 'rocket'; s.weapons.rocket = 5;
+  game.drainEvents();
+  return { game, s, mate, e1, e2 };
+}
+const fly = (game, ticks = 600) => { for (let i = 0; i < ticks && game.projectiles.length; i++) game.stepProjectiles(TICK); };
+
+test('firing the launcher spends a rocket and sends it forward at its own speed', () => {
+  const { game, s } = rocketRange();
+  s.input.fire = true; game.stepWeapon(s, TICK);
+  assert.equal(s.weapons.rocket, 4);
+  assert.equal(game.projectiles.length, 1);
+  const p = game.projectiles[0], z0 = p.pos.z;
+  for (let i = 0; i < 30; i++) game.stepProjectiles(TICK);
+  assert.ok(Math.abs((z0 - p.pos.z) - WEAPONS.rocket.speed * 0.5) < 0.01, 'half a second of flight');
+  s.input.fire = true; game.stepWeapon(s, TICK);
+  assert.equal(game.projectiles.length, 1, 'refire is gated by the launcher interval');
+  assert.ok(game.drainEvents().some(e => e.type === 'rocket'));
+});
+
+test('a rocket bursts on a wall and the blast fades with distance', () => {
+  const { game, s, e1, e2 } = rocketRange();
+  game.grid.set(16, 0, 10, STATIC); game.grid.set(16, 1, 10, STATIC);   // a wall at z 30..33 across the line of fire
+  s.pos.x = 49.5;                       // fire down the middle of the wall's cell column
+  e1.pos = { x: 51.9, y: 0, z: 34.5 };  // beside the line of fire, about 2 m from where the rocket lands
+  e2.pos = { x: 56.5, y: 0, z: 33.5 };  // more than 5 m away
+  s.input.fire = true; game.stepWeapon(s, TICK);
+  fly(game);
+  const ev = game.drainEvents().find(x => x.type === 'rocketExplode');
+  assert.ok(ev, 'it exploded');
+  assert.ok(Math.abs(ev.pos.z - 33) < 0.2 && ev.pos.z > 33, `burst at the wall face, z=${ev.pos.z}`);
+  assert.ok(e1.hp < 100 - 40, `near target hurt, hp=${e1.hp}`);
+  assert.equal(e2.hp, 100, 'far target untouched');
+  // Closer takes more.
+  const near = rocketRange();
+  near.game.explodeRocket({ owner: near.s, id: 1 }, { x: 48, y: 1, z: 50 }, null);
+  near.e1.pos = { x: 48, y: 0, z: 49 }; near.e2.pos = { x: 48, y: 0, z: 46 };
+  near.game.explodeRocket({ owner: near.s, id: 2 }, { x: 48, y: 1, z: 50 }, null);
+  assert.ok(near.e1.hp < near.e2.hp && near.e2.hp < 100);
+});
+
+test('a direct hit does extra damage and kills at full health', () => {
+  const { game, s, e1 } = rocketRange();
+  e1.pos = { x: 48, y: 0, z: 50 };
+  s.input.fire = true; game.stepWeapon(s, TICK);
+  fly(game);
+  assert.equal(e1.alive, false);
+  const ev = game.drainEvents();
+  assert.ok(ev.some(e => e.type === 'feed' && /Rocket Launcher/.test(e.text)), 'kill feed names the launcher');
+  assert.equal(s.kills, 1);
+});
+
+test('walls shield from the blast, teammates take no damage, and your own damage is halved', () => {
+  const { game, s, mate, e1 } = rocketRange();
+  const at = { x: 48, y: 1, z: 50 };
+  e1.pos = { x: 48, y: 0, z: 52 };
+  game.grid.set(16, 0, 17, STATIC); game.grid.set(16, 1, 17, STATIC);   // wall between the blast and the target
+  game.grid.set(15, 0, 17, STATIC); game.grid.set(17, 0, 17, STATIC);
+  game.explodeRocket({ owner: s, id: 1 }, { ...at, z: 50 }, null);
+  assert.equal(e1.hp, 100, 'wall shields');
+  game.grid.cells.fill(EMPTY);
+  mate.pos = { x: 48, y: 0, z: 51 }; mate.vel = { x: 0, y: 0, z: 0 };
+  game.explodeRocket({ owner: s, id: 2 }, at, null);
+  assert.equal(mate.hp, 100, 'friendly fire off');
+  assert.ok(Math.hypot(mate.vel.x, mate.vel.y, mate.vel.z) > 3, 'but teammates are shoved');
+  s.pos = { x: 48, y: 0, z: 50 }; s.vel = { x: 0, y: 0, z: 0 };
+  game.explodeRocket({ owner: s, id: 3 }, at, null);
+  const lost = 100 - s.hp;
+  assert.ok(lost > 20 && lost <= WEAPONS.rocket.splash * WEAPONS.rocket.selfScale + 1e-6, `self damage ${lost}`);
+});
+
+test('a rocket jump: firing at your feet launches you well above a normal jump', () => {
+  const { game, s } = rocketRange();
+  s.pitch = -Math.PI / 2; s.weapons.rocket = 5; s.hp = 100;
+  s.input.fire = true; game.stepWeapon(s, TICK); s.input.fire = false;
+  fly(game);
+  assert.ok(s.vel.y > 8, `launched upward at ${s.vel.y.toFixed(1)} m/s`);
+  assert.ok(s.hp < 100 && s.hp > 40, `it costs health, hp=${s.hp}`);
+  let peak = 0;
+  for (let i = 0; i < 180; i++) { stepMovement(game.grid, s, TICK); peak = Math.max(peak, s.pos.y); }
+  const normalJump = MOVE_JUMP_HEIGHT();
+  assert.ok(peak > normalJump * 2.5, `peak ${peak.toFixed(2)} m vs a normal jump ${normalJump.toFixed(2)} m`);
+});
+function MOVE_JUMP_HEIGHT() { return 5.2 * 5.2 / (2 * 14); }
+
+test('the launcher falls back to the rifle when the last rocket is gone, and cannot be chosen empty', () => {
+  const { game, s } = rocketRange();
+  s.weapons.rocket = 1;
+  s.input.fire = true; game.stepWeapon(s, TICK); s.input.fire = false;
+  assert.equal(s.weapons.rocket, 0);
+  for (let i = 0; i < 80; i++) game.stepWeapon(s, TICK);
+  assert.equal(s.cur, 'rifle');
+  s.input.weapon = 'rocket'; game.stepWeapon(s, TICK);
+  assert.equal(s.cur, 'rifle', 'no rockets, no switch');
+});
+
+test('a rocket that hits no one and nothing eventually expires', () => {
+  const { game, s } = rocketRange();
+  s.pitch = 1.2;
+  s.input.fire = true; game.stepWeapon(s, TICK); s.input.fire = false;
+  for (let i = 0; i < 60 * 8; i++) game.stepProjectiles(TICK);
+  assert.equal(game.projectiles.length, 0);
+});
+
+test('an injured bot near a health pack goes and takes it', () => {
+  const game = new Game({ seed: 21, human: false, teamSize: 1, pieces: false });
+  game.state = 'live'; game.timer = 100;
+  const att = game.actors.find(a => a.team === 'attackers'), def = game.actors.find(a => a.team === 'defenders');
+  att.hasBomb = false; game.bomb.carrier = null;
+  const p = spot(game, 'health', 2);
+  att.pos = { x: (p.cx - 1 + 0.5) * CELL, y: 0, z: (p.cz + 3 + 0.5) * CELL }; att.hp = 30;
+  def.brain.post = [15, 3];
+  for (let i = 0; i < 60 * 12 && att.hp === 30; i++) { def.hp = 1e9; game.step(TICK); }
+  assert.ok(att.hp > 30, `bot healed to ${att.hp}`);
+  assert.equal(p.up, false);
+});
+
+test('bots in a full match pick things up and fire rockets without breaking anything', () => {
+  const game = new Game({ seed: 2, human: false, teamSize: 5 });
+  const n = { rocket: 0, explode: 0, pickup: 0, launcher: 0 };
+  let steps = 0;
+  while (!game.matchOver && steps < 60 * 60 * 90) {
+    game.step(TICK); steps++;
+    for (const e of game.drainEvents()) { if (e.type === 'rocket') n.rocket++; if (e.type === 'rocketExplode') n.explode++; if (e.type === 'pickup') { n.pickup++; if (e.what === 'launcher') n.launcher++; } }
+    if (steps % 60 === 0) for (const a of game.actors) {
+      assert.ok(Number.isFinite(a.pos.x + a.pos.y + a.pos.z + a.vel.x + a.vel.y + a.vel.z), 'finite');
+      assert.ok(a.hp <= 100 && a.hp >= 0);
+      if (a.weapons.rocket !== undefined) assert.ok(a.weapons.rocket >= 0 && a.weapons.rocket <= WEAPONS.rocket.max);
+    }
+  }
+  assert.ok(game.matchOver);
+  assert.ok(n.pickup > 10 && n.launcher > 0 && n.rocket > 0, JSON.stringify(n));
+  assert.equal(n.rocket, n.explode + game.projectiles.length, 'every rocket burst or is still flying');
 });

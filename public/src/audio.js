@@ -49,6 +49,28 @@ export class Audio {
         }
         break;
       }
+      case 'rocket': {
+        // Launch: a hollow thump with a hiss of exhaust.
+        const v = e.actor === viewer ? 1 : at(e.from) * 0.7;
+        this.tone(0.5 * v, 150, 38, 0.3, 'sawtooth');
+        this.burst(0.34 * v, 900, 0.36);
+        this.burst(0.18 * v, 2600, 0.2, 'highpass');
+        break;
+      }
+      case 'rocketExplode': {
+        const v = Math.max(0.2, at(e.pos));
+        this.burst(0.85 * v, 420, 1.1);
+        this.tone(0.8 * v, 90, 22, 0.9);
+        this.burst(0.3 * v, 3200, 0.12, 'highpass');
+        break;
+      }
+      case 'pickup':
+        if (e.actor !== viewer) break;
+        if (e.what === 'health') { this.tone(0.16, 520, 780, 0.12); setTimeout(() => this.tone(0.16, 780, 1040, 0.16), 90); }
+        else if (e.what === 'ammo') { this.burst(0.14, 4200, 0.05, 'highpass'); this.tone(0.14, 300, 220, 0.09, 'square'); setTimeout(() => this.tone(0.14, 300, 220, 0.09, 'square'), 80); }
+        else { this.tone(0.2, 220, 440, 0.25, 'sawtooth'); this.tone(0.14, 330, 660, 0.3); }
+        break;
+      case 'pickupSpawn': this.tone(0.05 * at(e.pickup), 900, 1300, 0.12); break;
       case 'ricochet': {
         const v = Math.max(at(e.pos), e.actor === viewer ? 0.5 : 0);
         this.tone(0.11 * v, 3000 + Math.random() * 900, 800, 0.24, 'sawtooth');

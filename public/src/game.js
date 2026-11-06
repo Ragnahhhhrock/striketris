@@ -6,6 +6,7 @@ import { SHAPES, choosePlacement, findLines, clearCells, adjustPlacement, direct
 import { makeActor, resetActor, stepMovement, eyePos, aimDir, actorHeight, hitsWorld } from './actor.js';
 import { updateBot, initBrains } from './bots.js';
 import { stepLifts, resetLifts } from './lifts.js';
+import { makePickups, resetPickups, stepPickups } from './pickups.js';
 
 export function mulberry(seed) {
   let s = seed >>> 0;
@@ -24,7 +25,7 @@ const DEF_NAMES = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 // The full match simulation. It knows nothing about rendering, so it can run headless in tests.
 export class Game {
   constructor(opts = {}) {
-    this.opts = { seed: Date.now() & 0xffff, teamSize: 5, humanTeam: TEAM.ATT, human: true, pieceInterval: PIECE.interval, skill: 'normal', pieces: true, ...opts };
+    this.opts = { seed: Date.now() & 0xffff, teamSize: 5, humanTeam: TEAM.ATT, human: true, pieceInterval: PIECE.interval, skill: 'normal', pieces: true, items: true, ...opts };
     this.rng = mulberry(this.opts.seed);
     this.grid = buildMap();
     this.nav = new Nav(this.grid);
@@ -37,6 +38,9 @@ export class Game {
     this.linesCleared = 0;
     this.piecesLanded = 0;
     this.nextShape = this.bagNext();
+    this.pickups = this.opts.items ? makePickups() : [];
+    this.projectiles = [];
+    this.nextProj = 1;
 
     for (const team of [TEAM.ATT, TEAM.DEF]) {
       const names = team === TEAM.ATT ? ATT_NAMES : DEF_NAMES;
@@ -66,6 +70,8 @@ export class Game {
     this.round++;
     this.grid.reset();
     resetLifts(this);
+    resetPickups(this);
+    this.projectiles = [];
     this.state = 'freeze';
     this.timer = ROUND.freeze;
     this.roundWinner = null;
@@ -104,6 +110,8 @@ export class Game {
   step(dt = TICK) {
     if (this.matchOver) return;
     stepLifts(this, dt);
+    stepPickups(this, dt);
+    this.stepProjectiles(dt);
     if (this.state === 'post') {
       this.timer -= dt;
       this.stepActors(dt, false);
@@ -152,8 +160,10 @@ export class Game {
   stepWeapon(a, dt) {
     const inp = a.input;
     a.fireCd -= dt;
-    if (inp.weapon && inp.weapon !== a.cur && WEAPONS[inp.weapon]) { a.cur = inp.weapon; a.reloadT = 0; a.fireCd = 0.3; a.shotStreak = 0; this.emit('switch', { actor: a }); }
+    if (inp.weapon && inp.weapon !== a.cur && this.canSelect(a, inp.weapon)) { a.cur = inp.weapon; a.reloadT = 0; a.fireCd = 0.3; a.shotStreak = 0; this.emit('switch', { actor: a }); }
     inp.weapon = null;
+    // Out of rockets: fall back to the rifle once the last one has left the tube.
+    if (a.cur === 'rocket' && !a.weapons.rocket && a.fireCd <= 0) { a.cur = 'rifle'; a.reloadT = 0; a.fireCd = 0.3; a.shotStreak = 0; this.emit('switch', { actor: a }); }
     const w = WEAPONS[a.cur];
     if (a.reloadT > 0) {
       a.reloadT -= dt;
@@ -161,17 +171,91 @@ export class Game {
       a.lastFireHeld = inp.fire;
       return;
     }
-    if ((inp.reload && a.weapons[a.cur] < w.mag) || (inp.fire && a.weapons[a.cur] === 0)) {
+    if (!w.noReload && ((inp.reload && a.weapons[a.cur] < w.mag) || (inp.fire && a.weapons[a.cur] === 0))) {
       a.reloadT = w.reload; a.shotStreak = 0; this.emit('reload', { actor: a });
       return;
     }
-    const trigger = inp.fire && (w.auto || !a.lastFireHeld);
+    const trigger = inp.fire && (w.auto || !a.lastFireHeld) && a.weapons[a.cur] > 0;
     a.lastFireHeld = inp.fire;
     if (!inp.fire) a.shotStreak = Math.max(0, a.shotStreak - dt * 10);
     if (trigger && a.fireCd <= 0 && !this.isChannelling(a)) {
       a.fireCd = w.interval;
       a.weapons[a.cur]--;
-      this.fire(a, w);
+      if (a.cur === 'rocket') this.fireRocket(a, w); else this.fire(a, w);
+    }
+  }
+
+  // A weapon can be selected once you own it, and a rocket launcher only while it has rockets.
+  canSelect(a, id) {
+    const w = WEAPONS[id];
+    return !!w && a.weapons[id] !== undefined && (!w.noReload || a.weapons[id] > 0);
+  }
+
+  // The rocket leaves the eye along the crosshair. stepProjectiles flies it.
+  fireRocket(a, w) {
+    const d = aimDir(a), eye = eyePos(a);
+    const proj = { id: this.nextProj++, owner: a, weapon: 'rocket', pos: { ...eye }, dir: d, speed: w.speed, age: 0 };
+    this.projectiles.push(proj);
+    const steady = a.isHuman ? 1 : 0.35;
+    a.shotStreak += 1;
+    a.recoil = Math.min(w.kickMax, a.recoil + w.kick * steady);
+    a.recoilYaw = Math.max(-w.kickYawMax, Math.min(w.kickYawMax, a.recoilYaw + (this.rng() - 0.5) * 2 * w.kickYaw * steady));
+    this.emit('rocket', { actor: a, proj, from: eye, weapon: 'rocket' });
+    for (const t of this.actors) if (t.alive && t.brain && t.team !== a.team && dist2d(t.pos, a.pos) < 45) t.brain.heard = { ...a.pos };
+  }
+
+  // Flies every rocket one tick. A rocket bursts on the first wall, crate, lift or body (other than its owner) in its path.
+  stepProjectiles(dt) {
+    if (!this.projectiles.length) return;
+    const w = WEAPONS.rocket, keep = [];
+    for (const p of this.projectiles) {
+      const step = p.speed * dt, d = p.dir, o = p.pos;
+      p.age += dt;
+      let dist = this.grid.raycast(o.x, o.y, o.z, d.x, d.y, d.z, step);
+      let hit = dist < step - 1e-9, victim = null;
+      for (const t of this.actors) {
+        if (!t.alive || t === p.owner) continue;
+        const h = actorHeight(t), r = MOVE.radius + 0.1;
+        const bd = rayBox(o.x, o.y, o.z, d.x, d.y, d.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h, t.pos.z + r);
+        if (bd !== null && bd < dist) { dist = bd; hit = true; victim = t; }
+      }
+      if (hit) {
+        // Burst just short of the surface so the blast origin is in open air.
+        const back = Math.max(0, dist - 0.06);
+        this.explodeRocket(p, { x: o.x + d.x * back, y: o.y + d.y * back, z: o.z + d.z * back }, victim);
+        continue;
+      }
+      o.x += d.x * step; o.y += d.y * step; o.z += d.z * step;
+      if (p.age < w.life && o.y > -5 && o.y < 200) keep.push(p);
+    }
+    this.projectiles = keep;
+  }
+
+  // Blast damage falls off linearly with distance from the nearest point of each body, walls shield, and
+  // everyone in range gets shoved away, friends included. Teammates take no damage; you take half of yours.
+  explodeRocket(p, at, victim) {
+    const w = WEAPONS.rocket, by = p.owner;
+    this.emit('rocketExplode', { pos: at, proj: p, radius: w.radius, by });
+    for (const t of this.actors) {
+      if (!t.alive) continue;
+      const h = actorHeight(t), r = MOVE.radius;
+      const nx = Math.max(t.pos.x - r, Math.min(at.x, t.pos.x + r)), ny = Math.max(t.pos.y, Math.min(at.y, t.pos.y + h)), nz = Math.max(t.pos.z - r, Math.min(at.z, t.pos.z + r));
+      const dist = Math.hypot(at.x - nx, at.y - ny, at.z - nz);
+      if (dist >= w.radius) continue;
+      const chest = { x: t.pos.x, y: t.pos.y + h * 0.55, z: t.pos.z };
+      if (!this.grid.los(at, chest)) continue;
+      const fall = 1 - dist / w.radius;
+      let ux = chest.x - at.x, uy = chest.y - at.y, uz = chest.z - at.z;
+      const l = Math.hypot(ux, uy, uz) || 1;
+      ux /= l; uy = uy / l + 0.25; uz /= l;
+      const ul = Math.hypot(ux, uy, uz), kb = w.knock * fall;
+      t.vel.x += ux / ul * kb; t.vel.y += uy / ul * kb; t.vel.z += uz / ul * kb;
+      t.mantle = null;
+      if (uy / ul * kb > 1) t.onGround = false;
+      if (t.team === by.team && t !== by) continue;
+      let dmg = w.splash * fall + (t === victim ? w.direct : 0);
+      if (t === by) dmg *= w.selfScale;
+      this.damage(t, dmg, by, 'rocket');
     }
   }
 
@@ -255,7 +339,7 @@ export class Game {
     }
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
-    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear' }[cause];
+    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear' }[cause] ?? (cause === 'rocket' && by === t ? 'blew themselves up' : undefined);
     this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
   }

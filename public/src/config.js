@@ -47,6 +47,35 @@ export const WEAPONS = {
   },
 };
 
+// Rocket launcher, borrowed from Quake 3. It sits on the map as a pickup (nobody spawns with it), uses its
+// own rocket pool instead of a magazine, and its blast shoves players around, so rocket jumps work.
+//   speed      rocket flight speed in m/s
+//   direct     extra damage to whoever the rocket hits head on, on top of the blast
+//   splash     blast damage at the centre, falling off to nothing at radius metres
+//   knock      blast shove in m/s at the centre; selfScale cuts the damage you do to yourself
+//   max        most rockets you can carry; start is what the launcher pickup gives you
+WEAPONS.rocket = {
+  name: 'Rocket Launcher', mag: 12, max: 12, start: 5, noReload: true, reload: 0, interval: 0.8, auto: true,
+  speed: 24, life: 6, direct: 30, splash: 100, radius: 5, knock: 12, selfScale: 0.5,
+  spread: 0, moveSpread: 0, damage: 0, headMult: 1, bounces: 0, bounceKeep: 1,
+  kick: 0.06, kickMax: 0.12, kickYaw: 0.01, kickYawMax: 0.04, recover: 6,
+  shake: 0.5, fov: 1.4, vmBack: 0.16, vmPitch: 0.22, vmRecover: 8,
+  tracer: { colour: 0xff7a1a, ricochet: 0xffd36b, width: 0.05, life: 0.1 },
+  flash: { colour: 0xff8a2a, size: 2.8, life: 0.09, light: 10 },
+};
+
+// Items that sit on the map and come back after a while. Positions are in pickups.js.
+//   health     heals up to 100
+//   ammo       refills every magazine at once and adds rockets for anyone who has the launcher
+//   rocket     the launcher itself: first pickup gives it plus its starting rockets, later ones add rockets
+export const PICKUP = {
+  reach: 1.5,          // horizontal metres to touch an item
+  rise: 2.2,           // vertical window above the item's floor
+  health: { amount: 35, respawn: 20 },
+  ammo: { rockets: 4, respawn: 20 },
+  rocket: { respawn: 25 },
+};
+
 export const ROUND = {
   freeze: 4, time: 115, post: 5,
   bombFuse: 40, plantTime: 3.2, defuseTime: 7, defuseRange: 2.2,

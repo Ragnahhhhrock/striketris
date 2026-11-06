@@ -7,6 +7,7 @@ import { SHAPE_TINT } from './render.js';
 
 const $ = id => document.getElementById(id);
 const hex = n => '#' + n.toString(16).padStart(6, '0');
+const SLOT_KEYS = [['rifle', '1'], ['pistol', '2'], ['rocket', '3']];
 const fmt = t => { const s = Math.max(0, Math.ceil(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export class Hud {
@@ -27,6 +28,7 @@ export class Hud {
     if (e.type === 'roundEnd') this.banner(`${e.winner === TEAM.ATT ? 'Attackers' : 'Defenders'} win the round`, e.reason);
     if (e.type === 'match') this.banner(`${e.winner === TEAM.ATT ? 'Attackers' : 'Defenders'} win the match`, 'Press Esc for the menu');
     if (e.type === 'round') $('banner').hidden = true;
+    if (e.type === 'pickup' && e.actor === this.game.human) this.addFeed({ health: 'Picked up health', ammo: 'Picked up ammo', launcher: 'Picked up the Rocket Launcher', rockets: 'Picked up rockets' }[e.what]);
     if (e.type === 'hurt' && e.actor === this.game.human) { const f = $('hurt'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
     if (e.type === 'hurt' && e.by === this.game.human) { const h = $('hitmark'); h.classList.remove('on'); void h.offsetWidth; h.classList.add('on'); }
   }
@@ -58,6 +60,10 @@ export class Hud {
       const w = WEAPONS[a.cur];
       $('weapon').textContent = w.name + (a.hasBomb ? '  +  Bomb' : '');
       $('ammo').textContent = a.reloadT > 0 ? 'Reloading' : `${a.weapons[a.cur]} / ${w.mag}`;
+      // Weapon slots: the ones you carry, the held one lit, a launcher with no rockets greyed.
+      const slots = SLOT_KEYS.filter(([id]) => a.weapons[id] !== undefined)
+        .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${WEAPONS[id].name.split(' ')[0]}</i>`).join('');
+      if (slots !== this.slotsHtml) { this.slotsHtml = slots; $('slots').innerHTML = slots; }
       const spread = 6 + Math.hypot(a.vel.x, a.vel.z) * 1.6 + a.shotStreak * 1.4 + a.recoil * 140;
       document.documentElement.style.setProperty('--gap', `${Math.min(40, spread).toFixed(1)}px`);
     }
@@ -125,6 +131,15 @@ export class Hud {
     for (const site of Object.values(SITES)) {
       c.fillStyle = 'rgba(160,30,25,.85)';
       c.fillText(site.name, (site.centre[0] + .5) * s, (site.centre[1] + .5) * s);
+    }
+    // Items still on the map: green cross for health, yellow square for ammo, red triangle for a launcher.
+    const k = s / CELL;
+    for (const p of g.pickups) {
+      if (!p.up) continue;
+      const x = p.x * k, z = p.z * k;
+      if (p.kind === 'health') { c.fillStyle = '#5dff7d'; c.fillRect(x - 4, z - 1.5, 8, 3); c.fillRect(x - 1.5, z - 4, 3, 8); }
+      else if (p.kind === 'ammo') { c.fillStyle = '#ffd76a'; c.fillRect(x - 3, z - 3, 6, 6); }
+      else { c.fillStyle = '#ff4a3d'; c.beginPath(); c.moveTo(x, z - 5); c.lineTo(x + 5, z + 4); c.lineTo(x - 5, z + 4); c.closePath(); c.fill(); }
     }
     if (g.piece) {
       c.fillStyle = Math.sin(g.piece.t * 12) > 0 ? hex(SHAPE_TINT[g.piece.shapeId]) : '#ffffff';
