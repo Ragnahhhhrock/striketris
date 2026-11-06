@@ -11,7 +11,29 @@ export class Audio {
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     }
+    // iOS (Safari and Chrome) mutes Web Audio when the ringer switch is on silent.
+    // Declaring a playback session, plus a looping silent <audio> element, routes it as media.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    if (!this.keep) {
+      try {
+        const el = document.createElement('audio');
+        el.src = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+        el.loop = true; el.setAttribute('playsinline', ''); el.preload = 'auto';
+        this.keep = el;
+      } catch {}
+    }
+    if (this.keep) this.keep.play().catch(() => {});
     this.ctx.resume();
+    // Play one silent sample inside the gesture so iOS fully unlocks the context.
+    const b = this.ctx.createBufferSource();
+    b.buffer = this.ctx.createBuffer(1, 1, 22050); b.connect(this.ctx.destination); b.start(0);
+    if (!this.hooked) {
+      this.hooked = true;
+      // iOS suspends or 'interrupts' the context on tab switch, calls and lock; re-wake on next input.
+      const wake = () => { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); if (this.keep && this.keep.paused) this.keep.play().catch(() => {}); };
+      for (const t of ['touchend', 'pointerup', 'click', 'keydown']) addEventListener(t, wake, true);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    }
   }
   burst(vol, freq, len, type = 'lowpass') {
     if (!this.ctx || vol < 0.01) return;
