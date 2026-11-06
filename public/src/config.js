@@ -19,9 +19,32 @@ export const MOVE = {
   fallSafeSpeed: 16, fallDamagePerSpeed: 6,
 };
 
+export const BULLET_RANGE = 200;   // total metres a round can travel, bounces included
+
+// Two guns, two jobs. The rifle is a fast climbing spray that pings once off a wall.
+// The pistol is a slow hand cannon: heavy kick, one-tap headshots, and it skips off two walls.
+//   kick / kickYaw   view punch per shot in radians; kickMax / kickYawMax cap the build-up
+//   recover          how fast the punch settles per second
+//   bounces          walls a round can glance off; bounceKeep is the damage kept after each
+//   shake / fov      camera shudder and FOV punch for the shooter; vm* drive the gun model
+//   tracer / flash   colours and sizes of the visible round and muzzle flash
 export const WEAPONS = {
-  rifle: { name: 'Rifle', mag: 30, reload: 2.4, interval: 0.1, damage: 33, headMult: 4, spread: 0.002, moveSpread: 0.035, kick: 0.009, kickMax: 0.11, auto: true },
-  pistol: { name: 'Pistol', mag: 12, reload: 1.8, interval: 0.17, damage: 26, headMult: 3.8, spread: 0.003, moveSpread: 0.018, kick: 0.016, kickMax: 0.07, auto: false },
+  rifle: {
+    name: 'Rifle', mag: 30, reload: 2.4, interval: 0.09, damage: 28, headMult: 3.6, spread: 0.002, moveSpread: 0.035, auto: true,
+    kick: 0.017, kickMax: 0.16, kickYaw: 0.006, kickYawMax: 0.05, recover: 4.2,
+    bounces: 1, bounceKeep: 0.55,
+    shake: 0.1, fov: 0.5, vmBack: 0.085, vmPitch: 0.1, vmRecover: 16,
+    tracer: { colour: 0xffb347, ricochet: 0xfff2b0, width: 0.026, life: 0.07 },
+    flash: { colour: 0xffa63d, size: 1.5, life: 0.05, light: 5 },
+  },
+  pistol: {
+    name: 'Pistol', mag: 8, reload: 1.7, interval: 0.28, damage: 46, headMult: 2.6, spread: 0.0015, moveSpread: 0.02, auto: false,
+    kick: 0.05, kickMax: 0.14, kickYaw: 0.01, kickYawMax: 0.04, recover: 7,
+    bounces: 2, bounceKeep: 0.7,
+    shake: 0.5, fov: 1.8, vmBack: 0.15, vmPitch: 0.28, vmRecover: 10,
+    tracer: { colour: 0x7fe9ff, ricochet: 0xffffff, width: 0.045, life: 0.11 },
+    flash: { colour: 0x9fe8ff, size: 2.4, life: 0.07, light: 9 },
+  },
 };
 
 export const ROUND = {

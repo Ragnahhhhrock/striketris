@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
@@ -100,6 +100,22 @@ function mesh(grid, wantStatic) {
   return g;
 }
 
+// Soft glow with six hard spikes: the muzzle flash, drawn white and tinted per weapon.
+function flashTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.22, 'rgba(255,255,255,.8)'); g.addColorStop(0.6, 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  x.translate(64, 64); x.fillStyle = 'rgba(255,255,255,.95)';
+  for (let i = 0; i < 6; i++) {
+    x.rotate(Math.PI / 3);
+    x.beginPath(); x.moveTo(0, -4); x.lineTo(63, 0); x.lineTo(0, 4); x.lineTo(-14, 0); x.closePath(); x.fill();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function letterTexture(text, colour) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const x = c.getContext('2d');
@@ -159,17 +175,73 @@ export class Renderer {
     this.buildArena();
     this.effects = [];
     this.shake = 0;
+    this.shotShake = 0;
+
+    // Shared gunfire resources, so a shot allocates almost nothing.
+    this.beamGeo = new THREE.BoxGeometry(1, 1, 1);
+    this.sparkGeo = new THREE.BoxGeometry(0.07, 0.07, 0.07);
+    this.puffGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    this.sparkMat = new THREE.MeshBasicMaterial({ color: 0xffd36b, fog: false });
+    this.flashTex = flashTexture();
+    this.beamMats = {}; this.flashMats = {};
+    for (const [id, w] of Object.entries(WEAPONS)) {
+      this.beamMats[id] = {
+        shot: new THREE.MeshBasicMaterial({ color: w.tracer.colour, fog: false }),
+        ricochet: new THREE.MeshBasicMaterial({ color: w.tracer.ricochet, fog: false }),
+      };
+      this.flashMats[id] = new THREE.SpriteMaterial({ map: this.flashTex, color: w.flash.colour, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+    }
+    // One light that jumps to whoever fired last, so muzzle flashes light the walls without recompiling shaders.
+    this.muzzleLight = new THREE.PointLight(0xffaa44, 0, 24, 2);
+    this.scene.add(this.muzzleLight);
 
     // Weapon drawn in its own pass so it never clips into walls.
     this.vmScene = new THREE.Scene();
     this.vmScene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.2));
     this.vmCam = new THREE.PerspectiveCamera(60, 1, 0.01, 10);
     this.vm = new THREE.Group();
-    const vmMat = new THREE.MeshLambertMaterial({ color: 0x4d4d4d });
-    const part = (w, h, d, x, y, z, m = vmMat) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); this.vm.add(b); return b; };
-    part(0.06, 0.09, 0.42, 0, 0, 0); part(0.03, 0.035, 0.34, 0, 0.012, -0.34); part(0.05, 0.14, 0.06, 0, -0.1, -0.06); part(0.045, 0.1, 0.14, 0, -0.03, 0.26);
-    this.flash = part(0.11, 0.11, 0.02, 0, 0.012, -0.53, new THREE.MeshBasicMaterial({ color: 0xffdf8a }));
-    this.flash.visible = false;
+    const box = (grp, mat, w, h, d, x, y, z, rx = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); b.rotation.x = rx; grp.add(b); return b; };
+    const steel = new THREE.MeshLambertMaterial({ color: 0x3b3f47 }), dark = new THREE.MeshLambertMaterial({ color: 0x23252b });
+    const orange = new THREE.MeshLambertMaterial({ color: 0xe8812a, emissive: 0x6b3208 });
+    const silver = new THREE.MeshLambertMaterial({ color: 0xd2d7de }), cyan = new THREE.MeshLambertMaterial({ color: 0x38c8e8, emissive: 0x0e5e70 });
+
+    // Rifle: long, dark and orange-trimmed, with a stock, curved magazine and muzzle brake.
+    this.vmRifle = new THREE.Group();
+    box(this.vmRifle, steel, 0.06, 0.09, 0.42, 0, 0, 0);
+    box(this.vmRifle, dark, 0.056, 0.066, 0.26, 0, -0.004, -0.3);
+    box(this.vmRifle, dark, 0.022, 0.022, 0.2, 0, 0.006, -0.52);
+    box(this.vmRifle, steel, 0.042, 0.042, 0.05, 0, 0.006, -0.63);
+    box(this.vmRifle, dark, 0.04, 0.17, 0.07, 0, -0.13, -0.1, 0.22);
+    box(this.vmRifle, dark, 0.042, 0.1, 0.05, 0, -0.095, 0.09, -0.25);
+    box(this.vmRifle, steel, 0.046, 0.1, 0.16, 0, -0.03, 0.27);
+    box(this.vmRifle, orange, 0.02, 0.01, 0.3, 0, 0.05, -0.04);
+    box(this.vmRifle, orange, 0.012, 0.034, 0.012, 0, 0.04, -0.58);
+    box(this.vmRifle, orange, 0.03, 0.026, 0.012, 0, 0.062, 0.16);
+    this.rifleFlashAt = new THREE.Vector3(0, 0.006, -0.68);
+
+    // Pistol: short and bright, tall silver slide with a cyan stripe. Its slide racks back on every shot.
+    this.vmPistol = new THREE.Group();
+    box(this.vmPistol, dark, 0.05, 0.06, 0.2, 0, -0.025, 0.02);
+    this.pistolSlide = new THREE.Group();
+    box(this.pistolSlide, silver, 0.058, 0.07, 0.27, 0, 0.035, -0.02);
+    box(this.pistolSlide, cyan, 0.012, 0.006, 0.2, 0, 0.073, -0.03);
+    box(this.pistolSlide, dark, 0.012, 0.02, 0.012, 0, 0.082, -0.14);
+    box(this.pistolSlide, dark, 0.03, 0.018, 0.012, 0, 0.082, 0.1);
+    this.vmPistol.add(this.pistolSlide);
+    box(this.vmPistol, steel, 0.034, 0.034, 0.06, 0, 0.035, -0.18);
+    box(this.vmPistol, dark, 0.052, 0.16, 0.075, 0, -0.12, 0.1, -0.2);
+    box(this.vmPistol, dark, 0.03, 0.02, 0.08, 0, -0.07, -0.02);
+    this.pistolFlashAt = new THREE.Vector3(0, 0.035, -0.23);
+    this.vmPistol.position.set(0, 0.02, 0.05);
+
+    this.vm.add(this.vmRifle, this.vmPistol);
+    this.vmPistol.visible = false;
+    // Muzzle flash on the gun model: a glow sprite plus a short hot core.
+    this.vmFlash = new THREE.Sprite(this.flashMats.rifle.clone());
+    this.vmFlash.visible = false;
+    this.vmCore = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    this.vmCore.visible = false;
+    this.vm.add(this.vmFlash, this.vmCore);
     this.vm.position.set(0.2, -0.17, -0.42);
     this.vm.scale.setScalar(0.62);
     this.vmScene.add(this.vm);
@@ -216,9 +288,10 @@ export class Renderer {
     const legs = add(0.5, 0.8, 0.3, 0, 0.4, 0, dark);
     const body = add(0.6, 0.72, 0.36, 0, 1.15, 0, mat);
     const head = add(0.28, 0.28, 0.28, 0, 1.66, 0, mat);
-    const gun = add(0.08, 0.1, 0.65, 0.22, 1.25, -0.3, dark);
+    const gunMat = new THREE.MeshLambertMaterial({ color: 0x2c2f36 });
+    const gun = add(0.08, 0.1, 0.65, 0.22, 1.25, -0.3, gunMat);
     this.scene.add(group);
-    return { actor: a, group, legs, body, head, gun, downT: 0 };
+    return { actor: a, group, legs, body, head, gun, gunMat, gunCur: 'rifle', downT: 0 };
   }
 
   clearEffects() { for (const e of this.effects) { this.fx.remove(e.obj); e.dispose?.(); } this.effects = []; }
@@ -328,20 +401,80 @@ export class Renderer {
     this.skyCubes.instanceMatrix.needsUpdate = true;
   }
 
-  addEffect(obj, life, update) { this.fx.add(obj); this.effects.push({ obj, t: 0, life, update }); }
+  addEffect(obj, life, update, dispose) { this.fx.add(obj); this.effects.push({ obj, t: 0, life, update, dispose, fresh: true }); }
+
+  // Sparks thrown off a wall, plus a grey puff of dust. Strong sparks fan along the surface.
+  impactFx(pos, n, count, power) {
+    const puff = new THREE.Mesh(this.puffGeo, new THREE.MeshBasicMaterial({ color: 0x666666, transparent: true }));
+    puff.position.set(pos.x + n.x * 0.05, pos.y + n.y * 0.05, pos.z + n.z * 0.05);
+    this.addEffect(puff, 0.45, (o, u) => { o.material.opacity = 1 - u; o.scale.setScalar(1 + u * 1.5); }, () => puff.material.dispose());
+    for (let i = 0; i < count; i++) {
+      const v = new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 3, (Math.random() - 0.5) * 6).multiplyScalar(power);
+      v.x += n.x * (2 + Math.random() * 4) * power; v.y += n.y * (2 + Math.random() * 4) * power; v.z += n.z * (2 + Math.random() * 4) * power;
+      const sp = new THREE.Mesh(this.sparkGeo, this.sparkMat), life = 0.18 + Math.random() * 0.22;
+      sp.position.set(pos.x, pos.y, pos.z);
+      this.addEffect(sp, life, (o, u) => {
+        const t = u * life;
+        o.position.set(pos.x + v.x * t, pos.y + v.y * t - 6 * t * t, pos.z + v.z * t);
+        o.scale.setScalar(Math.max(0.01, 1 - u));
+      });
+    }
+  }
 
   handleEvent(e, viewer) {
     switch (e.type) {
       case 'shot': {
-        const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.from.x, e.from.y - 0.1, e.from.z), new THREE.Vector3(e.to.x, e.to.y, e.to.z)]);
-        const m = new THREE.LineBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.8 });
-        this.addEffect(new THREE.Line(g, m), 0.08, (o, u) => { m.opacity = 0.8 * (1 - u); });
-        if (!e.hit) {
-          const puff = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: 0x555555, transparent: true }));
-          puff.position.set(e.to.x, e.to.y, e.to.z);
-          this.addEffect(puff, 0.5, (o, u) => { o.material.opacity = 1 - u; });
+        const w = WEAPONS[e.weapon] ?? WEAPONS.rifle;
+        const first = e.path[0], next = e.path[1];
+        const len0 = Math.hypot(next.x - first.x, next.y - first.y, next.z - first.z) || 1;
+        const fx = (next.x - first.x) / len0, fy = (next.y - first.y) / len0, fz = (next.z - first.z) / len0;
+        const yaw = e.actor.yaw;
+        // Where the barrel is: ahead of the eye, off to the right and a little low.
+        const muzzle = new THREE.Vector3(first.x + fx * 0.8 + Math.cos(yaw) * 0.2, first.y + fy * 0.8 - 0.16, first.z + fz * 0.8 - Math.sin(yaw) * 0.2);
+        const mine = e.actor === viewer;
+        e.path.forEach((pt, i) => {
+          if (!i) return;
+          const a = i === 1 ? muzzle : new THREE.Vector3(e.path[i - 1].x, e.path[i - 1].y, e.path[i - 1].z);
+          const b = new THREE.Vector3(pt.x, pt.y, pt.z);
+          const length = a.distanceTo(b);
+          if (length < 0.05) return;
+          const beam = new THREE.Mesh(this.beamGeo, i === 1 ? this.beamMats[e.weapon].shot : this.beamMats[e.weapon].ricochet);
+          beam.position.copy(a).add(b).multiplyScalar(0.5); beam.lookAt(b);
+          const width = w.tracer.width * (i === 1 ? 1 : 0.8);
+          beam.scale.set(width, width, length);
+          this.addEffect(beam, w.tracer.life * (i === 1 ? 1 : 1.5), (o, u) => { const k = width * (1 - u); o.scale.set(k, k, length); });
+        });
+        // Flash at the muzzle for everyone, with a light on the walls around it.
+        const flash = new THREE.Sprite(this.flashMats[e.weapon]);
+        const size = w.flash.size * (mine ? 0 : 0.55) * (0.85 + Math.random() * 0.3);
+        flash.position.copy(muzzle);
+        if (size > 0) this.addEffect(flash, w.flash.life, (o, u) => { const k = size * (1 - u * u); o.scale.set(k, k * (0.8 + Math.random() * 0.4), 1); });
+        const power = w.flash.light * 25 * (mine ? 1 : 0.7);
+        if (power > this.muzzleLight.intensity * 0.5) {
+          this.muzzleLight.color.setHex(w.flash.colour); this.muzzleLight.position.copy(muzzle); this.muzzleLight.intensity = power;
         }
-        if (e.actor === viewer) { this.vmKick = 1; this.flash.visible = true; this.flashT = 0.04; }
+        if (e.impact) this.impactFx(e.impact.pos, e.impact.normal, 4, 0.6);
+        if (mine) {
+          this.vmKick = Math.min(1.5, this.vmKick + (e.weapon === 'rifle' ? 0.55 : 1));
+          this.shotShake = Math.max(this.shotShake, w.shake);
+          this.flashT = w.flash.life; this.flashFresh = true;
+          this.vmFlash.material.color.setHex(w.flash.colour);
+          this.vmFlash.visible = this.vmCore.visible = true;
+          const at = e.weapon === 'pistol' ? this.pistolFlashAt.clone().add(this.vmPistol.position) : this.rifleFlashAt;
+          this.vmFlash.position.copy(at); this.vmCore.position.copy(at).z -= 0.04;
+          const s = (e.weapon === 'pistol' ? 0.36 : 0.3) * (0.85 + Math.random() * 0.4);
+          this.vmFlash.scale.set(s, s * (0.8 + Math.random() * 0.4), 1);
+          this.vmFlash.material.rotation = Math.random() * 6.28;
+          this.vmCore.material.color.setHex(w.flash.colour).lerp(new THREE.Color(0xffffff), 0.6);
+        }
+        break;
+      }
+      case 'ricochet': {
+        this.impactFx(e.pos, e.normal, 9, 1);
+        const w = WEAPONS[e.weapon] ?? WEAPONS.rifle;
+        const glow = new THREE.Sprite(this.flashMats[e.weapon]);
+        glow.position.set(e.pos.x + e.normal.x * 0.1, e.pos.y + e.normal.y * 0.1, e.pos.z + e.normal.z * 0.1);
+        this.addEffect(glow, 0.09, (o, u) => { const k = 0.9 * (1 - u); o.scale.set(k, k, 1); });
         break;
       }
       case 'land': {
@@ -439,22 +572,43 @@ export class Renderer {
     }
 
     for (const e of [...this.effects]) {
+      // Every effect gets one rendered frame at full strength, even when a slow frame is longer than its whole life.
+      if (e.fresh) { e.fresh = false; e.update?.(e.obj, 0); continue; }
       e.t += dt;
       const u = Math.min(1, e.t / e.life);
       e.update?.(e.obj, u);
-      if (u >= 1) { this.fx.remove(e.obj); this.effects.splice(this.effects.indexOf(e), 1); }
+      if (u >= 1) { this.fx.remove(e.obj); e.dispose?.(); this.effects.splice(this.effects.indexOf(e), 1); }
     }
 
     this.shake *= Math.exp(-4 * dt);
+    this.shotShake *= Math.exp(-18 * dt);
+    this.muzzleLight.intensity *= Math.exp(-45 * dt);
+    const jitter = (this.shake + this.shotShake * 0.8) * 0.06;
     this.camera.position.set(view.x, view.y, view.z);
-    this.camera.rotation.set(view.pitch + (Math.random() - 0.5) * this.shake * 0.06, view.yaw + (Math.random() - 0.5) * this.shake * 0.06, 0);
+    this.camera.rotation.set(view.pitch + (Math.random() - 0.5) * jitter, view.yaw + (Math.random() - 0.5) * jitter, 0);
     if (view.mode === 'first') this.camera.position.y += (Math.random() - 0.5) * this.shake * 0.4;
 
-    this.vmKick *= Math.exp(-14 * dt);
-    this.vm.position.z = -0.42 + this.vmKick * 0.05;
-    this.vm.rotation.x = this.vmKick * 0.05;
-    this.vm.position.y = -0.17 - (view.reloading ? 0.16 : 0);
-    if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.flash.visible = false; }
+    // Gun model: the model for the held weapon, kicked back and up by each shot.
+    const cur = view.actor?.cur === 'pistol' ? 'pistol' : 'rifle', wp = WEAPONS[cur];
+    this.vmRifle.visible = cur === 'rifle'; this.vmPistol.visible = cur === 'pistol';
+    this.vmKick *= Math.exp(-wp.vmRecover * dt);
+    const k = this.vmKick;
+    this.vm.position.set(0.2 + (Math.random() - 0.5) * k * 0.004, -0.17 - (view.reloading ? 0.16 : 0) - k * 0.012, -0.42 + k * wp.vmBack);
+    this.vm.rotation.set(k * wp.vmPitch, 0, (view.reloading ? 0.25 : 0) + k * 0.03 * (cur === 'pistol' ? 1 : 0.5));
+    this.pistolSlide.position.z = k * 0.08;
+    const fov = 78 + (view.mode === 'first' ? this.vmKick * wp.fov : 0);
+    if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
+    if (this.flashFresh) this.flashFresh = false;
+    else if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.vmFlash.visible = this.vmCore.visible = false; }
+
+    // Third-person gun matches the weapon too.
+    for (const v of this.actorViews) {
+      if (v.gunCur === v.actor.cur) continue;
+      v.gunCur = v.actor.cur;
+      const pistol = v.gunCur === 'pistol';
+      v.gun.scale.z = pistol ? 0.45 : 1; v.gun.position.z = pistol ? -0.16 : -0.3;
+      v.gunMat.color.setHex(pistol ? 0xd2d7de : 0x2c2f36);
+    }
 
     this.r.clear();
     this.r.render(this.scene, this.camera);

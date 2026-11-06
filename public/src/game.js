@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, ROUND, PIECE, SKILL, TEAM } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, ROUND, PIECE, SKILL, TEAM } from './config.js';
 import { rayBox, cellCentre } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -133,7 +133,8 @@ export class Game {
       if (fall) this.damage(a, fall, null, 'fall');
       if (!a.alive) continue;
       if (!frozen) this.stepWeapon(a, dt);
-      a.recoil *= Math.exp(-5 * dt);
+      const settle = Math.exp(-(WEAPONS[a.cur]?.recover ?? 5) * dt);
+      a.recoil *= settle; a.recoilYaw *= settle;
       if (this.bomb.state === 'dropped' && a.team === TEAM.ATT && dist2d(a.pos, this.bomb.pos) < 1.4 && Math.abs(a.pos.y - this.bomb.pos.y) < 2) {
         a.hasBomb = true; this.bomb.state = 'carried'; this.bomb.carrier = a; this.bomb.pos = null;
         this.emit('feed', { text: `${a.name} picked up the bomb` });
@@ -175,40 +176,69 @@ export class Game {
     const moving = Math.hypot(a.vel.x, a.vel.z) / MOVE.run;
     let spread = w.spread + w.moveSpread * Math.max(0, moving - 0.3) + (a.onGround ? 0 : 0.05) + Math.min(a.shotStreak, 12) * 0.0018;
     if (a.crouching) spread *= 0.7;
-    const d = aimDir(a);
-    const dx = d.x + (this.rng() - 0.5) * 2 * spread, dy = d.y + (this.rng() - 0.5) * 2 * spread, dz = d.z + (this.rng() - 0.5) * 2 * spread;
+    const d0 = aimDir(a);
+    const dx = d0.x + (this.rng() - 0.5) * 2 * spread, dy = d0.y + (this.rng() - 0.5) * 2 * spread, dz = d0.z + (this.rng() - 0.5) * 2 * spread;
     const n = Math.hypot(dx, dy, dz);
-    const dir = { x: dx / n, y: dy / n, z: dz / n };
+    let dir = { x: dx / n, y: dy / n, z: dz / n };
     const eye = eyePos(a);
-    let dist = this.grid.raycast(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, 200);
-    let victim = null, head = false;
-    for (const t of this.actors) {
-      if (!t.alive || t.team === a.team) continue;
-      const h = actorHeight(t), r = MOVE.radius;
-      const headH = 0.3;
-      const hd = rayBox(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, t.pos.x - 0.14, t.pos.y + h - headH, t.pos.z - 0.14, t.pos.x + 0.14, t.pos.y + h, t.pos.z + 0.14);
-      const bd = rayBox(eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h - headH, t.pos.z + r);
-      if (hd !== null && hd < dist) { dist = hd; victim = t; head = true; }
-      if (bd !== null && bd < dist) { dist = bd; victim = t; head = false; }
+
+    // Walk the round through the map. Each wall it meets either stops it or, while it has
+    // bounces left, turns it into a new segment that keeps part of its damage.
+    const path = [eye];
+    let origin = eye, left = BULLET_RANGE, keep = 1, bounces = 0;
+    let victim = null, head = false, impact = null;
+    for (;;) {
+      const hit = this.grid.raycastHit(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, left);
+      let dist = hit.dist;
+      victim = null; head = false;
+      for (const t of this.actors) {
+        if (!t.alive || t.team === a.team) continue;
+        const h = actorHeight(t), r = MOVE.radius;
+        const headH = 0.3;
+        const hd = rayBox(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, t.pos.x - 0.14, t.pos.y + h - headH, t.pos.z - 0.14, t.pos.x + 0.14, t.pos.y + h, t.pos.z + 0.14);
+        const bd = rayBox(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h - headH, t.pos.z + r);
+        if (hd !== null && hd < dist) { dist = hd; victim = t; head = true; }
+        if (bd !== null && bd < dist) { dist = bd; victim = t; head = false; }
+      }
+      const end = { x: origin.x + dir.x * dist, y: origin.y + dir.y * dist, z: origin.z + dir.z * dist };
+      path.push(end);
+      if (victim) break;
+      const surface = hit.nx || hit.ny || hit.nz;
+      if (!surface) break;
+      const dn = dir.x * hit.nx + dir.y * hit.ny + dir.z * hit.nz;
+      left -= dist;
+      if (bounces >= w.bounces || dn >= 0 || left < 1) { impact = { pos: end, normal: { x: hit.nx, y: hit.ny, z: hit.nz } }; break; }
+      // Mirror the direction about the wall, with a little scatter so a ricochet is never a laser mirror.
+      const rx = dir.x - 2 * dn * hit.nx + (this.rng() - 0.5) * 0.03, ry = dir.y - 2 * dn * hit.ny + (this.rng() - 0.5) * 0.03, rz = dir.z - 2 * dn * hit.nz + (this.rng() - 0.5) * 0.03;
+      const rl = Math.hypot(rx, ry, rz);
+      dir = { x: rx / rl, y: ry / rl, z: rz / rl };
+      origin = { x: end.x + hit.nx * 0.03, y: end.y + hit.ny * 0.03, z: end.z + hit.nz * 0.03 };
+      keep *= w.bounceKeep;
+      bounces++;
+      this.emit('ricochet', { actor: a, pos: end, normal: { x: hit.nx, y: hit.ny, z: hit.nz }, weapon: a.cur, bounce: bounces });
     }
+
+    // Bots steady their aim, so they only feel part of the punch.
+    const steady = a.isHuman ? 1 : 0.35;
     a.shotStreak += 1;
-    a.recoil = Math.min(w.kickMax, a.recoil + w.kick);
-    const end = { x: eye.x + dir.x * dist, y: eye.y + dir.y * dist, z: eye.z + dir.z * dist };
-    this.emit('shot', { actor: a, from: eye, to: end, hit: !!victim, weapon: a.cur });
+    a.recoil = Math.min(w.kickMax, a.recoil + w.kick * steady);
+    a.recoilYaw = Math.max(-w.kickYawMax, Math.min(w.kickYawMax, a.recoilYaw + (this.rng() - 0.5) * 2 * w.kickYaw * steady));
+    this.emit('shot', { actor: a, from: eye, to: path[path.length - 1], path, hit: !!victim, weapon: a.cur, bounces, impact });
     for (const t of this.actors) if (t.alive && t.brain && t.team !== a.team && dist2d(t.pos, a.pos) < 45) t.brain.heard = { ...a.pos };
-    if (victim) this.damage(victim, w.damage * (head ? w.headMult : 1), a, a.cur, head);
+    // A round that has bounced no longer finds the head: the one-tap belongs to straight shots.
+    if (victim) this.damage(victim, w.damage * keep * (head && !bounces ? w.headMult : 1), a, a.cur, head && !bounces, bounces);
   }
 
-  damage(t, amount, by, cause, head = false) {
+  damage(t, amount, by, cause, head = false, bounces = 0) {
     if (!t.alive || this.state === 'freeze') return;
     if (t.isHuman && this.opts.god) return;
     t.hp -= amount;
-    this.emit('hurt', { actor: t, by, amount, head });
+    this.emit('hurt', { actor: t, by, amount, head, bounces });
     if (t.brain && by) t.brain.heard = { ...by.pos };
-    if (t.hp <= 0) this.kill(t, by, cause, head);
+    if (t.hp <= 0) this.kill(t, by, cause, head, bounces);
   }
 
-  kill(t, by, cause, head) {
+  kill(t, by, cause, head, bounces = 0) {
     if (!t.alive) return;
     if (t.isHuman && this.opts.god) return;
     t.hp = 0; t.alive = false; t.deaths++; t.mantle = null;
@@ -223,7 +253,7 @@ export class Game {
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
     const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', line: 'was caught in a line clear' }[cause];
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
   }
 

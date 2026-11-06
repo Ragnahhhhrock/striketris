@@ -4,7 +4,7 @@ export function makeActor(id, team, name, isHuman) {
   return {
     id, team, name, isHuman,
     pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 },
-    yaw: 0, pitch: 0, recoil: 0,
+    yaw: 0, pitch: 0, recoil: 0, recoilYaw: 0,
     hp: 100, alive: true, onGround: true, crouching: false, mantle: null,
     weapons: {}, cur: 'rifle', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
     hasBomb: false, kills: 0, deaths: 0,
@@ -15,7 +15,7 @@ export function makeActor(id, team, name, isHuman) {
 
 export function resetActor(a) {
   a.hp = 100; a.alive = true; a.vel = { x: 0, y: 0, z: 0 }; a.mantle = null;
-  a.hasBomb = false; a.recoil = 0; a.crouching = false; a.onGround = true;
+  a.hasBomb = false; a.recoil = 0; a.recoilYaw = 0; a.crouching = false; a.onGround = true;
   a.weapons = { rifle: WEAPONS.rifle.mag, pistol: WEAPONS.pistol.mag };
   a.cur = 'rifle'; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
   a.brain = null;
@@ -25,9 +25,9 @@ export const actorHeight = a => (a.crouching ? MOVE.crouchHeight : MOVE.height);
 export const eyePos = a => ({ x: a.pos.x, y: a.pos.y + (a.crouching ? MOVE.crouchEye : MOVE.eye), z: a.pos.z });
 
 export function aimDir(a) {
-  const p = a.pitch + a.recoil;
+  const p = a.pitch + a.recoil, yaw = a.yaw + a.recoilYaw;
   const c = Math.cos(p);
-  return { x: -Math.sin(a.yaw) * c, y: Math.sin(p), z: -Math.cos(a.yaw) * c };
+  return { x: -Math.sin(yaw) * c, y: Math.sin(p), z: -Math.cos(yaw) * c };
 }
 
 const R = MOVE.radius;

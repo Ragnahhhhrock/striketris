@@ -42,6 +42,7 @@ const touch = new TouchControls({
 function resetFree() { Object.assign(free, { x: W * CELL / 2, y: 78, z: D * CELL / 2 + 46, yaw: 0, pitch: -0.85 }); }
 resetFree();
 
+window.__renderer = renderer;
 function load(g) { game = g; renderer.setGame(g); hud.setGame(g); window.__game = g; }
 
 function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
@@ -233,7 +234,7 @@ function chooseView(now) {
   }
   if (h?.alive) {
     const e = eyePos(h);
-    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0 };
+    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw + h.recoilYaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0 };
   }
   if (!camFree) {
     const mates = h ? game.alive(h.team) : [];

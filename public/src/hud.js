@@ -58,7 +58,7 @@ export class Hud {
       const w = WEAPONS[a.cur];
       $('weapon').textContent = w.name + (a.hasBomb ? '  +  Bomb' : '');
       $('ammo').textContent = a.reloadT > 0 ? 'Reloading' : `${a.weapons[a.cur]} / ${w.mag}`;
-      const spread = 6 + Math.hypot(a.vel.x, a.vel.z) * 1.6 + a.shotStreak * 1.4;
+      const spread = 6 + Math.hypot(a.vel.x, a.vel.z) * 1.6 + a.shotStreak * 1.4 + a.recoil * 140;
       document.documentElement.style.setProperty('--gap', `${Math.min(40, spread).toFixed(1)}px`);
     }
     const human = g.human;

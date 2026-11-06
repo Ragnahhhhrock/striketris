@@ -5,6 +5,7 @@ import { buildMap, SITES, SPAWNS } from '../public/src/map.js';
 import { Nav } from '../public/src/nav.js';
 import { orient, restHeight, findLines, clearCells, validPlacement, SHAPES } from '../public/src/pieces.js';
 import { STATIC, EMPTY } from '../public/src/grid.js';
+import { WEAPONS } from '../public/src/config.js';
 import { TICK, MIN_LINE } from '../public/src/config.js';
 import { makeActor, resetActor, stepMovement } from '../public/src/actor.js';
 
@@ -196,4 +197,83 @@ test('the director steers an unattended block once', () => {
   for (let i = 0; i < 60; i++) game.stepPiece(TICK);
   assert.equal(game.piece.aiDone, true);
   assert.ok(game.piece.rev <= 1);
+});
+
+// An open arena with the shooter in the middle and everyone else parked in a corner.
+function openRange(weapon) {
+  const game = new Game({ seed: 9, teamSize: 1, human: false, pieces: false });
+  game.grid.cells.fill(EMPTY); game.grid.crates = [];
+  game.drainEvents();
+  const [shooter, target] = [game.actors.find(a => a.team === 'attackers'), game.actors.find(a => a.team === 'defenders')];
+  Object.assign(shooter.pos, { x: 48, y: 0, z: 70 }); shooter.yaw = 0; shooter.cur = weapon; shooter.isHuman = true;
+  Object.assign(target.pos, { x: 6, y: 0, z: 6 });
+  game.state = 'live';
+  return { game, shooter, target };
+}
+
+test('raycastHit reports the face it struck', () => {
+  const { game } = openRange('rifle');
+  const down = game.grid.raycastHit(48, 1.6, 48, 0, -1, 0, 50);
+  assert.ok(Math.abs(down.dist - 1.6) < 1e-6);
+  assert.deepEqual([down.nx, down.ny, down.nz], [0, 1, 0]);
+  game.grid.set(20, 0, 16, STATIC);
+  const side = game.grid.raycastHit(30, 1, 50, 1, 0, 0, 100);
+  assert.deepEqual([side.nx, side.ny, side.nz], [-1, 0, 0]);
+  assert.ok(Math.abs(side.dist - 30) < 1e-6);
+  const sky = game.grid.raycastHit(48, 10, 48, 0, 1, 0, 80);
+  assert.equal(sky.dist, 80);
+  assert.deepEqual([sky.nx, sky.ny, sky.nz], [0, 0, 0]);
+});
+
+test('a rifle round skips off the floor and hits a target downrange for reduced damage', () => {
+  const { game, shooter, target } = openRange('rifle');
+  const w = WEAPONS.rifle;
+  // Aim at the floor 10m ahead; the round comes back up and meets a target 16.17m away at about waist height.
+  shooter.pitch = -Math.atan(1.62 / 10);
+  Object.assign(target.pos, { x: 48, y: 0, z: 70 - 16.17 });
+  game.fire(shooter, w);
+  const ev = game.drainEvents();
+  assert.equal(ev.filter(e => e.type === 'ricochet').length, 1);
+  const shot = ev.find(e => e.type === 'shot');
+  assert.equal(shot.bounces, 1);
+  assert.equal(shot.path.length, 3);
+  assert.ok(shot.hit);
+  const lost = 100 - target.hp;
+  assert.ok(Math.abs(lost - w.damage * w.bounceKeep) < 0.01, `lost ${lost}`);
+});
+
+test('rounds stop bouncing at the weapon limit and a ricochet never gets the headshot bonus', () => {
+  const { game, shooter } = openRange('pistol');
+  shooter.pitch = -0.2;
+  game.fire(shooter, WEAPONS.pistol);
+  const ev = game.drainEvents();
+  // Floor, then the far wall, then the round is spent on the next surface.
+  assert.equal(ev.filter(e => e.type === 'ricochet').length, WEAPONS.pistol.bounces);
+  const pistolShot = ev.find(e => e.type === 'shot');
+  assert.equal(pistolShot.path.length, WEAPONS.pistol.bounces + 2);
+  assert.ok(pistolShot.impact, 'the last wall leaves a mark');
+  const rifle = openRange('rifle');
+  rifle.shooter.pitch = -0.001;
+  rifle.game.fire(rifle.shooter, WEAPONS.rifle);
+  const shot = rifle.game.drainEvents().find(e => e.type === 'shot');
+  assert.ok(shot.path.length <= WEAPONS.rifle.bounces + 2);
+  // A target whose head sits on the bounced line takes body damage, not the head multiplier.
+  const hs = openRange('rifle');
+  hs.shooter.pitch = -Math.atan(1.62 / 10);
+  Object.assign(hs.target.pos, { x: 48, y: 0, z: 70 - 17.5 });
+  hs.game.fire(hs.shooter, WEAPONS.rifle);
+  const hurt = hs.game.drainEvents().find(e => e.type === 'hurt');
+  if (hurt) { assert.equal(hurt.head, false); assert.ok(hurt.amount <= WEAPONS.rifle.damage * WEAPONS.rifle.bounceKeep + 1e-6); }
+});
+
+test('firing kicks the view up and the kick settles back down', () => {
+  for (const id of ['rifle', 'pistol']) {
+    const { game, shooter } = openRange(id);
+    game.fire(shooter, WEAPONS[id]);
+    assert.ok(shooter.recoil >= WEAPONS[id].kick - 1e-9, `${id} kicks`);
+    const kicked = shooter.recoil;
+    for (let i = 0; i < 120; i++) game.step(TICK);
+    assert.ok(shooter.recoil < kicked * 0.1, `${id} settles`);
+  }
+  assert.ok(WEAPONS.pistol.kick > WEAPONS.rifle.kick * 2, 'the pistol hits much harder than a rifle round');
 });

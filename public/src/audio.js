@@ -33,7 +33,28 @@ export class Audio {
   event(e, viewer) {
     const at = p => (viewer && p ? Math.max(0, 1 - Math.hypot(viewer.pos.x - p.x, viewer.pos.z - p.z) / 70) : 0.4);
     switch (e.type) {
-      case 'shot': { const v = e.actor === viewer ? 0.32 : at(e.from) * 0.22; this.burst(v, e.weapon === 'rifle' ? 2400 : 3400, 0.13); break; }
+      case 'shot': {
+        const v = e.actor === viewer ? 1 : at(e.from) * 0.65;
+        if (e.weapon === 'pistol') {
+          // Hand cannon: a deep boom, a sharp crack, a chest thump and a room tail.
+          this.burst(0.5 * v, 1500, 0.28);
+          this.burst(0.3 * v, 4200, 0.05, 'highpass');
+          this.tone(0.55 * v, 230, 42, 0.2);
+          this.burst(0.12 * v, 480, 0.75);
+        } else {
+          // Rifle: a tight, bright crack with a light thud so a long burst stays readable.
+          this.burst(0.3 * v, 3200, 0.07, 'highpass');
+          this.burst(0.22 * v, 1900, 0.11);
+          this.tone(0.3 * v, 160 + Math.random() * 20, 55, 0.08);
+        }
+        break;
+      }
+      case 'ricochet': {
+        const v = Math.max(at(e.pos), e.actor === viewer ? 0.5 : 0);
+        this.tone(0.11 * v, 3000 + Math.random() * 900, 800, 0.24, 'sawtooth');
+        this.burst(0.14 * v, 5200, 0.06, 'highpass');
+        break;
+      }
       case 'adjust': this.tone(e.by === 'ai' ? 0.03 : 0.08, 520, 700, 0.05, 'square'); break;
       case 'blocked': this.tone(0.06, 150, 110, 0.08, 'sawtooth'); break;
       case 'telegraph': this.tone(0.1, 700, 1100, 0.5, 'square'); break;
