@@ -5,6 +5,7 @@ import { Nav } from './nav.js';
 import { SHAPES, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
 import { makeActor, resetActor, stepMovement, eyePos, aimDir, actorHeight, hitsWorld } from './actor.js';
 import { updateBot, initBrains } from './bots.js';
+import { stepLifts, resetLifts } from './lifts.js';
 
 export function mulberry(seed) {
   let s = seed >>> 0;
@@ -64,6 +65,7 @@ export class Game {
   startRound() {
     this.round++;
     this.grid.reset();
+    resetLifts(this);
     this.state = 'freeze';
     this.timer = ROUND.freeze;
     this.roundWinner = null;
@@ -101,6 +103,7 @@ export class Game {
 
   step(dt = TICK) {
     if (this.matchOver) return;
+    stepLifts(this, dt);
     if (this.state === 'post') {
       this.timer -= dt;
       this.stepActors(dt, false);
@@ -252,7 +255,7 @@ export class Game {
     }
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
-    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', line: 'was caught in a line clear' }[cause];
+    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear' }[cause];
     this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
   }

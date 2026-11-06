@@ -278,6 +278,27 @@ export class Renderer {
     this.crateGroup && this.scene.remove(this.crateGroup);
     this.crateGroup = new THREE.Group(); this.scene.add(this.crateGroup);
     this.crateCount = -1;
+    this.liftGroup && this.scene.remove(this.liftGroup);
+    this.liftGroup = new THREE.Group(); this.scene.add(this.liftGroup);
+    this.liftViews = game.grid.lifts.map(L => {
+      const w = L.x1 - L.x0 - 0.06, d = L.z1 - L.z0 - 0.06;
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshLambertMaterial({ color: 0x2c2f33 }));
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), new THREE.MeshBasicMaterial({ map: this.neonTex, color: 0xfff700, fog: false }));
+      shaft.castShadow = shaft.receiveShadow = true;
+      const x = (L.x0 + L.x1) / 2, z = (L.z0 + L.z1) / 2;
+      shaft.position.x = cap.position.x = x; shaft.position.z = cap.position.z = z;
+      this.liftGroup.add(shaft, cap);
+      return { L, shaft, cap };
+    });
+    this.liftViews.forEach(v => this.updateLift(v));
+  }
+
+  // Shaft fills the floor up to the cap; the cap turns orange while the lift is moving.
+  updateLift({ L, shaft, cap }) {
+    const h = Math.max(L.y1 - 0.3, 0.001);
+    shaft.scale.y = h; shaft.position.y = h / 2;
+    cap.position.y = L.y1 - 0.15;
+    cap.material.color.setHex(L.moving ? 0xff6a00 : 0xfff700);
   }
 
   makeActorView(a) {
@@ -544,6 +565,7 @@ export class Renderer {
       v.solid.position.set(v.slide.x, p.drop, v.slide.z);
       this.pieceLight.position.set(v.cx + v.slide.x, v.cy + p.drop + 2, v.cz + v.slide.z);
     }
+    for (const v of this.liftViews) this.updateLift(v);
     this.updateArena(dt);
     this.fxT += dt;
     this.arenaFx.update(this.fxT);

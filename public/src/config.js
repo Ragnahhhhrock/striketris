@@ -76,3 +76,11 @@ export const SKILL = {
 };
 
 export const TEAM = { ATT: 'attackers', DEF: 'defenders' };
+
+// Elevator floor sections. Each rests flush with the floor, rises, holds, then lowers.
+export const LIFT = {
+  rise: 4.5,     // metres above the floor at the top of the ride
+  travel: 2.2,   // seconds to rise or lower
+  down: 5,       // seconds resting at floor level
+  up: 4,         // seconds held at the top
+};

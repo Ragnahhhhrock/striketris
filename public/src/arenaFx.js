@@ -49,7 +49,7 @@ export class ArenaFx {
     }
     // Floor tiles over open ground only.
     for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
-      if (grid.get(x, 0, z) !== EMPTY) continue;
+      if (grid.get(x, 0, z) !== EMPTY || grid.liftAt(x, z)) continue;
       this.tiles.push({ x, y: 0, z, h: hash(x, 99, z), dirty: true });
     }
 

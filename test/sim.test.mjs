@@ -277,3 +277,79 @@ test('firing kicks the view up and the kick settles back down', () => {
   }
   assert.ok(WEAPONS.pistol.kick > WEAPONS.rifle.kick * 2, 'the pistol hits much harder than a rifle round');
 });
+
+// ---- elevator floor sections ----
+import { liftTop, stepLifts, LIFT_SPOTS } from '../public/src/lifts.js';
+import { LIFT } from '../public/src/config.js';
+
+// One tick of lifts and movement for a single actor, without bots getting in the way.
+function tick(game, a) { stepLifts(game, TICK); stepMovement(game.grid, a, TICK); }
+
+// A game with one lift forced to a known phase and one actor standing on it.
+function liftGame() {
+  const game = new Game({ seed: 4, human: false, teamSize: 1, pieces: false });
+  game.state = 'live'; game.timer = 100;
+  const L = game.grid.lifts[0];
+  L.offset = 0; game.liftT = 0;
+  const a = game.actors[0];
+  a.pos = { x: (L.x0 + L.x1) / 2, y: 0, z: (L.z0 + L.z1) / 2 };
+  a.vel = { x: 0, y: 0, z: 0 }; a.onGround = true;
+  a.input.f = a.input.r = 0;
+  return { game, L, a };
+}
+
+test('a lift rests flush, rises to its full height, holds, then lowers', () => {
+  assert.equal(liftTop(0, 0), 0);
+  assert.equal(liftTop(LIFT.down + LIFT.travel + 0.1, 0), LIFT.rise);
+  assert.equal(liftTop(LIFT.down + LIFT.travel + LIFT.up + LIFT.travel, 0), 0);
+  const mid = liftTop(LIFT.down + LIFT.travel / 2, 0);
+  assert.ok(mid > 0 && mid < LIFT.rise);
+});
+
+test('a lift carries a player up and back down', () => {
+  const { game, L, a } = liftGame();
+  let peak = 0;
+  for (let i = 0; i < 60 * 15; i++) {
+    tick(game, a);
+    assert.ok(a.alive);
+    if (Math.abs(a.pos.x - (L.x0 + L.x1) / 2) < 0.01) assert.ok(Math.abs(a.pos.y - L.y1) < 0.1, `rider stays on the platform at t=${game.liftT.toFixed(2)}`);
+    peak = Math.max(peak, a.pos.y);
+  }
+  assert.ok(peak > LIFT.rise - 0.1, 'rider reached the top');
+});
+
+test('a raised lift blocks movement and shots, a lowered one does not', () => {
+  const { game, L } = liftGame();
+  const g = game.grid;
+  const y = 1, x = L.x0 + 1.5;
+  assert.equal(g.boxHits(x - 0.3, y, L.z0 + 1, x + 0.3, y + 1.8, L.z0 + 1.6), false, 'flush lift is walkable');
+  L.y1 = LIFT.rise;
+  assert.equal(g.boxHits(x - 0.3, y, L.z0 + 1, x + 0.3, y + 1.8, L.z0 + 1.6), true);
+  const d = g.raycast(L.x0 - 5, 1, (L.z0 + L.z1) / 2, 1, 0, 0, 50);
+  assert.ok(Math.abs(d - 5) < 0.01, 'rays stop at the raised lift');
+  L.y1 = 0;
+  assert.ok(g.raycast(L.x0 - 5, 1, (L.z0 + L.z1) / 2, 1, 0, 0, 50) > 10, 'rays pass over a flush lift');
+});
+
+test('a rising lift pushes up whoever is standing over it', () => {
+  const { game, L, a } = liftGame();
+  a.pos.y = 0.3; a.onGround = false; // mid-jump just above the floor
+  game.liftT = LIFT.down - 0.01;
+  for (let i = 0; i < 60; i++) tick(game, a);
+  assert.ok(a.pos.y >= L.y1 - 0.01 && a.pos.y > 0.3, 'lifted onto the platform');
+  assert.ok(a.alive);
+});
+
+test('pieces never land on a lift', () => {
+  const game = new Game({ seed: 9, human: false, teamSize: 1 });
+  for (const { rect: [x0, x1, z0, z1] } of LIFT_SPOTS) {
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      assert.equal(validPlacement(game.grid, orient(1, 0, 0), x, z, null) === null, true, `piece refused at ${x},${z}`);
+    }
+  }
+});
+
+test('lifts and floor tiles do not share a cell', () => {
+  const g = buildMap();
+  for (const L of g.lifts) for (let z = L.cz0; z <= L.cz1; z++) for (let x = L.cx0; x <= L.cx1; x++) assert.ok(g.liftAt(x, z) && g.get(x, 0, z) === EMPTY);
+});

@@ -10,6 +10,7 @@ export class Grid {
     this.base = null;
     this.crates = [];
     this.baseCrates = [];
+    this.lifts = [];     // elevator floor sections, moved by lifts.js
     this.version = 0;
   }
   idx(x, y, z) { return x + z * W + y * W * D; }
@@ -50,7 +51,13 @@ export class Grid {
     for (const c of this.crates) {
       if (x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
     }
+    for (const c of this.lifts) {
+      if (c.y1 > 0.02 && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
+    }
     return false;
+  }
+  liftAt(cx, cz) {
+    return this.lifts.some(L => cx >= L.cx0 && cx <= L.cx1 && cz >= L.cz0 && cz <= L.cz1);
   }
 
   // Grid traversal. Returns distance to the first solid surface, or maxDist.
@@ -72,6 +79,11 @@ export class Grid {
       else { z += sz; t = tz; tz += tdz; }
     }
     for (const c of this.crates) {
+      const h = rayBox(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
+      if (h !== null && h < best) best = h;
+    }
+    for (const c of this.lifts) {
+      if (c.y1 <= 0.02) continue;
       const h = rayBox(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
       if (h !== null && h < best) best = h;
     }
