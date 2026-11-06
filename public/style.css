@@ -93,7 +93,7 @@ button:focus-visible, select:focus-visible { outline: var(--focus); outline-offs
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 7px 18px; font-size: 12px; opacity: .85; }
 kbd { font: inherit; background: var(--well-600); padding: 1px 5px; border: 1px solid var(--line); }
 .touch { display: none; color: var(--gold); font-size: 13px; margin: 16px 0 0; }
-@media (pointer: coarse) { .touch { display: block; } }
+body.touch .touch { display: block; }
 .touchkeys { display: none; }
 .credit { margin: 18px 0 0; font-size: 12px; opacity: .7; text-align: center; }
 .credit a { color: var(--gold); text-decoration: underline; }
@@ -192,9 +192,9 @@ body.touch #specbar { bottom: calc(var(--sb) + 10px); left: 38%; transform: none
 body.touch #debug { bottom: calc(var(--sb) + 70px); }
 body.touch #lockNote { display: none; }
 
-@media (pointer: coarse) and (orientation: portrait) {
-  #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; text-align: center; padding: 32px; background: var(--well-900); color: var(--ink); font-size: 18px; font-weight: 700; }
-  body:not([data-mode="play"]) #rotate { display: none; }
+@media (orientation: portrait) {
+  body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; text-align: center; padding: 32px; background: var(--well-900); color: var(--ink); font-size: 18px; font-weight: 700; }
+  body.touch:not([data-mode="play"]) #rotate { display: none; }
 }
 
 .tip { text-align: center; }

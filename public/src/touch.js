@@ -3,8 +3,16 @@
 const $ = id => document.getElementById(id);
 const capture = (el, id) => { try { el.setPointerCapture(id); } catch { /* pointer already gone */ } };
 
-export const isTouch = () =>
-  matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+// Some mobile browsers (iOS Chrome/Gemini-style shells, "Request Desktop Site", iPadOS) don't report
+// `pointer: coarse`, so also check any-pointer, hover:none, and touch points. ?touch=0 forces it off.
+export const isTouch = () => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('touch') === '0') return false;
+  if (q.has('touch')) return true;
+  const mm = s => { try { return matchMedia(s).matches; } catch { return false; } };
+  if (mm('(pointer: coarse)') || mm('(any-pointer: coarse)') || mm('(hover: none)')) return true;
+  return (navigator.maxTouchPoints || 0) > 1 && ('ontouchstart' in window);
+};
 
 const STICK_R = 54;      // px of travel for full speed
 const DEAD = 0.12;
