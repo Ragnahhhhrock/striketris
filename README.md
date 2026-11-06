@@ -15,6 +15,10 @@ No build step. The site is the static `public/` folder.
 
 Connect this repo in Workers & Pages, leave the build command empty, set the output directory to `public`, then add striketris.com as a custom domain.
 
+## Mobile
+
+Touch devices get on-screen controls automatically (add `?touch=1` to force them on a desktop). Left thumb is a floating move stick, right thumb drags to look, and the buttons are Fire (drag on it to aim while shooting), Jump, Use, Reload, Crouch and Swap. The Steer button appears when you can steer the falling block and swaps the buttons for arrows, rotate, flip, tumble and drop. Landscape works best. Code is in `public/src/touch.js`.
+
 ## The rules being tested
 
 - **Rounds:** bomb defuse. Attackers plant at A or B, defenders stop them. First to 8.

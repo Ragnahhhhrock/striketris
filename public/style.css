@@ -74,8 +74,8 @@ body:not([data-view="first"]) #cross { display: none; }
 #ctrlbar span { font-size: 12px; opacity: .85; }
 #lockNote { position: absolute; bottom: 70px; right: 14px; background: var(--panel); padding: 4px 8px; font-size: 12px; }
 
-#menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--scrim); overflow: auto; }
-.card { width: min(620px, 100%); background: var(--panel-solid); padding: 28px; border-top: 6px solid var(--bomb); }
+#menu { position: fixed; inset: 0; display: flex; padding: 16px; background: var(--scrim); overflow: auto; }
+.card { margin: auto; width: min(620px, 100%); background: var(--panel-solid); padding: 28px; border-top: 6px solid var(--bomb); }
 .card h1 { margin: 0; font-size: 44px; letter-spacing: -1px; }
 .sub { margin: 4px 0 22px; opacity: .75; font-size: 14px; line-height: 1.45; }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
@@ -91,5 +91,101 @@ button:focus-visible, select:focus-visible { outline: var(--focus); outline-offs
 kbd { font: inherit; background: var(--well-600); padding: 1px 5px; border: 1px solid var(--line); }
 .touch { display: none; color: var(--gold); font-size: 13px; margin: 16px 0 0; }
 @media (pointer: coarse) { .touch { display: block; } }
+.touchkeys { display: none; }
 
 @media (prefers-reduced-motion: reduce) { #warn { animation: none; } }
+
+/* ---- Touch ---- */
+body.touch { --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); --sb: env(safe-area-inset-bottom, 0px); --st: env(safe-area-inset-top, 0px); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+body.touch #view { touch-action: none; }
+body.touch .keys, body.touch .sub.spec { display: none; }
+body.touch .touchkeys { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 7px 18px; font-size: 12px; opacity: .85; }
+body.touch .touchkeys b { color: var(--gold); font-weight: 700; margin-right: 4px; }
+body.touch .card { padding: 20px 24px; }
+body.touch .card h1 { font-size: 34px; }
+body.touch .sub { margin-bottom: 14px; }
+body.touch select, body.touch button { min-height: 44px; }
+
+#rotate, #touch { display: none; }
+body.touch #touch { display: block; }
+body.touch:not([data-mode="play"]) #touch { display: none; }
+#touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; touch-action: none; font-size: 14px; }
+#touch > * { pointer-events: auto; touch-action: none; }
+#tLook { position: absolute; inset: 0; }
+#tStickZone { position: absolute; left: 0; top: 30%; bottom: 0; width: 42%; }
+#tStick { position: absolute; left: calc(var(--sl) + 90px); bottom: calc(var(--sb) + 90px); width: 0; height: 0; opacity: .35; transition: opacity var(--t-fast); }
+#tStickZone.on #tStick { opacity: .9; }
+#tStick::before { content: ''; position: absolute; left: -54px; top: -54px; width: 108px; height: 108px; border: 2px solid var(--line); background: var(--panel); }
+#tStick i { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; background: var(--ink); opacity: .85; }
+#tStickZone:not(.on) #tStick { left: calc(var(--sl) + 90px) !important; top: auto !important; bottom: calc(var(--sb) + 90px); }
+
+#touch .tb, #tMenu { position: absolute; padding: 0; min-height: 0; width: 60px; height: 60px; font-size: 13px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); text-shadow: var(--shadow-text); display: none; }
+#touch .tb.on, #tMenu:active { background: var(--well-400); border-color: var(--ink); }
+#tMenu { display: block; top: calc(var(--st) + 14px); right: calc(var(--sr) + 14px); width: 44px; height: 44px; font-size: 14px; }
+#touch .tb[data-g="all"], #touch .tb[data-g="steerable"] { top: calc(var(--st) + 14px); height: 44px; width: 56px; font-size: 12px; }
+#tScores { right: calc(var(--sr) + 66px); }
+#tSteer { right: calc(var(--sr) + 130px); }
+body[data-ctl] #touch .tb[data-g="all"] { display: block; }
+body[data-steerable="1"] #touch .tb[data-g="steerable"] { display: block; }
+body[data-pad="steer"] #tSteer { background: var(--steer); color: #001418; text-shadow: none; }
+
+/* Combat pad */
+body[data-ctl="play"]:not([data-pad]) #touch .tb[data-g="play"],
+body[data-ctl="play"][data-pad=""] #touch .tb[data-g="play"] { display: block; }
+#tFire { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--bomb) !important; font-size: 16px !important; font-weight: 700; text-shadow: none !important; color: #fff !important; border: 0 !important; }
+#tFire.on { background: var(--bomb-hover) !important; }
+#tJump { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
+#tReload { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 132px); }
+#tUse { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); }
+#tCrouch { right: calc(var(--sr) + 156px); bottom: calc(var(--sb) + 120px); }
+#tSwap { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 200px); }
+
+/* Steer pad (falling block): arrows left, actions right */
+body[data-pad="steer"] #touch .tb[data-g="steer"] { display: block; border-color: var(--steer); }
+#tUp { left: calc(var(--sl) + 76px); bottom: calc(var(--sb) + 148px); }
+#tLeft { left: calc(var(--sl) + 14px); bottom: calc(var(--sb) + 84px); }
+#tDown { left: calc(var(--sl) + 76px); bottom: calc(var(--sb) + 20px); }
+#tRight { left: calc(var(--sl) + 138px); bottom: calc(var(--sb) + 84px); }
+#tDrop { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--bomb) !important; border: 0 !important; color: #fff; text-shadow: none; font-weight: 700; }
+#tTumble { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
+#tRotL { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 132px); font-size: 24px !important; }
+#tRotR { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); font-size: 24px !important; }
+#tFlip { right: calc(var(--sr) + 156px); bottom: calc(var(--sb) + 120px); }
+
+/* Spectate: follow and free camera */
+body[data-ctl="follow"][data-pad=""] #touch .tb[data-g="follow"],
+body[data-ctl="follow"][data-pad=""] #touch .tb[data-g="specall"],
+body[data-ctl="free"][data-pad=""] #touch .tb[data-g="specall"],
+body[data-ctl="free"][data-pad=""] #touch .tb[data-g="free"] { display: block; }
+#tNext { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; }
+#tPrev { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
+#tCam { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 132px); }
+#tPause { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); }
+#tUpFly { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; }
+#tDownFly { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
+#tFast { right: calc(var(--sr) + 156px); bottom: calc(var(--sb) + 120px); }
+
+/* HUD fits a phone */
+body.touch #hud { padding: 0; }
+body.touch #minimap { width: 104px; height: 104px; top: calc(var(--st) + 14px); left: calc(var(--sl) + 14px); }
+body.touch #nextBox { top: calc(var(--st) + 124px); left: calc(var(--sl) + 14px); width: 104px; padding: 4px 6px; font-size: 11px; }
+body.touch #nextBox canvas { width: 40px; height: 32px; }
+body.touch #top { top: calc(var(--st) + 8px); padding: 3px 14px 4px; min-width: 120px; }
+body.touch #timer { font-size: 24px; }
+body.touch #feed { top: calc(var(--st) + 66px); right: calc(var(--sr) + 14px); max-width: 40vw; }
+body.touch #feed div { font-size: 11px; }
+body.touch #vitals { left: 40%; right: auto; bottom: calc(var(--sb) + 10px); gap: 18px; }
+body.touch #vitals b { font-size: 24px; }
+body.touch #vitals .bar { width: 100px; }
+body.touch #prompt { bottom: 110px; font-size: 13px; }
+body.touch #progress { bottom: 90px; }
+body.touch #banner { top: 18%; }
+body.touch #board { max-height: 80vh; overflow: auto; padding: 10px 14px; gap: 20px; }
+body.touch #specbar { bottom: calc(var(--sb) + 10px); left: 38%; transform: none; max-width: 36vw; flex-direction: column; gap: 2px; white-space: normal; }
+body.touch #debug { bottom: calc(var(--sb) + 70px); }
+body.touch #lockNote { display: none; }
+
+@media (pointer: coarse) and (orientation: portrait) {
+  #rotate { display: flex; position: fixed; inset: 0; z-index: 20; align-items: center; justify-content: center; text-align: center; padding: 32px; background: var(--well-900); color: var(--ink); font-size: 18px; font-weight: 700; }
+  body:not([data-mode="play"]) #rotate { display: none; }
+}

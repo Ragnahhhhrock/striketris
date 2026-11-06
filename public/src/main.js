@@ -4,6 +4,7 @@ import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
+import { TouchControls } from './touch.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -26,7 +27,17 @@ let lastView = null;
 const free = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
 const keys = new Set();
 const SENS = 0.0022;
+let steerOpen = false;   // touch: show the block steer pad instead of the combat buttons
 const SPEEDS = { Digit1: 0.25, Digit2: 0.5, Digit3: 1, Digit4: 2.5 };
+
+const clamp1 = v => Math.max(-1, Math.min(1, v));
+const touch = new TouchControls({
+  key: (code, down) => dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true, cancelable: true })),
+  look: (dx, dy) => look(dx, dy),
+  pause: () => pause(),
+  swap: () => { const h = game?.human; if (mode === 'play' && h?.alive) h.input.weapon = h.cur === 'rifle' ? 'pistol' : 'rifle'; },
+  toggleSteer: () => { steerOpen = !steerOpen; },
+});
 
 function resetFree() { Object.assign(free, { x: W * CELL / 2, y: 78, z: D * CELL / 2 + 46, yaw: 0, pitch: -0.85 }); }
 resetFree();
@@ -49,6 +60,7 @@ function start(keep) {
     pieces: interval > 0,
     seed: Number(params.get('seed')) || undefined,
   }));
+  if (touch.enabled) goFullscreen();
   if (keep !== true) { camFree = m === 'spectate'; resetFree(); timeScale = 1; }
   simPaused = false; overT = 0;
   resume();
@@ -76,7 +88,16 @@ function showMenu(paused) {
   if (document.pointerLockElement) document.exitPointerLock();
 }
 
+function goFullscreen() {
+  try {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) el.requestFullscreen?.({ navigationUI: 'hide' })?.catch(() => {});
+    screen.orientation?.lock?.('landscape')?.catch(() => {});
+  } catch { /* iOS Safari has no fullscreen on phones; the page still plays */ }
+}
+
 function requestLock() {
+  if (touch.enabled) return;
   if (lockFailed) { $('lockNote').hidden = false; return; }
   try {
     const p = canvas.requestPointerLock();
@@ -112,14 +133,18 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('pointerlockerror', () => { lockFailed = true; $('lockNote').hidden = false; });
 
-document.addEventListener('mousemove', e => {
+function look(dx, dy) {
   if (mode !== 'play') return;
-  if (!document.pointerLockElement && !(lockFailed && dragging)) return;
   const h = game.human;
   const t = freeActive() ? free : h?.alive ? h : null;
   if (!t) return;
-  t.yaw -= e.movementX * SENS;
-  t.pitch = Math.max(-1.5, Math.min(1.5, t.pitch - e.movementY * SENS));
+  t.yaw -= dx * SENS;
+  t.pitch = Math.max(-1.5, Math.min(1.5, t.pitch - dy * SENS));
+}
+document.addEventListener('mousemove', e => {
+  if (mode !== 'play') return;
+  if (!document.pointerLockElement && !(lockFailed && dragging)) return;
+  look(e.movementX, e.movementY);
 });
 canvas.addEventListener('mousedown', e => {
   if (mode !== 'play') return;
@@ -173,8 +198,8 @@ function humanInput() {
   if (!h) return;
   const i = h.input;
   if (mode !== 'play') { i.f = i.r = 0; i.jump = i.fire = i.use = i.reload = i.crouch = i.walk = false; return; }
-  i.f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
-  i.r = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  i.f = clamp1((keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0) + touch.move.f);
+  i.r = clamp1((keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + touch.move.r);
   i.jump = keys.has('Space');
   i.crouch = keys.has('ControlLeft') || keys.has('KeyC');
   i.walk = keys.has('ShiftLeft');
@@ -189,8 +214,8 @@ function updateFree(dt) {
   const cp = Math.cos(free.pitch);
   const fx = -Math.sin(free.yaw) * cp, fy = Math.sin(free.pitch), fz = -Math.cos(free.yaw) * cp;
   const rx = Math.cos(free.yaw), rz = -Math.sin(free.yaw);
-  const f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
-  const r = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  const f = clamp1((keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0) + touch.move.f);
+  const r = clamp1((keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0) + touch.move.r);
   const u = (keys.has('Space') ? 1 : 0) - (keys.has('KeyC') ? 1 : 0);
   free.x += (fx * f + rx * r) * sp;
   free.y += (fy * f + u) * sp;
@@ -244,7 +269,9 @@ function specText(view) {
   const who = h ? 'Eliminated' : 'Spectating';
   const speed = simPaused ? 'Paused' : `${timeScale}x`;
   const cam = view.mode === 'free' ? 'Free camera' : `Following ${view.actor?.name ?? ''}`;
-  const hint = view.mode === 'free'
+  const hint = touch.enabled
+    ? (view.mode === 'free' ? 'Stick flies, drag to look, Up and Down change height' : 'Next and Prev switch player, Camera goes free')
+    : view.mode === 'free'
     ? 'WASD fly, Space up, C down, Shift fast, F follow, 1-4 speed, P pause, G new block'
     : 'Space or E next, Q previous, F free camera, 1-4 speed, P pause';
   return [`${who}: ${cam}, ${speed}`, hint];
@@ -269,7 +296,15 @@ function frame(now) {
   const cam = view.mode === 'free' ? { alive: true, pos: { x: view.x, z: view.z }, yaw: view.yaw } : null;
   hud.update(dt, h?.alive ? h : view.actor, cam);
   document.body.dataset.view = view.mode;
-  $('ctrlbar').hidden = !(controllable() && game.piece && game.piece.drop >= 4.5);
+  const steerable = !!(controllable() && game.piece && game.piece.drop >= 4.5);
+  $('ctrlbar').hidden = !steerable || touch.enabled;
+  if (touch.enabled) {
+    if (!steerable) steerOpen = false;
+    const b = document.body.dataset;
+    b.ctl = mode !== 'play' ? '' : h?.alive ? 'play' : view.mode === 'free' ? 'free' : 'follow';
+    b.steerable = steerable ? '1' : '';
+    b.pad = steerable && steerOpen ? 'steer' : '';
+  }
   const [a, b] = specText(view);
   if (a + b !== specShown) { specShown = a + b; $('specState').textContent = a; $('specHint').textContent = b; $('specbar').hidden = !a; }
   frames++; fpsT += dt;

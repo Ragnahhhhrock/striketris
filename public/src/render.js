@@ -110,7 +110,7 @@ function letterTexture(text, colour) {
 export class Renderer {
   constructor(canvas) {
     this.r = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.r.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.r.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
     this.r.shadowMap.enabled = true;
     this.r.shadowMap.type = THREE.PCFShadowMap;
     this.r.autoClear = false;

@@ -10,9 +10,12 @@
   gtag('js', new Date());
   gtag('config', 'G-XYSTL7KXD4');
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>StrikeTris: a bomb-defusal shooter with falling blocks</title>
-<meta name="description" content="Plant or defuse the bomb while giant Tetris-style blocks fall into the map and rebuild it mid-round. Play free in your browser with keyboard and mouse.">
+<meta name="description" content="Plant or defuse the bomb while giant Tetris-style blocks fall into the map and rebuild it mid-round. Play free in your browser with keyboard and mouse, or touch on your phone.">
 <meta name="theme-color" content="#14161a">
 <meta name="color-scheme" content="dark">
 <meta name="application-name" content="StrikeTris">
@@ -64,6 +67,7 @@
 </head>
 <body data-mode="menu">
 <canvas id="view"></canvas>
+<div id="rotate">Rotate your phone to landscape</div>
 
 <div id="hud">
   <div id="top">
@@ -114,7 +118,12 @@
       <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Call a new block <kbd>`</kbd> Debug</div>
     </div>
     <p class="sub spec">Spectating (or after you die, press F): <kbd>WASD</kbd> fly, <kbd>Space</kbd> up, <kbd>C</kbd> down, <kbd>Shift</kbd> fast, <kbd>1</kbd>-<kbd>4</kbd> speed, <kbd>P</kbd> pause, <kbd>Q</kbd> <kbd>E</kbd> switch player.<br>Steering the falling block (spectating, after you die, or invulnerable): <kbd>Arrows</kbd> move, <kbd>Z</kbd> <kbd>X</kbd> rotate, <kbd>V</kbd> flip, <kbd>B</kbd> tumble, <kbd>Enter</kbd> hard drop.</p>
-    <p class="touch">Needs a keyboard and mouse.</p>
+    <div class="touchkeys">
+      <div><b>Left thumb</b> Move stick</div><div><b>Right thumb</b> Drag to look</div>
+      <div><b>Fire</b> Hold to shoot, drag on it to aim</div><div><b>Use</b> Hold to plant or defuse</div>
+      <div><b>Steer</b> Opens the falling block pad when you can steer</div><div><b>II</b> Pause and menu</div>
+    </div>
+    <p class="touch">Landscape works best. Add to Home Screen for full screen on iPhone.</p>
   </div>
 </div>
 
