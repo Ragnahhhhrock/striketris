@@ -95,6 +95,10 @@ kbd { font: inherit; background: var(--well-600); padding: 1px 5px; border: 1px 
 .touch { display: none; color: var(--gold); font-size: 13px; margin: 16px 0 0; }
 @media (pointer: coarse) { .touch { display: block; } }
 .touchkeys { display: none; }
+.credit { margin: 18px 0 0; font-size: 12px; opacity: .7; text-align: center; }
+.credit a { color: var(--gold); text-decoration: underline; }
+.credit a:hover { color: var(--ink); }
+.credit a:focus-visible { outline: var(--focus); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) { #warn { animation: none; } }
 
