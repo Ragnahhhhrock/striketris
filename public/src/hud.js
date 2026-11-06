@@ -17,8 +17,9 @@ export class Hud {
     this.sightT = 0;
     this.spotted = new Set();
     this.lastNext = -1;
+    this.goT = 0;
   }
-  setGame(game) { this.game = game; this.lastNext = -1; this.feedItems = []; $('feed').innerHTML = ''; }
+  setGame(game) { this.game = game; this.goT = 0; this.lastNext = -1; this.feedItems = []; $('feed').innerHTML = ''; }
 
   event(e) {
     if (e.type === 'feed') this.addFeed(e.text);
@@ -68,6 +69,11 @@ export class Hud {
     } else if (human) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';
     $('prompt').textContent = prompt;
+
+    const cd = $('countdown');
+    if (g.state === 'freeze') { this.goT = 0.7; cd.hidden = false; cd.className = ''; cd.textContent = Math.max(1, Math.ceil(g.timer)); }
+    else if (this.goT > 0) { this.goT -= dt; cd.hidden = false; cd.className = 'go'; cd.textContent = 'GO'; }
+    else cd.hidden = true;
 
     const danger = g.dangerColumns();
     const under = human?.alive && danger && danger.has(Math.floor(human.pos.x / CELL) + Math.floor(human.pos.z / CELL) * W);

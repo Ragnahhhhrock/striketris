@@ -37,6 +37,9 @@ body[data-mode="menu"] #hud { display: none; }
 
 #warn { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: var(--bomb); color: #fff; padding: 8px 18px; font-size: 20px; font-weight: 700; animation: pulse .3s infinite alternate; text-shadow: none; }
 @keyframes pulse { to { opacity: .55; } }
+#countdown { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 96px; font-weight: 700; line-height: 1; color: var(--ink); text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+#countdown.go { color: var(--go); animation: fade .7s linear forwards; }
+body.touch #countdown { top: 22%; font-size: 72px; }
 #prompt { position: absolute; bottom: 150px; left: 0; right: 0; text-align: center; font-size: 15px; }
 #progress { position: absolute; bottom: 125px; left: 50%; width: 260px; margin-left: -130px; height: 10px; background: var(--panel); border: 1px solid var(--line); }
 #progressbar { height: 100%; width: 0; background: var(--gold); }
