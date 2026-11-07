@@ -8,6 +8,7 @@ import { updateBot, initBrains } from './bots.js';
 import { stepLifts, resetLifts } from './lifts.js';
 import { stepWalls, resetWalls } from './walls.js';
 import { makePickups, resetPickups, stepPickups } from './pickups.js';
+import { makeDrops, dropPrimary, nearestDrop, stepDropPickup } from './drops.js';
 
 export function mulberry(seed) {
   let s = seed >>> 0;
@@ -41,6 +42,7 @@ export class Game {
     this.piecesLanded = 0;
     this.nextShape = this.bagNext();
     this.pickups = this.opts.items ? makePickups() : [];
+    this.drops = makeDrops();
     this.projectiles = [];
     this.nextProj = 1;
     this.thrown = []; this.mines = []; this.time = 0;
@@ -89,6 +91,7 @@ export class Game {
     resetLifts(this);
     resetWalls(this);
     resetPickups(this);
+    this.drops = [];
     this.projectiles = [];
     this.thrown = []; this.mines = [];
     this.state = 'freeze';
@@ -168,6 +171,7 @@ export class Game {
       if (fall) { this.emit('fall', { actor: a, damage: fall }); this.damage(a, fall, null, 'fall'); }
       if (!a.alive) continue;
       if (!frozen) this.stepWeapon(a, dt);
+      if (a.isHuman && !frozen) stepDropPickup(this, a);
       const settle = Math.exp(-(WEAPONS[a.cur]?.recover ?? 5) * dt);
       a.recoil *= settle; a.recoilYaw *= settle;
       if (this.bomb.state === 'dropped' && a.team === TEAM.ATT && dist2d(a.pos, this.bomb.pos) < 1.4 && Math.abs(a.pos.y - this.bomb.pos.y) < 2) {
@@ -176,6 +180,16 @@ export class Game {
       }
     }
   }
+
+  // True while Use already means plant or defuse, so it should not also pick up a weapon.
+  useBusy(a) {
+    if (this.isChannelling(a)) return true;
+    if (a.hasBomb && this.siteAt(a.pos)) return true;
+    const b = this.bomb;
+    return a.team === TEAM.DEF && b.state === 'planted' && Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z) < ROUND.defuseRange;
+  }
+
+  nearestDrop(a) { return nearestDrop(this, a); }
 
   isChannelling(a) {
     return (this.planter === a && this.plantProgress > 0) || (this.defuser === a && this.defuseProgress > 0);
@@ -444,6 +458,7 @@ export class Game {
       this.bomb.pos = { x: t.pos.x, y, z: t.pos.z };
       this.emit('feed', { text: 'The bomb was dropped' });
     }
+    dropPrimary(this, t);
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
     const you = t.name === 'You';

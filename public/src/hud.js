@@ -31,6 +31,7 @@ export class Hud {
     if (e.type === 'match') this.banner(`${e.winner === TEAM.ATT ? 'Attackers' : 'Defenders'} win the match`, 'Press Esc for the menu');
     if (e.type === 'round') $('banner').hidden = true;
     if (e.type === 'pickup' && e.actor === this.game.human) this.addFeed({ health: 'Picked up health', ammo: 'Picked up ammo', launcher: 'Picked up the Rocket Launcher', rockets: 'Picked up rockets' }[e.what]);
+    if (e.type === 'weaponPickup' && e.actor === this.game.human) this.addFeed(`Swapped ${weaponName(e.actor.team, e.dropped)} for ${weaponName(e.actor.team, e.weapon)}`);
     if (e.type === 'hurt' && e.actor === this.game.human) { const f = $('hurt'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
     if (e.type === 'hurt' && e.by === this.game.human) { const h = $('hitmark'); h.classList.remove('on'); void h.offsetWidth; h.classList.add('on'); }
   }
@@ -65,7 +66,7 @@ export class Hud {
       const gd = a.gadget ? GADGETS[a.gadget] : null;
       $('gadget').textContent = !gd ? '' : gd.n === Infinity ? `[F] ${gd.name}${a.gadgetCd > 0 ? ` ${Math.ceil(a.gadgetCd)}s` : ''}` : `[F] ${gd.name} x${a.gadgetN}`;
       $('scope').hidden = !(a.scoped && a === this.game.human);
-      $('ammo').textContent = a.reloadT > 0 ? 'Reloading' : `${a.weapons[a.cur]} / ${w.mag}`;
+      $('ammo').textContent = a.reloadT > 0 ? `Reloading ${Math.round(100 * (1 - a.reloadT / w.reload))}%` : `${a.weapons[a.cur]} / ${w.mag}`;
       // Weapon slots: the ones you carry, the held one lit, a launcher with no rockets greyed.
       const slots = slotKeys(a).filter(([id]) => a.weapons[id] !== undefined)
         .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${weaponName(a.team, id).split(' ')[0]}</i>`).join('');
@@ -78,6 +79,10 @@ export class Hud {
     if (human?.alive) {
       if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
       else if (human.team === TEAM.DEF && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
+      else {
+        const d = g.nearestDrop(human);
+        if (d) prompt = `Press E to swap for ${weaponName(human.team, d.weapon)}`;
+      }
     } else if (human && !this.dying) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';
     $('prompt').textContent = prompt;

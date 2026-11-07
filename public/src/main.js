@@ -286,7 +286,7 @@ function chooseView(now) {
   }
   if (h?.alive) {
     const e = eyePos(h);
-    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw + h.recoilYaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
+    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw + h.recoilYaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, reloadP: h.reloadT > 0 ? Math.min(1, Math.max(0, 1 - h.reloadT / WEAPONS[h.cur].reload)) : -1, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
   }
   if (h && deathCam && deathCam.t < DEATH_CAM) return deathView(game.grid, h, deathCam.t);
   if (!camFree) {

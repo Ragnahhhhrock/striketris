@@ -333,6 +333,9 @@ export class Renderer {
     this.vm.position.set(0.2, -0.17, -0.42);
     this.vm.scale.setScalar(0.62);
     this.vmScene.add(this.vm);
+    // Magazine shown only while reloading, slides out below the gun and a fresh one back in.
+    this.vmMag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.08), new THREE.MeshLambertMaterial({ color: 0x2a2d31 }));
+    this.vmMag.visible = false; this.vm.add(this.vmMag);
     this.vmKick = 0; this.zoom = 1;
 
     this.resize();
@@ -395,6 +398,9 @@ export class Renderer {
     this.pickupGroup && this.scene.remove(this.pickupGroup);
     this.pickupGroup = new THREE.Group(); this.scene.add(this.pickupGroup);
     this.pickupViews = game.pickups.map(p => this.makePickupView(p));
+    this.dropGroup && this.scene.remove(this.dropGroup);
+    this.dropGroup = new THREE.Group(); this.scene.add(this.dropGroup);
+    this.dropViews = new Map();
     this.rocketGroup && this.scene.remove(this.rocketGroup);
     this.rocketGroup = new THREE.Group(); this.scene.add(this.rocketGroup);
     this.rocketViews = new Map();
@@ -449,6 +455,29 @@ export class Renderer {
       v.item.rotation.y = t * 1.8 + v.p.id;
       v.item.position.y = 1.2 + Math.sin(t * 2.4 + v.p.id) * 0.12;
     }
+  }
+
+  // Dropped weapons lie on the floor with a faint ring, bobbing slightly. One view per drop, made and removed as the list changes.
+  updateDrops(dt) {
+    const live = new Set();
+    for (const d of this.game.drops) {
+      live.add(d.id);
+      let v = this.dropViews.get(d.id);
+      if (!v) {
+        const src = this.vmModels[d.weapon] ?? this.vmModels.rifle;
+        const gun = src.clone(); gun.visible = true; gun.scale.setScalar(1.5); gun.rotation.set(0, d.id * 2.1, Math.PI / 2 * 0);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.7, 24), new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+        ring.rotation.x = -Math.PI / 2;
+        const group = new THREE.Group(); group.add(ring, gun);
+        group.position.set(d.x, d.y, d.z); ring.position.y = 0.05;
+        this.dropGroup.add(group);
+        v = { group, gun, ring, id: d.id };
+        this.dropViews.set(d.id, v);
+      }
+      v.gun.position.y = 0.3 + Math.sin(this.fxT * 2.2 + d.id) * 0.04;
+      v.ring.material.opacity = 0.55 + 0.25 * Math.sin(this.fxT * 4 + d.id);
+    }
+    for (const [id, v] of this.dropViews) if (!live.has(id)) { this.dropGroup.remove(v.group); v.ring.geometry.dispose(); v.ring.material.dispose(); this.dropViews.delete(id); }
   }
 
   // One mesh per rocket in flight, pointed along its path, with a smoky trail and a light on the newest.
@@ -934,6 +963,7 @@ export class Renderer {
     }
 
     this.updatePickups(dt);
+    this.updateDrops(dt);
     this.updateRockets(dt);
 
     for (const e of [...this.effects]) {
@@ -959,8 +989,20 @@ export class Renderer {
     this.zoom += ((view.scoped ? view.zoom : 1) - this.zoom) * (1 - Math.exp(-14 * dt));
     this.vmKick *= Math.exp(-wp.vmRecover * dt);
     const k = this.vmKick;
-    this.vm.position.set(0.2 + (Math.random() - 0.5) * k * 0.004, -0.17 - (view.reloading ? 0.16 : 0) - k * 0.012, -0.42 + k * wp.vmBack);
-    this.vm.rotation.set(k * wp.vmPitch, 0, (view.reloading ? 0.25 : 0) + k * 0.03 * (cur === 'pistol' ? 1 : 0.5));
+    // Reload: the gun tips up and rolls to the left, the old magazine drops out, a fresh one slides in, then the gun comes back level.
+    const rp = view.reloadP ?? -1;
+    const tilt = rp < 0 ? 0 : Math.sin(Math.min(1, rp / 0.18) * Math.PI / 2) * (1 - Math.min(1, Math.max(0, (rp - 0.82) / 0.18)));
+    const shake = rp > 0.45 && rp < 0.62 ? Math.sin(rp * 120) * 0.012 : 0;
+    this.vm.position.set(0.2 + (Math.random() - 0.5) * k * 0.004 - tilt * 0.06, -0.17 - tilt * 0.14 - k * 0.012 + shake, -0.42 + k * wp.vmBack + tilt * 0.04);
+    this.vm.rotation.set(k * wp.vmPitch + tilt * 0.35, tilt * 0.25, tilt * 0.55 + k * 0.03 * (cur === 'pistol' ? 1 : 0.5));
+    const mag = this.vmMag;
+    mag.visible = rp > 0.12 && rp < 0.78 && !wp.noReload;
+    if (mag.visible) {
+      const out = rp < 0.4 ? (rp - 0.12) / 0.28 : rp < 0.52 ? 1 : 1 - (rp - 0.52) / 0.26;
+      mag.position.set(0, (cur === 'pistol' ? -0.1 : -0.12) - Math.max(0, out) * 0.32, cur === 'pistol' ? 0.06 : -0.05);
+      mag.scale.set(cur === 'pistol' ? 0.6 : 1, 1, cur === 'pistol' ? 0.9 : 1);
+      mag.rotation.x = rp < 0.4 ? out * 0.6 : 0;
+    }
     this.pistolSlide.position.z = k * 0.08;
     const fov = (78 + (view.mode === 'first' ? this.vmKick * wp.fov : 0)) / this.zoom;
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
