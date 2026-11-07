@@ -5,6 +5,8 @@ import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
 import { TouchControls } from './touch.js?v=4';
+import { SHAPES } from './pieces.js';
+import { resetWalls } from './walls.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -59,15 +61,17 @@ function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(pa
 function start(keep) {
   audio.unlock();
   const m = $('optMode').value;
+  const qa = m === 'qa';
   const interval = Number($('optPieces').value);
   load(new Game({
     human: m !== 'spectate',
-    god: m === 'god',
+    god: m === 'god' || qa,
+    qa,
     humanTeam: $('optSide').value,
-    teamSize: Number($('optSize').value),
+    teamSize: qa ? 1 : Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
-    pieces: interval > 0,
+    pieces: qa || interval > 0,
     seed: Number(params.get('seed')) || undefined,
   }));
   if (touch.enabled) goFullscreen();
@@ -136,6 +140,20 @@ function blockCmd(code) {
   return null;
 }
 
+// QA sandbox hotkeys. The world clock covers the falling block, lifts, pickup timers and closing walls.
+function qaKey(code) {
+  const q = game.qa;
+  if (code === 'KeyP') q.freeze = !q.freeze;
+  if (code === 'Period') q.step = 0.25;                       // nudge the frozen world forward a quarter second
+  if (code === 'KeyT' && !game.piece) { q.shape = (q.shape + 1) % SHAPES.length; game.spawnPiece(q.shape); }
+  if (code === 'KeyK') game.qaClearPiece();
+  if (code === 'KeyM') q.bots = !q.bots;
+  if (code === 'KeyY') q.walls = !q.walls;
+  if (code === 'KeyU') resetWalls(game);
+  if (code === 'KeyF') game.qaToggleFly();
+  if (code === 'KeyN') game.startRound();                   // fresh arena, back at spawn
+}
+
 const freeActive = () => mode === 'play' && camFree && (!game.human || !game.human.alive);
 
 document.addEventListener('pointerlockchange', () => {
@@ -180,6 +198,7 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'Tab') hud.scoreboard(true);
   if (e.code === 'KeyG' && game.opts.pieces && !game.piece) game.spawnPiece();
+  if (game.qa) qaKey(e.code);
   if (e.code === 'Backquote') $('debug').hidden = !$('debug').hidden;
   if (h?.alive) {
     if (e.code === 'Digit1') h.input.weapon = 'rifle';
@@ -277,6 +296,13 @@ function advance(dt) {
 function specText(view) {
   const h = game.human;
   if (mode !== 'play') return ['', ''];
+  if (h?.alive && game.qa) {
+    const q = game.qa, on = v => (v ? 'on' : 'off');
+    return [
+      `QA sandbox: world ${q.freeze ? 'FROZEN' : 'running'}, bots ${on(q.bots)}, walls ${on(q.walls)}, fly ${on(q.fly)}`,
+      'G or T drop block, K clear it, P freeze world, . step, M bots, Y walls, U reset walls, F fly, N reset arena',
+    ];
+  }
   if (h?.alive) return game.opts.god ? ['Invulnerable', 'Blocks and bullets cannot hurt you'] : ['', ''];
   const who = h ? 'Eliminated' : 'Spectating';
   const speed = simPaused ? 'Paused' : `${timeScale}x`;
@@ -328,5 +354,6 @@ function frame(now) {
 
 menuGame();
 showMenu(false);
+if (params.has('qa')) $('optMode').value = 'qa';   // striketris.com/?qa jumps straight to the sandbox option
 window.__start = start;
 requestAnimationFrame(frame);

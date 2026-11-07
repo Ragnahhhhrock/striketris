@@ -27,6 +27,7 @@ const DEF_NAMES = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 export class Game {
   constructor(opts = {}) {
     this.opts = { seed: Date.now() & 0xffff, teamSize: 5, humanTeam: TEAM.ATT, human: true, pieceInterval: PIECE.interval, skill: 'normal', pieces: true, items: true, ...opts };
+    if (this.opts.qa) Object.assign(this.opts, { god: true, pieces: true, human: true });
     this.rng = mulberry(this.opts.seed);
     this.grid = buildMap();
     this.nav = new Nav(this.grid);
@@ -42,6 +43,8 @@ export class Game {
     this.pickups = this.opts.items ? makePickups() : [];
     this.projectiles = [];
     this.nextProj = 1;
+    // QA sandbox: no round clock, no walls unless asked, nobody can kill you. Toggles are driven by hotkeys in main.js.
+    this.qa = this.opts.qa ? { freeze: false, bots: false, walls: false, fly: false, step: 0, shape: -1 } : null;
 
     for (const team of [TEAM.ATT, TEAM.DEF]) {
       const names = team === TEAM.ATT ? ATT_NAMES : DEF_NAMES;
@@ -99,7 +102,80 @@ export class Game {
     carrier.hasBomb = true;
     this.bomb.carrier = carrier;
     initBrains(this);
+    if (this.qa) this.qaSetup();
     this.emit('round', { round: this.round });
+  }
+
+  // ---- QA sandbox ----
+  // Round goes live straight away and stays live. The human carries the bomb and has every weapon.
+  qaSetup() {
+    this.state = 'live';
+    this.timer = ROUND.time;
+    this.piece = null;
+    this.qa.fly = false;
+    if (this.human) this.human.weapons.rocket = WEAPONS.rocket.max;
+    this.qaRearmBomb();
+  }
+
+  // Puts the bomb back in the human's hands so plant and defuse can be tested again and again.
+  qaRearmBomb() {
+    for (const a of this.actors) a.hasBomb = false;
+    const h = this.human;
+    this.bomb = { state: 'carried', carrier: h ?? null, pos: null, fuse: 0, site: null };
+    if (h) h.hasBomb = true;
+    this.plantProgress = 0; this.defuseProgress = 0;
+    this.planter = null; this.defuser = null;
+  }
+
+  qaFlyActor(a, dt) {
+    const i = a.input, cp = Math.cos(a.pitch);
+    const fx = -Math.sin(a.yaw) * cp, fy = Math.sin(a.pitch), fz = -Math.cos(a.yaw) * cp;
+    const rx = Math.cos(a.yaw), rz = -Math.sin(a.yaw);
+    const u = (i.jump ? 1 : 0) - (i.crouch ? 1 : 0);
+    const sp = (i.walk ? 40 : 14) * dt;
+    a.pos.x += (fx * i.f + rx * i.r) * sp;
+    a.pos.y = Math.max(0, Math.min(120, a.pos.y + (fy * i.f + u) * sp));
+    a.pos.z += (fz * i.f + rz * i.r) * sp;
+    a.vel.x = a.vel.y = a.vel.z = 0;
+    a.onGround = false; a.mantle = null;
+  }
+
+  qaToggleFly() {
+    const q = this.qa, h = this.human;
+    if (!q || !h) return;
+    q.fly = !q.fly;
+    if (!q.fly) {
+      // Landing inside a block lifts you out of it.
+      for (let n = 0; n < 120 && hitsWorld(this.grid, h.pos.x, h.pos.y, h.pos.z, actorHeight(h)); n++) h.pos.y += 0.5;
+    }
+  }
+
+  qaClearPiece() {
+    const p = this.piece;
+    if (!p) return;
+    this.piece = null;
+    this.emit('pieceDestroyed', { piece: p });
+  }
+
+  // One tick of the sandbox. The player, rockets and bullets always run; the world clock (falling block, lifts,
+  // pickup timers, walls) stops while frozen and can be nudged forward in steps. Bots idle unless switched on.
+  stepQA(dt) {
+    const q = this.qa;
+    let w = q.freeze ? 0 : dt;
+    if (q.step > 0) { w = q.step; q.step = 0; }
+    this.timer = ROUND.time;
+    stepLifts(this, w);
+    stepPickups(this, w);
+    this.stepProjectiles(dt);
+    if (q.walls) stepWalls(this, w);
+    this.stepActors(dt, false);
+    this.stepPiece(w);
+    this.stepBomb(dt);
+    // Infinite ammo, no reloads.
+    const h = this.human;
+    if (h?.alive) { for (const id of Object.keys(h.weapons)) h.weapons[id] = WEAPONS[id].mag; h.reloadT = 0; }
+    // The fuse never runs out on its own, so a planted bomb waits for you.
+    if (this.bomb.state === 'planted') this.bomb.fuse = Math.max(this.bomb.fuse, 1);
   }
 
   bombColumn() {
@@ -111,6 +187,7 @@ export class Game {
 
   step(dt = TICK) {
     if (this.matchOver) return;
+    if (this.qa) return this.stepQA(dt);
     stepLifts(this, dt);
     stepPickups(this, dt);
     this.stepProjectiles(dt);
@@ -140,11 +217,17 @@ export class Game {
   stepActors(dt, frozen) {
     for (const a of this.actors) {
       if (!a.alive) continue;
-      if (!a.isHuman) updateBot(this, a, dt, frozen);
+      if (!a.isHuman) {
+        if (this.qa && !this.qa.bots) { a.input.f = a.input.r = 0; a.input.jump = false; a.input.fire = false; a.input.use = false; }
+        else updateBot(this, a, dt, frozen);
+      }
       if (frozen) { a.input.f = a.input.r = 0; a.input.jump = false; a.input.fire = false; }
       if (this.isChannelling(a)) { a.input.f = a.input.r = 0; a.input.jump = false; }
-      const fall = stepMovement(this.grid, a, dt);
-      if (fall) this.damage(a, fall, null, 'fall');
+      if (a.isHuman && this.qa?.fly) this.qaFlyActor(a, dt);
+      else {
+        const fall = stepMovement(this.grid, a, dt);
+        if (fall) this.damage(a, fall, null, 'fall');
+      }
       if (!a.alive) continue;
       if (!frozen) this.stepWeapon(a, dt);
       const settle = Math.exp(-(WEAPONS[a.cur]?.recover ?? 5) * dt);
@@ -412,6 +495,7 @@ export class Game {
     if (!this.opts.pieces) return;
     const p = this.piece;
     if (p) {
+      if (this.qa && dt === 0) return;   // frozen world: the falling block hangs where it is
       p.t += dt;
       if (!p.controlled && !p.aiDone && p.drop <= PIECE.directorAt) {
         p.aiDone = true;
@@ -423,7 +507,7 @@ export class Game {
       if (p.drop === 0) this.landPiece(p);
       return;
     }
-    if (this.state !== 'live') return;
+    if (this.state !== 'live' || this.qa) return;   // the sandbox only drops blocks when asked (G, T)
     this.pieceTimer -= dt;
     if (this.pieceTimer <= 0) this.spawnPiece();
   }
@@ -600,7 +684,7 @@ export class Game {
     }
     if (b.state === 'planted') {
       b.fuse -= dt;
-      const d = this.actors.find(a => a.alive && a.team === TEAM.DEF && a.input.use && a.onGround && Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z) < ROUND.defuseRange);
+      const d = this.actors.find(a => a.alive && (a.team === TEAM.DEF || (this.qa && a.isHuman)) && a.input.use && a.onGround && Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z) < ROUND.defuseRange);
       if (d) {
         if (this.defuser !== d) this.defuseProgress = 0;
         this.defuser = d;
@@ -636,6 +720,7 @@ export class Game {
   }
 
   endRound(winner, reason) {
+    if (this.qa) { this.qaRearmBomb(); this.emit('feed', { text: `${reason}. Bomb back in your hands` }); return; }
     if (this.state === 'post') return;
     this.state = 'post';
     this.timer = ROUND.post;

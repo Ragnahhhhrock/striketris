@@ -7,7 +7,8 @@ import { orient, restHeight, findLines, clearCells, validPlacement, SHAPES } fro
 import { STATIC, EMPTY } from '../public/src/grid.js';
 import { WEAPONS } from '../public/src/config.js';
 import { TICK, MIN_LINE, MOVE, TEAM } from '../public/src/config.js';
-import { makeActor, resetActor, stepMovement } from '../public/src/actor.js';
+import { makeActor, resetActor, stepMovement, hitsWorld, actorHeight } from '../public/src/actor.js';
+const hitsWorldCheck = (g, a) => hitsWorld(g.grid, a.pos.x, a.pos.y, a.pos.z, actorHeight(a));
 
 // Builds a hand-placed falling block that the director will not touch.
 function mkPiece(game, shapeId, x, z, drop = 54, rot = 0, pose = 0, mirror = false) {
@@ -886,4 +887,57 @@ test('the countdown reaches zero when the walls start and the round resets them'
   game.startRound();
   assert.equal(game.grid.walls[0].inset, 0);
   assert.equal(game.grid.boxHits(9.65, 1, 48, 10.35, 2.8, 48.7), false);
+});
+
+test('QA sandbox: round never ends, nobody dies, world freezes on request', () => {
+  const g = new Game({ qa: true, seed: 3, teamSize: 1 });
+  const h = g.human;
+  assert.equal(g.state, 'live');
+  for (let i = 0; i < 200 * 60; i++) g.step(TICK);   // 200 s, past the round clock and the wall schedule
+  assert.equal(g.state, 'live');
+  assert.equal(g.round, 1);
+  assert.ok(h.alive && h.hp === 100);
+  assert.equal(g.grid.walls[0].inset, 0, 'walls stay open unless switched on');
+  assert.equal(g.piece, null, 'no automatic blocks');
+
+  assert.ok(g.spawnPiece(0));
+  const drop = g.piece.drop;
+  g.qa.freeze = true;
+  for (let i = 0; i < 120; i++) g.step(TICK);
+  assert.equal(g.piece.drop, drop, 'frozen block does not fall');
+  g.qa.step = 0.25;
+  g.step(TICK);
+  assert.ok(g.piece.drop < drop, 'a step moves it');
+  g.qaClearPiece();
+  assert.equal(g.piece, null);
+});
+
+test('QA sandbox: bomb can be planted, defused and re-armed without ending the round', () => {
+  const g = new Game({ qa: true, seed: 5, teamSize: 1 });
+  const h = g.human, site = Object.values(SITES)[0];
+  assert.ok(h.hasBomb);
+  h.pos = { x: (site.centre[0] + 0.5) * 3, y: 0, z: (site.centre[1] + 0.5) * 3 };
+  h.input.use = true;
+  for (let i = 0; i < 4 * 60; i++) g.step(TICK);
+  assert.equal(g.bomb.state, 'planted');
+  h.input.use = false;
+  for (let i = 0; i < 60 * 60; i++) g.step(TICK);   // past the 40 s fuse
+  assert.equal(g.bomb.state, 'planted', 'fuse is held');
+  h.input.use = true;
+  for (let i = 0; i < 8 * 60; i++) g.step(TICK);
+  assert.equal(g.bomb.state, 'carried', 'defusing hands the bomb back');
+  assert.ok(h.hasBomb);
+  assert.equal(g.state, 'live');
+});
+
+test('QA sandbox: noclip fly moves through walls and landing in a block lifts you out', () => {
+  const g = new Game({ qa: true, seed: 7, teamSize: 1 });
+  const h = g.human;
+  g.qaToggleFly();
+  h.input.f = 1; h.pitch = 0; h.yaw = 0;
+  const z0 = h.pos.z;
+  for (let i = 0; i < 120; i++) g.step(TICK);
+  assert.ok(h.pos.z < z0 - 5, 'flew forward');
+  g.qaToggleFly();
+  assert.ok(!hitsWorldCheck(g, h));
 });

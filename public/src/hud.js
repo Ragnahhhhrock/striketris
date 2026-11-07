@@ -53,6 +53,7 @@ export class Hud {
     let timerState = '';
     if (g.state === 'freeze') { timerText = fmt(g.timer); timerState = 'freeze'; }
     if (b.state === 'planted') { timerText = fmt(b.fuse); timerState = 'bomb'; }
+    if (g.qa) { timerText = 'QA'; timerState = ''; }
     $('timer').textContent = timerText;
     $('timer').className = timerState;
     if (a) {
@@ -72,7 +73,7 @@ export class Hud {
     let prompt = '';
     if (human?.alive) {
       if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
-      else if (human.team === TEAM.DEF && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
+      else if ((human.team === TEAM.DEF || g.qa) && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
     } else if (human) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';
     $('prompt').textContent = prompt;
@@ -88,7 +89,7 @@ export class Hud {
 
     const wl = $('walls'), live = g.state === 'live';
     const soon = wallsIn(g), closing = wallsMoving(g);
-    wl.hidden = !live || (!closing && soon > 10);
+    wl.hidden = !live || (!closing && (soon > 10 || !!g.qa));
     wl.className = closing ? 'moving' : '';
     wl.textContent = closing ? 'The walls are closing in' : `Walls close in ${Math.ceil(soon)}`;
 
