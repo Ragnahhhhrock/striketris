@@ -464,24 +464,10 @@ function buildKit(cls, look, bw) {
       m.box(0.02, 0.2, 0.02, 0, 0.5, fz - 0.01, 0x3a2f20);
       for (const s of [-1, 1]) m.box(0.2, 0.05, 0.3 * bw, s * 0.2 * bw, 0.59, 0, 0x4b5a32);
       break;
-    case 'medic': { // white pack with a red cross front and back, red armband
-      const white = 0xf2f2f2, red = 0xc8232a;
-      m.box(0.2, 0.2, 0.025, 0, 0.38, fz - 0.025, white); m.box(0.14, 0.05, 0.03, 0, 0.38, fz - 0.03, red); m.box(0.05, 0.14, 0.03, 0, 0.38, fz - 0.03, red);
-      m.box(0.34 * bw, 0.3, 0.14, 0, 0.3, bz + 0.1, white); m.box(0.2, 0.05, 0.03, 0, 0.3, bz + 0.18, red); m.box(0.05, 0.2, 0.03, 0, 0.3, bz + 0.18, red);
-      m.box(0.1, 0.1, 0.1, 0.2 * bw, 0.04, fz, white); m.box(0.05, 0.02, 0.1, 0.2 * bw, 0.1, fz, red);
-      break;
-    }
     case 'engineer': // wrench at the belt, mines strapped to the back, satchel
       m.box(0.035, 0.34, 0.035, -0.22 * bw, 0.0, fz, 0x8a8f96, [0, 0, 0.25]); m.box(0.08, 0.06, 0.04, -0.27 * bw, -0.17, fz, 0x8a8f96);
       for (const y of [0.2, 0.32, 0.44]) { m.box(0.26, 0.08, 0.26, 0, y, bz + 0.12, 0x5d6b3a); m.box(0.08, 0.02, 0.08, 0, y + 0.05, bz + 0.12, 0x222222); }
       m.box(0.2, 0.18, 0.1, 0.24 * bw, 0.06, bz - 0.03, 0x4b3f2a);
-      break;
-    case 'antitank': // spare rocket on the back, ammo bag
-      m.box(0.1, 0.5, 0.1, 0.1 * bw, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, 0.04]);
-      m.box(0.11, 0.12, 0.11, 0.1 * bw, 0.58, bz + 0.12, 0xb04a2a);
-      m.box(0.1, 0.5, 0.1, -0.1 * bw, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, -0.04]);
-      m.box(0.11, 0.12, 0.11, -0.1 * bw, 0.58, bz + 0.12, 0xb04a2a);
-      m.box(0.24, 0.14, 0.1, 0, 0.12, fz - 0.04, 0x4b3f2a);
       break;
   }
   return m;

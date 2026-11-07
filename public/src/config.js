@@ -125,13 +125,11 @@ export const GADGETS = {
 
 // The five kits. Everyone shares health and speed; the kit is the difference. `rifleman` is the classic
 // rifle-and-pistol loadout, used when a game is made without classes. `rockets` is the starting launcher ammo.
-export const CLASS_ORDER = ['assault', 'scout', 'medic', 'engineer', 'antitank'];
+export const CLASS_ORDER = ['assault', 'scout', 'engineer'];
 export const CLASSES = {
   assault: { name: 'Assault', primary: 'smg', secondary: 'pistol', gadget: 'grenade', plant: 1, defuse: 1, blurb: 'Close-quarters SMG and hand grenades.' },
   scout: { name: 'Scout', primary: 'sniper', secondary: 'pistol', gadget: 'binoculars', plant: 1, defuse: 1, blurb: 'Scoped bolt-action rifle and binoculars that mark enemies.' },
-  medic: { name: 'Medic', primary: 'lmg', secondary: 'pistol', gadget: 'medkit', plant: 1, defuse: 1, blurb: 'Light machine gun and a kit that heals teammates.' },
   engineer: { name: 'Engineer', primary: 'bolt', secondary: 'pistol', gadget: 'mine', plant: 0.6, defuse: 0.55, blurb: 'Bolt-action rifle, mines, and the wrench: plants and defuses far faster.' },
-  antitank: { name: 'Anti-Tank', primary: 'rocket', secondary: 'pistol', gadget: null, rockets: 8, plant: 1, defuse: 1, blurb: 'Rocket launcher: splash damage, rocket jumps, and it breaks blocks. Pick up more rockets.' },
   rifleman: { name: 'Rifleman', primary: 'rifle', secondary: 'pistol', gadget: null, plant: 1, defuse: 1, blurb: 'Classic rifle and pistol.' },
 };
 

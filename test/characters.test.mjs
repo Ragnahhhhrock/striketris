@@ -108,7 +108,7 @@ test('legs actually swing while running and stay still when idle', () => {
 });
 
 test('both hands reach the weapon in every stance and while looking up or down', () => {
-  for (const [cls, cur] of [['assault', 'smg'], ['medic', 'lmg'], ['engineer', 'bolt'], ['scout', 'sniper'], ['antitank', 'rocket'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
+  for (const [cls, cur] of [['assault', 'smg'], ['engineer', 'bolt'], ['scout', 'sniper'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
     for (const stance of ['stand', 'crouch', 'run', 'fire']) {
       const a = fighter(n, TEAM.ATT, 0, cls); a.cur = cur; a.pitch = pitch;
       if (stance === 'crouch') a.crouching = true;
@@ -182,7 +182,7 @@ test('every class carries its own weapons and wears its own kit', () => {
 test('a rig re-dresses when the actor changes class between rounds', () => {
   const a = fighter('Ash', TEAM.ATT, 0, 'assault'); const rig = makeRig(a); settle(rig, 5);
   assert.ok(rig.guns.smg);
-  a.nextCls = 'antitank'; resetActor(a); settle(rig, 5);
-  assert.ok(rig.guns.rocket && !rig.guns.smg);
-  assert.equal(rig.kitCls, 'antitank');
+  a.nextCls = 'scout'; resetActor(a); settle(rig, 5);
+  assert.ok(rig.guns.sniper && !rig.guns.smg);
+  assert.equal(rig.kitCls, 'scout');
 });

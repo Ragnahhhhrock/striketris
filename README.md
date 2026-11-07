@@ -61,11 +61,9 @@ Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is 
 | --- | --- | --- | --- | --- |
 | Assault | SMG (MP 40 / Thompson) | Pistol | 3 hand grenades | Best up close |
 | Scout | Scoped bolt rifle (Kar 98k / Springfield) | Pistol | Binoculars | `Right mouse` (or `T`) zooms 3.2x; spots enemies onto the minimap and shows a marker for the team |
-| Medic | LMG (MG 34 / BAR) | Pistol | Medic kit, 4 charges | Heals the most hurt teammate in reach, else yourself |
 | Engineer | Bolt rifle (Kar 98k / M1 Garand) | Pistol | 3 mines | The wrench: plants in 0.6x and defuses in 0.55x the time |
-| Anti-Tank | Rocket launcher (Panzerschreck / Bazooka) | Pistol | none | The map's rocket launcher: 8 rockets to start, splash damage, rocket jumps and it breaks blocks. Ammo pickups add rockets |
 
-Adaptations: there are no vehicles here, so mines and rockets are used against infantry; there is no kit pickup mid-round. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, red-cross pack, mines, spare rockets).
+Adaptations: there is no kit pickup mid-round. The map's rocket launcher pickup still works for anyone. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, mines).
 
 ## Vehicles and jetpack
 - **Jetpack**, worn by everyone. Jump, then press and hold `Space` in the air to climb (about 4.5 s of fuel, shown under the health bar). Hold `Ctrl` while burning to ease down. Fuel refills on the ground.
