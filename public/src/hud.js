@@ -78,7 +78,7 @@ export class Hud {
     if (human?.alive) {
       if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
       else if (human.team === TEAM.DEF && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
-    } else if (human) prompt = 'Spectating. Space next player, F free camera';
+    } else if (human && !this.dying) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';
     $('prompt').textContent = prompt;
 

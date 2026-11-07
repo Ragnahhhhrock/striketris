@@ -121,6 +121,14 @@ export class Audio {
       case 'telegraph': this.tone(0.1, 700, 1100, 0.5, 'square'); break;
       case 'land': this.burst(Math.max(0.15, at(e.pos)) * 0.9, 240, 0.8); this.tone(at(e.pos) * 0.7, 90, 28, 0.6); break;
       case 'lines': this.tone(0.25, 300, 1400, 0.55, 'sawtooth'); this.burst(0.4, 900, 0.5); break;
+      case 'fall': {
+        const v = e.actor === viewer ? 1 : at(e.actor.pos);
+        const k = Math.min(1, 0.4 + e.damage / 60);
+        this.tone(0.55 * v * k, 140, 38, 0.22);
+        this.burst(0.3 * v * k, 700, 0.18);
+        break;
+      }
+      case 'death': if (e.actor === viewer) { this.tone(0.3, 330, 70, 0.7, 'sawtooth'); this.burst(0.2, 500, 0.5); } break;
       case 'hurt': if (e.by === viewer) this.tone(0.14, e.head ? 1700 : 1100, e.head ? 1500 : 900, 0.07); break;
       case 'planted': this.tone(0.2, 880, 880, 0.15, 'square'); break;
       case 'explode': this.burst(0.9, 500, 1.6); this.tone(0.8, 70, 20, 1.4); break;

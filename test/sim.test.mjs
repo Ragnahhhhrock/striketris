@@ -1050,3 +1050,85 @@ test('a new round puts the walls, floor and pistons back', () => {
   assert.equal(game.grid.get(1, 0, 1), STATIC);
   assert.ok(wall > 0);
 });
+
+// ---- fall damage and the death cam ----
+import { fallDamage } from '../public/src/actor.js';
+import { deathView, DEATH_CAM } from '../public/src/deathcam.js';
+import { cellCentre } from '../public/src/grid.js';
+
+// A lone human over open floor, dropped from `height` metres. Runs until they land or die.
+function dropFrom(height) {
+  const game = new Game({ seed: 3, human: true, pieces: false, items: false, teamSize: 1 });
+  game.state = 'live';
+  for (const b of game.actors) if (b !== game.human) b.alive = false;
+  const a = game.human, [cx, cz] = SPAWNS[a.team].cells[0], p = cellCentre(cx, 0, cz);
+  a.pos = { x: p.x, y: height, z: p.z }; a.onGround = false;
+  for (let i = 0; i < 900 && a.alive && !(a.onGround && i > 5); i++) game.step(TICK);
+  return { game, a, events: game.drainEvents() };
+}
+
+test('a small drop costs nothing, a bigger one takes health, a huge one kills', () => {
+  for (const h of [2, 4.5, 5.5]) assert.equal(dropFrom(h).a.hp, 100, `${h} m is free`);
+  const mid = dropFrom(15).a;
+  assert.ok(mid.alive && mid.hp < 100 && mid.hp > 40, `15 m hurts but does not kill (hp ${mid.hp})`);
+  const high = dropFrom(24).a;
+  assert.ok(high.alive && high.hp < mid.hp, 'a higher fall hurts more');
+  const dead = dropFrom(34);
+  assert.equal(dead.a.alive, false);
+  assert.equal(dead.a.hp, 0);
+});
+
+test('damage climbs in a straight line from the safe drop to the lethal one', () => {
+  assert.equal(fallDamage(MOVE.fallSafe), null);
+  assert.ok(Math.abs(fallDamage((MOVE.fallSafe + MOVE.fallLethal) / 2) - 50) < 1e-9);
+  assert.ok(fallDamage(MOVE.fallLethal) >= 100, 'the lethal height always kills from full health');
+  assert.ok(fallDamage(1000) >= 100);
+});
+
+test('the full 15 m drop into the pit hurts without killing', () => {
+  const dmg = fallDamage(5 * CELL_M);
+  assert.ok(Math.abs(dmg - 37.5) < 1e-9 && dmg < 100);
+});
+
+test('a landing announces itself, hurts the player and a fatal one says why', () => {
+  const hit = dropFrom(15);
+  assert.ok(hit.events.some(e => e.type === 'fall' && e.actor === hit.a && e.damage > 0));
+  assert.ok(hit.events.some(e => e.type === 'hurt' && e.actor === hit.a && e.cause === 'fall'));
+  assert.ok(!dropFrom(3).events.some(e => e.type === 'fall'), 'a safe landing is silent');
+  const fatal = dropFrom(40);
+  const d = fatal.events.find(e => e.type === 'death');
+  assert.equal(d.actor, fatal.a);
+  assert.equal(d.cause, 'fall');
+  assert.equal(d.reason, 'You fell too far');
+  assert.ok(fatal.events.some(e => e.type === 'feed' && e.text === 'You fell too far'));
+});
+
+test('feed and death messages use the right grammar for the human', () => {
+  const g = new Game({ seed: 4, human: true, pieces: false, items: false, teamSize: 1 });
+  g.state = 'live';
+  g.kill(g.human, null, 'piece');
+  const ev = g.drainEvents();
+  assert.ok(ev.some(e => e.type === 'feed' && e.text === 'You were crushed'));
+  assert.equal(ev.find(e => e.type === 'death').reason, 'You were crushed');
+});
+
+test('rocket jumps and lift rides stay inside the free drop', () => {
+  assert.ok(MOVE.fallSafe >= 4.5, 'a lift ride (LIFT.rise 4.5 m) is free');
+  const apex = WEAPONS.rocket.knock * WEAPONS.rocket.knock / (2 * MOVE.gravity);
+  assert.ok(apex < MOVE.fallSafe, 'the top of a rocket jump is free to land from');
+});
+
+test('the death cam starts at the eyes, circles the body, and stays out of walls', () => {
+  const { game, a } = dropFrom(40);
+  const eye = { x: a.pos.x, y: a.pos.y + 1.62, z: a.pos.z };
+  const v0 = deathView(game.grid, a, 0);
+  assert.equal(v0.mode, 'death');
+  assert.ok(Math.hypot(v0.x - eye.x, v0.y - eye.y, v0.z - eye.z) < 0.01, 'begins exactly at the eyes');
+  for (let t = 0; t <= DEATH_CAM; t += 0.1) {
+    const v = deathView(game.grid, a, t);
+    assert.ok(Number.isFinite(v.x + v.y + v.z + v.yaw + v.pitch));
+    assert.ok(!game.grid.boxHits(v.x - 0.1, v.y - 0.1, v.z - 0.1, v.x + 0.1, v.y + 0.1, v.z + 0.1), `camera is in open air at t=${t.toFixed(1)}`);
+  }
+  const far = deathView(game.grid, a, 1.5), d = Math.hypot(far.x - a.pos.x, far.z - a.pos.z);
+  assert.ok(d > 1 && d < 4.5, `orbits close to the body (${d.toFixed(2)} m)`);
+});

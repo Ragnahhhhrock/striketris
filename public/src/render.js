@@ -722,6 +722,16 @@ export class Renderer {
         this.addEffect(glow, 0.09, (o, u) => { const k = 0.9 * (1 - u); o.scale.set(k, k, 1); });
         break;
       }
+      case 'fall': {
+        // A hard landing: dust ring at the feet, and the viewer's own camera jolts.
+        const p = e.actor.pos, k = Math.min(1, e.damage / 60);
+        if (e.actor === viewer) this.shake = Math.max(this.shake, 0.3 + 0.7 * k);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.8, 24), new THREE.MeshBasicMaterial({ color: 0xd8d2c4, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+        ring.rotation.x = -Math.PI / 2; ring.position.set(p.x, p.y + 0.08, p.z);
+        this.addEffect(ring, 0.45, (o, u) => { o.scale.setScalar(1 + u * (2 + 3 * k)); o.material.opacity = 0.7 * (1 - u); }, () => { ring.geometry.dispose(); ring.material.dispose(); });
+        this.impactFx({ x: p.x, y: p.y + 0.05, z: p.z }, { x: 0, y: 1, z: 0 }, 6 + Math.round(10 * k), 0.8);
+        break;
+      }
       case 'land': {
         const d = viewer ? Math.hypot(viewer.pos.x - e.pos.x, viewer.pos.z - e.pos.z) : 40;
         this.shake = Math.max(this.shake, 0.55 * Math.max(0, 1 - d / 55));

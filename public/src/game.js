@@ -165,7 +165,7 @@ export class Game {
       if (frozen) { a.input.f = a.input.r = 0; a.input.jump = false; a.input.fire = false; }
       if (this.isChannelling(a)) { a.input.f = a.input.r = 0; a.input.jump = false; }
       const fall = stepMovement(this.grid, a, dt);
-      if (fall) this.damage(a, fall, null, 'fall');
+      if (fall) { this.emit('fall', { actor: a, damage: fall }); this.damage(a, fall, null, 'fall'); }
       if (!a.alive) continue;
       if (!frozen) this.stepWeapon(a, dt);
       const settle = Math.exp(-(WEAPONS[a.cur]?.recover ?? 5) * dt);
@@ -427,7 +427,7 @@ export class Game {
     if (!t.alive || this.state === 'freeze') return;
     if (t.isHuman && this.opts.god) return;
     t.hp -= amount;
-    this.emit('hurt', { actor: t, by, amount, head, bounces });
+    this.emit('hurt', { actor: t, by, amount, head, bounces, cause });
     if (t.brain && by) t.brain.heard = { ...by.pos };
     if (t.hp <= 0) this.kill(t, by, cause, head, bounces);
   }
@@ -446,9 +446,11 @@ export class Game {
     }
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
-    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause] ?? (cause === 'rocket' && by === t ? 'blew themselves up' : undefined);
+    const you = t.name === 'You';
+    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause]?.replace(/^was /, you ? 'were ' : 'was ')
+      ?? (cause === 'rocket' && by === t ? (you ? 'blew yourself up' : 'blew themselves up') : undefined);
     this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
-    this.emit('death', { actor: t, cause });
+    this.emit('death', { actor: t, cause, by, reason: how ? `${you ? 'You' : t.name} ${how}` : `Killed by ${by?.name ?? '?'}` });
   }
 
   // ---- gadgets and projectiles ----

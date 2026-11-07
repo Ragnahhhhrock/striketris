@@ -34,6 +34,11 @@ body[data-mode="menu"] #hud { display: none; }
 #hurt { position: absolute; inset: 0; opacity: 0; box-shadow: inset 0 0 130px 30px rgba(220, 30, 20, .75); }
 #hurt.on { animation: fade .4s linear; }
 @keyframes fade { from { opacity: 1; } to { opacity: 0; } }
+#death { position: absolute; inset: 0; pointer-events: none; }
+#deathFade { position: absolute; inset: 0; box-shadow: inset 0 0 160px 50px rgba(150, 10, 5, .85); animation: deathIn .5s ease-out both; }
+#deathText { position: absolute; top: 16%; left: 50%; transform: translateX(-50%); margin: 0; background: var(--panel); color: var(--ink); border-top: 3px solid var(--strike); padding: 6px 18px; font-size: 20px; font-weight: 700; white-space: nowrap; animation: deathIn .4s ease-out both; }
+#death.out { animation: fade .5s linear forwards; }
+@keyframes deathIn { from { opacity: 0; } to { opacity: 1; } }
 
 #walls { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border-top: 3px solid var(--strike); padding: 6px 18px; font-size: 14px; font-weight: 700; }
 #walls.moving { background: var(--strike); color: #fff; text-shadow: none; }
@@ -49,7 +54,7 @@ body.touch #countdown { top: 22%; font-size: 72px; }
 #vitals { position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end; }
 #vitals b { font-size: 34px; line-height: 1; display: block; }
 #vitals .bar { width: 170px; height: 6px; background: rgba(0, 0, 0, .5); margin-top: 5px; }
-#hpbar { height: 100%; background: var(--go); width: 100%; }
+#hpbar { height: 100%; background: var(--go); width: 100%; transition: width .2s ease-out; }
 #vitals .right { text-align: right; }
 #weapon { font-size: 13px; opacity: .85; }
 #cls { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }

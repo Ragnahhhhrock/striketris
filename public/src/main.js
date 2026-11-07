@@ -4,6 +4,7 @@ import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
+import { DEATH_CAM, deathView } from './deathcam.js';
 import { TouchControls } from './touch.js?v=5';
 
 const $ = id => document.getElementById(id);
@@ -23,6 +24,7 @@ let camFree = false;     // free-fly camera while spectating or dead
 let simPaused = false;   // only honoured while spectating
 let timeScale = 1;       // only honoured while spectating
 let overT = 0;
+let deathCam = null;    // { t, reason } while the player's own death plays out, before spectating
 let lastView = null;
 const free = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
 const keys = new Set();
@@ -95,7 +97,7 @@ function start(keep) {
   }));
   if (touch.enabled) goFullscreen();
   if (keep !== true) { camFree = m === 'spectate'; resetFree(); timeScale = 1; }
-  simPaused = false; overT = 0;
+  simPaused = false; overT = 0; endDeathCam();
   resume();
 }
 
@@ -210,6 +212,7 @@ addEventListener('keydown', e => {
     if (e.code === 'Digit2') h.input.weapon = h.loadout[1];
     if (e.code === 'Digit3') h.input.weapon = 'rocket';
   } else {
+    if (deathCam && ['KeyF', 'Space', 'KeyE', 'KeyQ'].includes(e.code)) endDeathCam();
     if (e.code === 'KeyF') {
       if (!camFree && lastView) Object.assign(free, { x: lastView.x, y: lastView.y, z: lastView.z, yaw: lastView.yaw, pitch: lastView.pitch });
       camFree = !camFree;
@@ -261,6 +264,18 @@ function updateFree(dt) {
   free.y = Math.max(1, Math.min(220, free.y));
 }
 
+function startDeathCam(reason) {
+  deathCam = { t: 0 };
+  $('death').className = '';
+  $('deathText').textContent = reason;
+  $('death').hidden = false;
+}
+function endDeathCam() {
+  deathCam = null;
+  $('death').hidden = true;
+  hud.dying = false;
+}
+
 function chooseView(now) {
   const h = game.human;
   if (mode === 'menu') {
@@ -273,6 +288,7 @@ function chooseView(now) {
     const e = eyePos(h);
     return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw + h.recoilYaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
   }
+  if (h && deathCam && deathCam.t < DEATH_CAM) return deathView(game.grid, h, deathCam.t);
   if (!camFree) {
     const mates = h ? game.alive(h.team) : [];
     const pool = mates.length ? mates : game.actors.filter(a => a.alive);
@@ -304,6 +320,7 @@ function specText(view) {
   const h = game.human;
   if (mode !== 'play') return ['', ''];
   if (h?.alive) return game.opts.god ? ['Invulnerable', 'Blocks and bullets cannot hurt you'] : ['', ''];
+  if (view.mode === 'death') return ['', ''];
   const who = h ? 'Eliminated' : 'Spectating';
   const speed = simPaused ? 'Paused' : `${timeScale}x`;
   const cam = view.mode === 'free' ? 'Free camera' : `Following ${view.actor?.name ?? ''}`;
@@ -321,20 +338,30 @@ function frame(now) {
   last = now;
   advance(dt);
   if (freeActive()) updateFree(dt);
+  // Start the death cam before picking the view, so the first dead frame never flashes a teammate's camera.
+  const dead = game.events.find(e => e.type === 'death' && e.actor === game.human);
+  if (dead && mode === 'play') startDeathCam(dead.reason);
   const view = chooseView(now);
   lastView = view;
+  if (deathCam) {
+    deathCam.t += dt;
+    if (deathCam.t >= DEATH_CAM) endDeathCam();
+    else if (deathCam.t > DEATH_CAM - 0.5) $('death').className = 'out';
+  }
   for (const e of game.drainEvents()) {
+    if (e.type === 'round') endDeathCam();
     renderer.handleEvent(e, view.actor);
     hud.event(e);
     if (mode === 'play') audio.event(e, view.actor ?? { pos: { x: view.x, z: view.z } });
   }
   renderer.update(dt, view);
   const h = game.human;
+  hud.dying = !!deathCam;
   hud.revealAll = !h || (!h.alive && camFree);
   const cam = view.mode === 'free' ? { alive: true, pos: { x: view.x, z: view.z }, yaw: view.yaw } : null;
   hud.update(dt, h?.alive ? h : view.actor, cam);
   document.body.dataset.view = view.mode;
-  const steerable = !!(controllable() && game.piece && game.piece.drop >= 4.5);
+  const steerable = !!(controllable() && !deathCam && game.piece && game.piece.drop >= 4.5);
   $('ctrlbar').hidden = !steerable || touch.enabled;
   if (touch.enabled) {
     if (!steerable) steerOpen = false;

@@ -17,7 +17,10 @@ export const MOVE = {
   radius: 0.35, height: 1.8, crouchHeight: 1.3,
   eye: 1.62, crouchEye: 1.12,
   mantleReach: 3.3, mantleTime: 0.42,
-  fallSafeSpeed: 16, fallDamagePerSpeed: 6,
+  // Fall damage is worked out from the height you drop (from your landing speed), not your speed. Up to fallSafe metres is
+  // free: that covers a lift ride, a rocket jump and climbing back down a ledge you mantled. Past it, damage climbs in a
+  // straight line to 100 at fallLethal metres, so a drop that far or further always kills from full health.
+  fallSafe: 6, fallLethal: 30,
 };
 
 export const BULLET_RANGE = 200;   // total metres a round can travel, bounces included

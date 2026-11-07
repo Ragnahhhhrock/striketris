@@ -68,6 +68,14 @@ function tryMantle(grid, a, dirX, dirZ) {
   return false;
 }
 
+// Damage for landing after a drop of `drop` metres, or null when it is a safe one. The last stretch is rounded up to a
+// sure kill so float error at exactly fallLethal can never leave someone on 0.001 health.
+export function fallDamage(drop) {
+  if (drop <= MOVE.fallSafe) return null;
+  const t = (drop - MOVE.fallSafe) / (MOVE.fallLethal - MOVE.fallSafe);
+  return t >= 0.999 ? 1000 : t * 100;
+}
+
 export function stepMovement(grid, a, dt) {
   if (a.mantle) {
     const m = a.mantle;
@@ -109,7 +117,7 @@ export function stepMovement(grid, a, dt) {
   const vy = a.vel.y;
   if (!tryMove(grid, a, 'y', vy * dt, h)) {
     if (vy < 0) {
-      if (!a.onGround && -vy > MOVE.fallSafeSpeed) impact = (-vy - MOVE.fallSafeSpeed) * MOVE.fallDamagePerSpeed;
+      if (!a.onGround) impact = fallDamage(vy * vy / (2 * MOVE.gravity));
       a.onGround = true;
     }
     a.vel.y = 0;
