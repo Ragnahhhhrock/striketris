@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { TEAM, MOVE, CLASSES, CLASS_ORDER } from '../public/src/config.js';
 import { makeActor, resetActor } from '../public/src/actor.js';
-import { ROSTER, generateLook, lookFor, silhouette } from '../public/src/looks.js';
+import { ROSTER, generateLook, lookFor, silhouette, PIECES, PIECE_CELLS, PIECE_COLOURS } from '../public/src/looks.js';
 
 register('./three-loader.mjs', import.meta.url);
 const THREE = await import('three');
@@ -21,34 +21,39 @@ const settle = (rig, frames = 90, dt = 1 / 60) => { for (let i = 0; i < frames; 
 const bounds = rig => new THREE.Box3().setFromObject(rig.group, true);
 const bodyBounds = rig => { const b = new THREE.Box3(); rig.parts.fall.traverse(o => { if (o.isMesh && o.parent !== rig.parts.weapon && !o.parent.parent?.isGroup === false) b.expandByObject(o, true); }); return b; };
 
-test('every bot has a hand-made look, and teammates read differently at range', () => {
+test('every bot has a hand-made look, and teammates are different Tetris pieces', () => {
   for (const names of [ATT, DEF]) {
     for (const n of names) assert.ok(ROSTER[n], `${n} has a look`);
+    const pieces = names.map(n => ROSTER[n].piece);
+    assert.equal(new Set(pieces).size, names.length, `teammates share a piece: ${pieces.join(' ')}`);
     const sils = names.map(n => silhouette(ROSTER[n]));
     assert.equal(new Set(sils).size, names.length, `silhouettes differ: ${sils.join(' | ')}`);
-    const hats = names.map(n => ROSTER[n].hat?.[0]).filter(Boolean);
-    assert.equal(new Set(hats).size, hats.length, 'no two teammates share a hat style');
   }
   assert.ok(ROSTER.You);
+  // Orange attackers never wear the orange L, blue defenders never wear the blue J.
+  assert.ok(!ATT.some(n => ROSTER[n].piece === 'L') && !DEF.some(n => ROSTER[n].piece === 'J'));
 });
 
-test('the roster covers hats, moustaches, beards, eyewear and several builds', () => {
-  const all = [...ATT, ...DEF].map(n => ROSTER[n]);
-  const hats = new Set(all.map(l => l.hat?.[0]).filter(Boolean));
-  const stash = new Set(all.map(l => l.moustache?.[0]).filter(Boolean));
-  const beards = new Set(all.map(l => l.beard?.[0]).filter(Boolean));
-  const eyewear = new Set(all.map(l => l.eyewear?.[0]).filter(Boolean));
-  assert.ok(hats.size >= 8, `hats: ${[...hats]}`);
-  assert.ok(stash.size >= 4, `moustaches: ${[...stash]}`);
-  assert.ok(beards.size >= 5, `beards: ${[...beards]}`);
-  assert.ok(eyewear.size >= 4, `eyewear: ${[...eyewear]}`);
-  assert.equal(new Set(all.map(l => l.build)).size, 3);
+test('all seven pieces exist as four-cell shapes and the roster uses every one', () => {
+  assert.deepEqual([...PIECES].sort(), ['I', 'J', 'L', 'O', 'S', 'T', 'Z']);
+  for (const p of PIECES) {
+    const cells = PIECE_CELLS[p];
+    assert.equal(cells.length, 4, `${p} has four cells`);
+    assert.equal(new Set(cells.map(c => c.join())).size, 4, `${p} has no repeated cell`);
+    assert.ok(Math.max(...cells.map(c => c[0])) <= 1, `${p} is at most two cells wide`);
+    // Connected: every cell touches another by an edge.
+    for (const c of cells) assert.ok(cells.some(k => Math.abs(k[0] - c[0]) + Math.abs(k[1] - c[1]) === 1), `${p} is connected`);
+    assert.ok(PIECE_COLOURS[p] != null);
+  }
+  const used = new Set([...ATT, ...DEF, 'You'].map(n => ROSTER[n].piece));
+  assert.equal(used.size, 7, `pieces in use: ${[...used]}`);
+  assert.equal(new Set([...ATT, ...DEF].map(n => ROSTER[n].build)).size, 3);
 });
 
 test('generated looks are stable per seed and cover unnamed fighters', () => {
   assert.deepEqual(generateLook(9), generateLook(9));
   assert.notDeepEqual(generateLook(9), generateLook(10));
-  assert.equal(lookFor({ name: 'Nobody', id: 3 }).skin >= 0, true);
+  assert.ok(PIECES.includes(lookFor({ name: 'Nobody', id: 3 }).piece));
 });
 
 test('every look builds a rig with a sane mesh count and finite geometry', () => {
@@ -62,15 +67,13 @@ test('every look builds a rig with a sane mesh count and finite geometry', () =>
 });
 
 test('standing fighters match the 1.8 m hitbox and stand on the floor', () => {
-  for (const n of ['Brick', 'Knox', 'Echo', 'Jett']) { // hatless or flat-headed, so height is the head
+  for (const n of ['Brick', 'Knox', 'Echo', 'Jett', 'Dune', 'Ash']) { // O, L, S, I and T pieces
     const rig = makeRig(fighter(n)); settle(rig);
     const b = bounds(rig);
     assert.ok(Math.abs(b.min.y) < 0.02, `${n} feet at ${b.min.y}`);
     assert.ok(b.max.y > 1.7 && b.max.y < 2.0, `${n} is ${b.max.y} m tall`);
     assert.ok(b.max.x - b.min.x < 1.0 && b.max.z - b.min.z < 1.6, `${n} fits in his space`);
   }
-  const top = makeRig(fighter('Ivo', TEAM.DEF, 1)); settle(top);
-  assert.ok(bounds(top).max.y > 2.0, 'the top hat towers');
 });
 
 test('crouching drops the head to about the crouch hitbox', () => {

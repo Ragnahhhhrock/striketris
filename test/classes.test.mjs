@@ -225,7 +225,7 @@ test('the player can wear any roster look, and the bot who had it gets the defau
   const { lookFor } = await import('../public/src/looks.js');
   const g = new Game({ seed: 2, human: true, humanTeam: TEAM.ATT, teamSize: 3, humanLook: 'Cole', classes: true });
   assert.equal(g.human.name, 'You');
-  assert.equal(lookFor(g.human).hat[0], 'cowboy');
+  assert.equal(lookFor(g.human).piece, 'J');
   const cole = g.actors.find(a => a.name === 'Cole');
   assert.equal(lookFor(cole), (await import('../public/src/looks.js')).ROSTER.You, 'Cole the bot swapped to the recruit look');
   const plain = new Game({ seed: 2, human: true, teamSize: 3 });

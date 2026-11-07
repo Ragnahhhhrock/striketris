@@ -45,7 +45,7 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 
 Every fighter is a procedural rig of merged box meshes with a real skeleton: head, torso, two-bone arms and legs. Nothing is loaded from disk.
 
-- **Looks:** `public/src/looks.js` holds a hand-made look for each bot name plus a seeded generator for anyone else. Skin, hair (8 styles), moustaches (4), beards (6), eyewear (5), headwear (11), build, vest, backpack, scarf and gloves. Shirts and sleeves always take the team colour so allies and enemies read at range.
+- **Looks:** every fighter is a Tetris piece standing upright with a face, arms and legs. `public/src/looks.js` holds a hand-made look for each bot name plus a seeded generator for anyone else: piece (I, O, T, S, Z, J or L, in the block colours), eyewear (5), build, backpack and gloves. Teammates never share a piece. Arms always take the team colour so allies and enemies read at range. Body geometry is in `public/src/characters.js`; `/characters.html` shows the whole roster.
 - **Animation:** `public/src/characters.js` drives the rig from live actor state. Gait follows velocity (strafe and backpedal turn the legs while the torso keeps aiming), crouch is a real squat, jumps tuck the legs, ledge climbs reach up, weapons follow your pitch and recoil, reloads swap the magazine, and the dead fall and drop their gun. Arms use two-bone IK, so hands stay on the weapon at any aim angle.
 - **Bomb:** the carrier wears it on their back.
 - **Viewer:** open `/characters.html` for the full lineup. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `focus`, `team=def`, `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
@@ -85,7 +85,7 @@ Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live r
 | `public/src/nav.js` | Bot pathfinding on the changing grid |
 | `public/src/game.js` | Rounds, bomb, weapons, rockets, blocks. Runs headless |
 | `public/src/bots.js` | Bot behaviour |
-| `public/src/looks.js` | Who each fighter is: hats, hair, facial hair, kit |
+| `public/src/looks.js` | Who each fighter is: which Tetris piece, eyewear, build, gear |
 | `public/src/characters.js` | Character rigs, weapons, kit gear and animation |
 | `public/src/render.js`, `hud.js`, `audio.js`, `main.js` | Browser layer |
 
