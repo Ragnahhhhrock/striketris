@@ -173,31 +173,36 @@ function buildPelvis(look, bw) {
   return new Mesher().box(0.46 * bw, 0.17, 0.26 * bw, 0, 0, 0, look.pants);
 }
 
-function buildUpperArm(look, teamC, bw) {
-  const m = new Mesher();
-  const L = BODY.upper;
-  m.box(0.17 * bw, 0.1, 0.17 * bw, 0, 0.0, 0, teamC);
-  m.box(0.14 * bw, L, 0.145 * bw, 0, -L / 2, 0, teamC);
-  m.box(0.15 * bw, 0.04, 0.155 * bw, 0, -0.1, 0, shade(teamC, 0.65));
+// A limb segment is a straight Tetris bar: n bevelled cells stacked downward from `top`.
+function bar(m, w, d, top, len, n, colour) {
+  const c = col(colour), dark = shade(c, 0.78), g = 0.01, h = len / n;
+  for (let i = 0; i < n; i++) {
+    const y = top - (i + 0.5) * h;
+    m.box(w - g, h - g, d - g, 0, y, 0, dark);
+    for (const z of [-1, 1]) m.box(w - 0.04, h - 0.04, 0.012, 0, y, z * (d / 2 - 0.004), c);
+    for (const x of [-1, 1]) m.box(0.012, h - 0.04, d - 0.04, x * (w / 2 - 0.004), y, 0, shade(c, 0.9));
+  }
+  m.box(w - 0.04, 0.012, d - 0.04, 0, top - 0.004, 0, mix(c, 0xffffff, 0.28));
   return m;
 }
 
+function buildUpperArm(look, teamC, bw) {
+  return bar(new Mesher(), 0.15 * bw, 0.15 * bw, 0.05, BODY.upper + 0.05, 2, teamC);
+}
+
 function buildForeArm(look, teamC, bw) {
-  const m = new Mesher();
-  const L = BODY.fore;
+  const m = bar(new Mesher(), 0.13 * bw, 0.13 * bw, 0, 0.22, 2, teamC);
   const handC = look.gloves != null ? col(look.gloves) : col(0xf2f2f2);
-  m.box(0.125 * bw, 0.22, 0.13 * bw, 0, -0.11, 0, teamC);
-  m.box(0.105 * bw, 0.11, 0.115 * bw, 0, -L + 0.02, 0, handC);
+  m.box(0.105 * bw, 0.11, 0.115 * bw, 0, -BODY.fore + 0.02, 0, handC);
   return m;
 }
 
 function buildThigh(look, bw) {
-  return new Mesher().box(0.19 * bw, BODY.thigh, 0.21 * bw, 0, -BODY.thigh / 2, 0, look.pants);
+  return bar(new Mesher(), 0.19 * bw, 0.21 * bw, 0, BODY.thigh, 2, look.pants);
 }
 
 function buildShin(look, bw) {
-  const m = new Mesher();
-  m.box(0.165 * bw, 0.3, 0.18 * bw, 0, -0.15, 0, look.pants);
+  const m = bar(new Mesher(), 0.17 * bw, 0.18 * bw, 0, 0.3, 2, look.pants);
   m.box(0.185 * bw, 0.1, 0.2 * bw, 0, -0.31, 0, look.boots);
   return m;
 }
