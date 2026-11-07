@@ -704,3 +704,73 @@ test('a bullet that is blocked by a player hurts the player, not the block behin
   assert.equal(game.grid.dmg[game.grid.idx(16, 0, 10)], 0);
   assert.ok(e1.hp < 100);
 });
+
+// ---- shooting the falling block ----
+function fallingRange(shape = 0, pose = 0, drop = 0.5) {
+  const r = rocketRange();
+  r.s.pos = { x: 49.5, y: 0, z: 80 }; r.s.cur = 'rifle';
+  const p = mkPiece(r.game, shape, 16, 10, drop, 0, pose);
+  p.ids = p.cells.map((_, i) => i); p.dmg = p.cells.map(() => 0); p.cubeRev = 0;
+  r.game.piece = p;
+  return r;
+}
+const shoot = (game, s, key) => { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; game.fire(s, WEAPONS[key]); };
+
+test('bullets chip a falling block and eventually break a cube out of it', () => {
+  const { game, s } = fallingRange();
+  const p = game.piece;
+  shoot(game, s, 'rifle');
+  assert.ok(p.dmg[0] > 0 && p.cells.length === 4, 'one bullet damages but does not break');
+  assert.ok(p.cubeRev > 0, 'renderer is told to redraw it');
+  for (let i = 0; i < 40 && p.cells.length === 4; i++) shoot(game, s, 'rifle');
+  assert.equal(p.cells.length, 3, 'a cube broke out');
+  assert.equal(p.cells.length, p.dmg.length);
+  assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.falling));
+});
+
+test('a rocket destroys the falling cube it hits, cracks the next, and the block can be steered afterwards', () => {
+  const { game, s } = fallingRange();
+  const p = game.piece;
+  game.explodeRocket({ owner: s, id: 1 }, { x: 49.5, y: 2, z: 33.06 }, null);
+  assert.equal(p.cells.length, 3, 'one rocket breaks the cube it hit');
+  assert.ok(p.dmg.some(d => d > 30), 'its neighbour is cracked');
+  p.drop = 30;
+  assert.ok(game.adjustPiece({ rot: 1 }), 'a damaged block still steers');
+  assert.equal(game.piece.cells.length, 3, 'and keeps only its surviving cubes');
+});
+
+test('a rocket flying into a falling block bursts on it', () => {
+  const { game, s } = fallingRange();
+  s.cur = 'rocket'; s.weapons.rocket = 5; s.fireCd = 0; s.input.fire = true; game.stepWeapon(s, TICK); s.input.fire = false;
+  fly(game);
+  assert.equal(game.projectiles.length, 0);
+  assert.ok(game.piece.cells.length < 4, 'something broke');
+});
+
+test('losing the lowest cube lets the rest fall further, at the same altitude', () => {
+  const { game } = fallingRange(0, 0, 9);
+  const p = game.piece;
+  p.cells = [0, 1, 2, 3].map(y => ({ x: 0, y, z: 0 })); p.y = 0;   // four cubes stacked in a column
+  const alt = p.y * 3 + p.drop;
+  game.hitPieceCube(0, 1000, { x: 49.5, y: 10, z: 31 });
+  assert.equal(p.cells.length, 3);
+  assert.equal(p.y * 3 + p.drop, alt, 'altitude is unchanged');
+  assert.equal(p.y, -1, 'the landing spot dropped a cell');
+});
+
+test('destroying every cube removes the block and the next one still comes', () => {
+  const { game } = fallingRange();
+  for (let i = 0; i < 4; i++) game.hitPieceCube(0, 1000, { x: 49.5, y: 2, z: 31 });
+  assert.equal(game.piece, null);
+  assert.ok(game.drainEvents().some(e => e.type === 'pieceDestroyed'));
+  assert.ok(game.spawnPiece(), 'a fresh block can spawn');
+});
+
+test('a damaged block lands damaged', () => {
+  const { game } = fallingRange(0, 0, 1);
+  const p = game.piece;
+  game.hitPieceCube(1, 50, { x: 52, y: 2, z: 31 });
+  const cell = { x: p.x + p.cells[1].x, y: p.y + p.cells[1].y, z: p.z + p.cells[1].z };
+  game.landPiece(p);
+  assert.equal(game.grid.dmg[game.grid.idx(cell.x, cell.y, cell.z)], 50);
+});

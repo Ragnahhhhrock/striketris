@@ -1,8 +1,8 @@
 import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H } from './config.js';
-import { rayBox, cellCentre, EMPTY, STATIC } from './grid.js';
+import { rayBox, rayBoxHit, cellCentre, EMPTY, STATIC } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
-import { SHAPES, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
+import { SHAPES, restHeight, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
 import { makeActor, resetActor, stepMovement, eyePos, aimDir, actorHeight, hitsWorld } from './actor.js';
 import { updateBot, initBrains } from './bots.js';
 import { stepLifts, resetLifts } from './lifts.js';
@@ -219,6 +219,8 @@ export class Game {
         const bd = rayBox(o.x, o.y, o.z, d.x, d.y, d.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h, t.pos.z + r);
         if (bd !== null && bd < dist) { dist = bd; hit = true; victim = t; }
       }
+      const cube = this.rayPiece(o, d, dist);
+      if (cube) { dist = cube.t; hit = true; victim = null; }
       if (hit) {
         // Burst just short of the surface so the blast origin is in open air.
         const back = Math.max(0, dist - 0.06);
@@ -289,6 +291,7 @@ export class Game {
     const w = WEAPONS.rocket, by = p.owner;
     this.emit('rocketExplode', { pos: at, proj: p, radius: w.radius, by });
     this.damageBlocks(at, w);
+    this.damagePiece(at, w);
     for (const t of this.actors) {
       if (!t.alive) continue;
       const h = actorHeight(t), r = MOVE.radius;
@@ -340,8 +343,11 @@ export class Game {
         if (hd !== null && hd < dist) { dist = hd; victim = t; head = true; }
         if (bd !== null && bd < dist) { dist = bd; victim = t; head = false; }
       }
+      const cube = this.rayPiece(origin, dir, dist);
+      if (cube) { dist = cube.t; victim = null; head = false; }
       const end = { x: origin.x + dir.x * dist, y: origin.y + dir.y * dist, z: origin.z + dir.z * dist };
       path.push(end);
+      if (cube) { impact = { pos: end, normal: { x: cube.nx, y: cube.ny, z: cube.nz } }; this.hitPieceCube(cube.k, (w.blockDmg || 0) * keep, end); break; }
       if (victim) break;
       const surface = hit.nx || hit.ny || hit.nz;
       if (!surface) break;
@@ -425,7 +431,7 @@ export class Game {
     this.pieceTimer = this.pieceInterval;
     if (!c) return false;
     this.nextShape = this.bagNext();
-    this.piece = { ...c, t: 0, drop: PIECE.dropHeight, rev: 0, controlled: false, aiDone: false, fast: false };
+    this.piece = { ...c, t: 0, drop: PIECE.dropHeight, rev: 0, controlled: false, aiDone: false, fast: false, ids: c.cells.map((_, i) => i), dmg: c.cells.map(() => 0), cubeRev: 0 };
     this.emit('telegraph', { piece: this.piece });
     return true;
   }
@@ -443,6 +449,57 @@ export class Game {
     p.rev++;
     this.emit('adjust', { piece: p, by });
     return true;
+  }
+
+  // ---- shooting the falling block ----
+  // Each cube of the falling block has BLOCK_HP like a settled one. Cubes are boxes in the air, so bullets and
+  // rockets meet them with ray tests rather than the voxel grid.
+  pieceCubeBox(p, k) {
+    const c = p.cells[k], y0 = (p.y + c.y) * CELL + p.drop;
+    return [(p.x + c.x) * CELL, y0, (p.z + c.z) * CELL, (p.x + c.x + 1) * CELL, y0 + CELL, (p.z + c.z + 1) * CELL];
+  }
+
+  // Nearest falling cube along a ray within maxDist, or null. Returns { k, t, nx, ny, nz }.
+  rayPiece(o, d, maxDist) {
+    const p = this.piece;
+    if (!p || !p.dmg) return null;
+    let best = null;
+    for (let k = 0; k < p.cells.length; k++) {
+      const h = rayBoxHit(o.x, o.y, o.z, d.x, d.y, d.z, ...this.pieceCubeBox(p, k));
+      if (h && h.t < maxDist && (!best || h.t < best.t)) best = { k, ...h };
+    }
+    return best;
+  }
+
+  // Damage one cube of the falling block. Past BLOCK_HP it breaks and drops out of the shape; the block keeps
+  // its altitude but its landing spot is worked out again from the cubes that are left.
+  hitPieceCube(k, amount, at) {
+    const p = this.piece;
+    if (!p || !(amount > 0) || k >= p.cells.length) return;
+    p.dmg[k] += amount;
+    p.cubeRev++;
+    if (p.dmg[k] < BLOCK_HP) return;
+    const [x0, y0, z0] = this.pieceCubeBox(p, k);
+    const v = p.shapeId + 1;
+    p.cells.splice(k, 1); p.ids.splice(k, 1); p.dmg.splice(k, 1);
+    this.emit('blocksBroken', { cells: [{ x: x0 / CELL, y: y0 / CELL, z: z0 / CELL, v }], pos: at, falling: true });
+    if (!p.cells.length) { this.piece = null; this.emit('pieceDestroyed', { piece: p }); return; }
+    const altitude = p.y * CELL + p.drop;
+    const y = restHeight(this.grid, p.cells, p.x, p.z);
+    if (y >= -1 && y <= p.y) { p.y = y; p.drop = Math.max(0, altitude - y * CELL); }
+  }
+
+  // A rocket blast against the falling block: cubes within blockCrush break outright, others take falloff damage.
+  damagePiece(at, w) {
+    const p = this.piece;
+    if (!p || !p.dmg) return;
+    for (let k = p.cells.length - 1; k >= 0; k--) {
+      if (!this.piece || k >= this.piece.cells.length) continue;
+      const [x0, y0, z0, x1, y1, z1] = this.pieceCubeBox(p, k);
+      const len = Math.hypot(Math.max(x0, Math.min(at.x, x1)) - at.x, Math.max(y0, Math.min(at.y, y1)) - at.y, Math.max(z0, Math.min(at.z, z1)) - at.z);
+      if (len >= w.radius) continue;
+      this.hitPieceCube(k, len <= w.blockCrush ? BLOCK_HP : w.splash * (1 - len / w.radius), at);
+    }
   }
 
   // Columns a piece will hit. Bots treat them as dangerous while it is on its way.
@@ -468,11 +525,12 @@ export class Game {
   }
 
   landPiece(p) {
-    for (const c of p.cells) {
+    p.cells.forEach((c, k) => {
       const x = p.x + c.x, y = p.y + c.y, z = p.z + c.z;
       this.grid.set(x, y, z, p.shapeId + 1);
+      if (p.dmg?.[k]) this.grid.dmg[this.grid.idx(x, y, z)] = Math.min(254, Math.ceil(p.dmg[k]));   // a chipped block lands chipped
       this.grid.removeCratesAt(x, y, z);
-    }
+    });
     this.grid.version++;
     this.piece = null;
     this.piecesLanded++;

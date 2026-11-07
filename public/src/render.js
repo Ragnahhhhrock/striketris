@@ -469,10 +469,16 @@ export class Renderer {
     const solidEdge = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
     const edgeGeo = new THREE.EdgesGeometry(this.cubeGeo);
     const solidMat = new THREE.MeshLambertMaterial({ color: tint, map: this.bevelTex, emissive: tint, emissiveIntensity: 0.3 });
+    // Gunfire chars a cube toward black as it nears breaking.
+    const charred = k => {
+      const f = 1 - 0.6 * Math.min(1, (p.dmg?.[k] ?? 0) / BLOCK_HP);
+      if (f >= 1) return solidMat;
+      const m = solidMat.clone(); m.color.multiplyScalar(f); m.emissiveIntensity = 0.3 * f; return m;
+    };
     const beamH = 160;
     const columns = new Set();
     let sx = 0, sz = 0, sy = 0;
-    for (const c of p.cells) {
+    p.cells.forEach((c, k) => {
       const x = (p.x + c.x + 0.5) * CELL, y = (p.y + c.y + 0.5) * CELL, z = (p.z + c.z + 0.5) * CELL;
       sx += x; sy += y; sz += z;
       const m = new THREE.Mesh(this.cubeGeo, ghostMat); m.position.set(x, y, z);
@@ -485,15 +491,15 @@ export class Renderer {
         b.position.set(x, y + beamH / 2, z);
         ghost.add(b);
       }
-      const s = new THREE.Mesh(this.cubeGeo, solidMat); s.position.set(x, y, z); s.castShadow = true;
+      const s = new THREE.Mesh(this.cubeGeo, charred(k)); s.position.set(x, y, z); s.castShadow = true;
       const se = new THREE.LineSegments(edgeGeo, solidEdge); se.position.copy(s.position);
       solid.add(s, se);
-    }
+    });
     const n = p.cells.length;
     this.scene.add(ghost, solid);
     this.pieceLight.color.setHex(tint);
     this.pieceLight.intensity = 700;
-    const view = { ghost, solid, ghostMat, source: p, rev: p.rev, cx: sx / n, cy: sy / n, cz: sz / n, slide: { x: 0, z: 0 } };
+    const view = { ghost, solid, ghostMat, source: p, rev: p.rev, cubeRev: p.cubeRev, cx: sx / n, cy: sy / n, cz: sz / n, slide: { x: 0, z: 0 } };
     if (prev) view.slide = { x: prev.cx - view.cx + prev.slide.x, z: prev.cz - view.cz + prev.slide.z };
     this.pieceView = view;
   }
@@ -767,6 +773,14 @@ export class Renderer {
       this.scene.remove(prev.ghost, prev.solid);
       this.pieceView = null;
       this.buildPieceView(p, prev);
+    }
+    else if (p && this.pieceView && this.pieceView.cubeRev !== p.cubeRev) {
+      // Cubes shot at or broken: rebuild in place, keeping any steering slide that is still settling.
+      const prev = this.pieceView;
+      this.scene.remove(prev.ghost, prev.solid);
+      this.pieceView = null;
+      this.buildPieceView(p);
+      this.pieceView.slide = prev.slide;
     }
     if (p && !this.pieceView) this.buildPieceView(p);
     if (this.pieceView) {

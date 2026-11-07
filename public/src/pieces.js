@@ -182,7 +182,8 @@ export function adjustPlacement(game, p, cmd) {
   const mirror = cmd.mirror ? !p.mirror : p.mirror;
   const pose = (p.pose + (cmd.tumble || 0) + 3) % 3;
   const changed = rot !== p.rot || mirror !== p.mirror || pose !== p.pose;
-  const cells = changed ? orient(p.shapeId, rot, pose, mirror) : p.cells;
+  // A block that has lost cubes to gunfire keeps only the survivors (p.ids are their positions in the full shape).
+  const cells = changed ? orient(p.shapeId, rot, pose, mirror).filter((_, i) => !p.ids || p.ids.includes(i)) : p.cells;
   let bx = p.x + (cmd.dx || 0), bz = p.z + (cmd.dz || 0);
   if (changed) {
     const o = extent(p.cells), n = extent(cells);
