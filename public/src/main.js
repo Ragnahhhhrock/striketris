@@ -55,6 +55,15 @@ function fillClasses() {
 $('optClass').onchange = $('optSide').onchange = fillClasses;
 fillClasses();
 
+import { initSelect, showSelect, hideSelect, pick } from './select.js';
+// The selection screen drives the menu's side and class, and remembers the look.
+function applyPick(p) { $('optSide').value = p.side; $('optClass').value = p.cls; fillClasses(); }
+initSelect(applyPick);
+$('selGo').onclick = () => { hideSelect(); showMenu(false); };
+$('changeChar').onclick = () => { $('menu').hidden = true; showSelect(); };
+$('optSide').addEventListener('change', () => { pick.side = $('optSide').value; });
+$('optClass').addEventListener('change', () => { pick.cls = $('optClass').value; });
+
 function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
 
 function start(keep) {
@@ -66,6 +75,7 @@ function start(keep) {
     god: m === 'god',
     humanTeam: $('optSide').value,
     humanClass: $('optClass').value,
+    humanLook: pick.look,
     teamSize: Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
@@ -331,5 +341,6 @@ function frame(now) {
 
 menuGame();
 showMenu(false);
+if (!params.get('skipselect')) { $('menu').hidden = true; showSelect(); }
 window.__start = start;
 requestAnimationFrame(frame);

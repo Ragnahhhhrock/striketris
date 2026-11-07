@@ -225,3 +225,14 @@ test('bot-only matches with every class still finish, and every kit gets used', 
   for (const k of Object.keys(seen)) assert.ok(seen[k] > 0, `${k} happened`);
   for (const c of CLASS_ORDER) assert.ok(kills[c] > 0, `${c} scored kills`);
 });
+
+test('the player can wear any roster look, and the bot who had it gets the default one', async () => {
+  const { lookFor } = await import('../public/src/looks.js');
+  const g = new Game({ seed: 2, human: true, humanTeam: TEAM.ATT, teamSize: 3, humanLook: 'Cole' });
+  assert.equal(g.human.name, 'You');
+  assert.equal(lookFor(g.human).hat[0], 'cowboy');
+  const cole = g.actors.find(a => a.name === 'Cole');
+  assert.equal(lookFor(cole), (await import('../public/src/looks.js')).ROSTER.You, 'Cole the bot swapped to the recruit look');
+  const plain = new Game({ seed: 2, human: true, teamSize: 3 });
+  assert.equal(lookFor(plain.human), (await import('../public/src/looks.js')).ROSTER.You);
+});

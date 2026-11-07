@@ -76,8 +76,12 @@ export function generateLook(seed) {
 }
 
 export function lookFor(actor) {
-  return ROSTER[actor.name] ?? generateLook(actor.id);
+  return ROSTER[actor.lookName ?? actor.name] ?? generateLook(actor.id);
 }
+
+// Every hand-made fighter can be picked by the player. 'You' is the plain default recruit.
+export const PLAYABLE = Object.keys(ROSTER);
+export const displayName = n => (n === 'You' ? 'Rookie' : n);
 
 // Short readable summary for tests and the character viewer.
 export function describeLook(look) {

@@ -53,6 +53,12 @@ export class Game {
         if (human) this.human = a;
       }
     }
+    // The player may wear any roster look. If a bot already has it, that bot takes the default recruit look.
+    const pick = this.opts.humanLook;
+    if (this.human && pick && pick !== 'You') {
+      this.human.lookName = pick;
+      for (const b of this.actors) if (b !== this.human && b.name === pick) b.lookName = 'You';
+    }
     this.startRound();
   }
 

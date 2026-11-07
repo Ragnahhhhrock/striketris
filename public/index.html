@@ -98,7 +98,27 @@
   <div id="lockNote" hidden>Mouse lock is blocked here. Hold right mouse to look.</div>
 </div>
 
-<div id="menu">
+<div id="select" hidden>
+  <div class="card wide">
+    <h1>Choose your fighter</h1>
+    <p class="sub">Pick a look, a kit and a side. You can change them from the menu any time.</p>
+    <div class="selGrid">
+      <div class="selStage">
+        <canvas id="selView"></canvas>
+        <div id="selName"></div><div id="selDesc" class="sub"></div><div id="selKit" class="sub"></div>
+        <div class="hint">Click the fighter to swap weapon</div>
+      </div>
+      <div class="selPick">
+        <h3>Side</h3><div id="selSide" class="chips"><button data-side="attackers">Attackers</button><button data-side="defenders">Defenders</button></div>
+        <h3>Class</h3><div id="selClasses" class="classes"></div>
+        <h3>Character</h3><div id="selRoster" class="chips roster"></div>
+      </div>
+    </div>
+    <div class="row"><button id="selGo">Continue</button></div>
+  </div>
+</div>
+
+<div id="menu" hidden>
   <div class="card">
     <h1>StrikeTris</h1>
     <p class="sub">Plant or defuse while giant blocks rebuild the map. Grey box build.</p>
@@ -113,6 +133,7 @@
     <p id="classBlurb" class="blurb"></p>
     <div class="row">
       <button id="startBtn">Play</button>
+      <button id="changeChar" class="alt">Change fighter</button>
       <button id="resume" class="alt" hidden>Resume</button>
     </div>
     <div class="keys">
@@ -134,6 +155,6 @@
   </div>
 </div>
 
-<script type="module" src="src/main.js?v=5"></script>
+<script type="module" src="src/main.js?v=6"></script>
 </body>
 </html>

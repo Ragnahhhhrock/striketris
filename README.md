@@ -42,6 +42,10 @@ Every fighter is a procedural rig of merged box meshes with a real skeleton: hea
 - **Bomb:** the carrier wears it on their back.
 - **Viewer:** open `/characters.html` for the full lineup. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `focus`, `team=def`, `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
 
+## Character select
+
+The game opens on a selection screen: a rotating 3D preview, a side (sets your shirt colour and weapon names), one of the five classes, and any of the 13 hand-made fighters or the default Rookie. If a bot already wears your pick it takes the Rookie look. Choices are remembered; "Change fighter" in the menu reopens the screen. Add `?skipselect=1` to go straight to the menu.
+
 ## Classes
 
 Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is the difference. Pick one in the menu (it applies from the next round; bots fill the other kits on both teams). Weapon stats are identical across sides, only the names differ (Axis/Allies, attackers/defenders).
