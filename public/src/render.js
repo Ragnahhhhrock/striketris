@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS, BLOCK_HP } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
@@ -78,8 +78,8 @@ function mesh(grid, wantStatic) {
     const v = grid.get(x, y, z);
     if (v === EMPTY || (v === STATIC) !== wantStatic) continue;
     colour.setHex(wantStatic ? (y >= 4 ? 0x9099ad : 0x7d869a) : SHAPE_TINT[v - 1]);
-    // Rocket damage darkens a block toward charred as it nears breaking.
-    if (!wantStatic) colour.multiplyScalar(1 - 0.6 * Math.min(1, grid.dmg[grid.idx(x, y, z)] / WEAPONS.rocket.blockHp));
+    // Bullet and rocket damage darkens a block toward charred as it nears breaking.
+    if (!wantStatic) colour.multiplyScalar(1 - 0.6 * Math.min(1, grid.dmg[grid.idx(x, y, z)] / BLOCK_HP));
     for (const f of FACES) {
       if (grid.get(x + f.n[0], y + f.n[1], z + f.n[2]) !== EMPTY) continue;
       if (wantStatic && y + f.n[1] < 0) continue;

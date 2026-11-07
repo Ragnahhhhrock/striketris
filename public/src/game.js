@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H } from './config.js';
 import { rayBox, cellCentre, EMPTY, STATIC } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -231,8 +231,9 @@ export class Game {
     this.projectiles = keep;
   }
 
-  // Rockets chew through settled blocks. Each cube in reach that the blast can see takes the same falloff
-  // damage a player would, and breaks once it has taken blockHp. Map walls, crates and lifts are untouched.
+  // Rockets chew through settled blocks. Cubes the blast can see within blockCrush break outright, so a rocket
+  // always destroys the block it hits; further out each cube takes the same falloff damage a player would and
+  // breaks once it has taken BLOCK_HP. Map walls, crates and lifts are untouched.
   damageBlocks(at, w) {
     const g = this.grid, R = w.radius, broken = [];
     let touched = false;
@@ -247,9 +248,28 @@ export class Game {
       if (len > 0.01 && g.raycast(at.x, at.y, at.z, (nx - at.x) / len, (ny - at.y) / len, (nz - at.z) / len, len) < len - 0.3) continue;
       const i = g.idx(x, y, z), taken = g.dmg[i] + Math.round(w.splash * (1 - len / R));
       touched = true;
-      if (taken >= w.blockHp) { broken.push({ x, y, z, v }); g.set(x, y, z, EMPTY); } else g.dmg[i] = taken;
+      if (len <= w.blockCrush || taken >= BLOCK_HP) { broken.push({ x, y, z, v }); g.set(x, y, z, EMPTY); } else g.dmg[i] = taken;
     }
     if (!touched) return;
+    this.blocksChanged(broken, at);
+  }
+
+  // A bullet hit on the face of a settled block chips it. The point is nudged back into the cube to find it.
+  // Map walls, crates and lifts are not settled blocks, so they read as empty or static here and are skipped.
+  hitBlock(end, normal, amount) {
+    if (!(amount > 0)) return;
+    const g = this.grid;
+    const x = Math.floor((end.x - normal.nx * 0.01) / CELL), y = Math.floor((end.y - normal.ny * 0.01) / CELL), z = Math.floor((end.z - normal.nz * 0.01) / CELL);
+    const v = g.get(x, y, z);
+    if (v === EMPTY || v === STATIC) return;
+    const i = g.idx(x, y, z), taken = g.dmg[i] + amount;
+    if (taken >= BLOCK_HP) { g.set(x, y, z, EMPTY); this.blocksChanged([{ x, y, z, v }], end); }
+    else { g.dmg[i] = Math.ceil(taken); g.version++; }
+  }
+
+  // Tell the renderer the grid changed, announce any broken cubes, and drop what rested on them.
+  blocksChanged(broken, at) {
+    const g = this.grid;
     g.version++;
     if (!broken.length) return;
     this.emit('blocksBroken', { cells: broken, pos: at });
@@ -325,6 +345,7 @@ export class Game {
       if (victim) break;
       const surface = hit.nx || hit.ny || hit.nz;
       if (!surface) break;
+      this.hitBlock(end, hit, (w.blockDmg || 0) * keep);
       const dn = dir.x * hit.nx + dir.y * hit.ny + dir.z * hit.nz;
       left -= dist;
       if (bounces >= w.bounces || dn >= 0 || left < 1) { impact = { pos: end, normal: { x: hit.nx, y: hit.ny, z: hit.nz } }; break; }

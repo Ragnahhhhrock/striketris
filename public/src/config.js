@@ -20,17 +20,19 @@ export const MOVE = {
 };
 
 export const BULLET_RANGE = 200;   // total metres a round can travel, bounces included
+export const BLOCK_HP = 120;       // damage a settled block takes before it is destroyed, from bullets and rockets alike
 
 // Two guns, two jobs. The rifle is a fast climbing spray that pings once off a wall.
 // The pistol is a slow hand cannon: heavy kick, one-tap headshots, and it skips off two walls.
 //   kick / kickYaw   view punch per shot in radians; kickMax / kickYawMax cap the build-up
 //   recover          how fast the punch settles per second
 //   bounces          walls a round can glance off; bounceKeep is the damage kept after each
+//   blockDmg         damage each hit does to a settled block (BLOCK_HP to break it), scaled by bounceKeep on a ricochet
 //   shake / fov      camera shudder and FOV punch for the shooter; vm* drive the gun model
 //   tracer / flash   colours and sizes of the visible round and muzzle flash
 export const WEAPONS = {
   rifle: {
-    name: 'Rifle', mag: 30, reload: 2.4, interval: 0.09, damage: 28, headMult: 3.6, spread: 0.002, moveSpread: 0.035, auto: true,
+    name: 'Rifle', mag: 30, reload: 2.4, interval: 0.09, damage: 28, headMult: 3.6, spread: 0.002, moveSpread: 0.035, auto: true, blockDmg: 5,
     kick: 0.017, kickMax: 0.16, kickYaw: 0.006, kickYawMax: 0.05, recover: 4.2,
     bounces: 1, bounceKeep: 0.55,
     shake: 0.1, fov: 0.5, vmBack: 0.085, vmPitch: 0.1, vmRecover: 16,
@@ -38,7 +40,7 @@ export const WEAPONS = {
     flash: { colour: 0xffa63d, size: 1.5, life: 0.05, light: 5 },
   },
   pistol: {
-    name: 'Pistol', mag: 8, reload: 1.7, interval: 0.28, damage: 46, headMult: 2.6, spread: 0.0015, moveSpread: 0.02, auto: false,
+    name: 'Pistol', mag: 8, reload: 1.7, interval: 0.28, damage: 46, headMult: 2.6, spread: 0.0015, moveSpread: 0.02, auto: false, blockDmg: 14,
     kick: 0.05, kickMax: 0.14, kickYaw: 0.01, kickYawMax: 0.04, recover: 7,
     bounces: 2, bounceKeep: 0.7,
     shake: 0.5, fov: 1.8, vmBack: 0.15, vmPitch: 0.28, vmRecover: 10,
@@ -53,12 +55,12 @@ export const WEAPONS = {
 //   direct     extra damage to whoever the rocket hits head on, on top of the blast
 //   splash     blast damage at the centre, falling off to nothing at radius metres
 //   knock      blast shove in m/s at the centre; selfScale cuts the damage you do to yourself
-//   blockHp    damage a settled block takes before it is destroyed. Blast damage to blocks uses the same
-//              falloff as players, so a rocket at a wall breaks the cubes it touches and cracks the ones around them
+//   blockCrush cubes the blast can see within this many metres break outright, so one rocket always destroys the
+//              block it hits. Further out, blocks take splash damage with the same falloff as players and crack
 //   max        most rockets you can carry; start is what the launcher pickup gives you
 WEAPONS.rocket = {
   name: 'Rocket Launcher', mag: 12, max: 12, start: 5, noReload: true, reload: 0, interval: 0.8, auto: true,
-  speed: 24, life: 6, direct: 30, splash: 100, radius: 5, knock: 12, selfScale: 0.5, blockHp: 120,
+  speed: 24, life: 6, direct: 30, splash: 100, radius: 5, knock: 12, selfScale: 0.5, blockCrush: 1,
   spread: 0, moveSpread: 0, damage: 0, headMult: 1, bounces: 0, bounceKeep: 1,
   kick: 0.06, kickMax: 0.12, kickYaw: 0.01, kickYawMax: 0.04, recover: 6,
   shake: 0.5, fov: 1.4, vmBack: 0.16, vmPitch: 0.22, vmRecover: 8,

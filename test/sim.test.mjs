@@ -607,21 +607,20 @@ test('bots in a full match pick things up and fire rockets without breaking anyt
 });
 
 // ---- rockets versus blocks ----
-test('a rocket cracks the blocks around it and a second one breaks them; walls and crates stay', () => {
+test('one rocket destroys the block it hits and cracks its neighbours; walls and crates stay', () => {
   const { game, s } = rocketRange();
   const g = game.grid;
-  for (let z = 10; z <= 12; z++) { g.set(16, 0, z, 3); g.set(16, 1, z, 3); }   // a block wall three cells deep in front of the shooter
+  g.set(16, 0, 10, 3); g.set(16, 0, 9, 3);   // the cube that gets hit, and one directly behind it
+  g.set(15, 0, 10, 3);                       // a neighbour beside it
   g.set(10, 0, 10, STATIC);
   const v0 = g.version;
-  const at = { x: 49.5, y: 1.5, z: 33.06 };   // against the face of the nearest cube (z cell 10 spans 30..33)
+  const at = { x: 49.5, y: 1.5, z: 33.06 };   // in open air against the face of the cube (z cell 10 spans 30..33)
   game.explodeRocket({ owner: s, id: 1 }, at, null);
   assert.ok(g.version > v0, 'grid changed so the renderer remeshes');
-  assert.ok(g.dmg[g.idx(16, 0, 10)] > 60, 'cube at the blast is hurt');
-  assert.equal(g.get(16, 0, 10), 3, 'one rocket does not break it');
-  assert.equal(g.dmg[g.idx(16, 0, 12)], 0, 'cubes hidden behind others are not touched');
-  game.explodeRocket({ owner: s, id: 2 }, at, null);
-  assert.equal(g.get(16, 0, 10), EMPTY, 'second rocket breaks it');
-  assert.equal(g.dmg[g.idx(16, 0, 10)], 0);
+  assert.equal(g.get(16, 0, 10), EMPTY, 'a single rocket breaks the block it hits');
+  assert.equal(g.get(15, 0, 10), 3, 'a neighbour survives the blast');
+  assert.ok(g.dmg[g.idx(15, 0, 10)] > 30, 'but it is cracked');
+  assert.equal(g.dmg[g.idx(16, 0, 9)], 0, 'cubes hidden behind others are not touched');
   assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.length > 0));
   assert.equal(g.get(10, 0, 10), STATIC, 'map walls are permanent');
 });
@@ -657,4 +656,51 @@ test('a planted bomb whose block is destroyed drops to the floor', () => {
   game.explodeRocket({ owner: s, id: 1 }, { x: 49.5, y: 1.5, z: 33.5 }, null);
   assert.equal(g.get(16, 0, 10), EMPTY);
   assert.equal(game.bomb.pos.y, 0);
+});
+
+// ---- bullets versus blocks ----
+function bulletRange(weapon) {
+  const r = rocketRange();
+  r.s.cur = weapon; r.s.pos = { x: 49.5, y: 0, z: 80 };
+  r.game.grid.set(16, 0, 10, 3);
+  return r;
+}
+function shootUntilBroken(game, s, key, max = 80) {
+  const g = game.grid;
+  let shots = 0;
+  while (g.get(16, 0, 10) !== EMPTY && shots < max) { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; game.fire(s, WEAPONS[key]); shots++; }
+  return shots;
+}
+
+test('a bullet only chips a block: it takes many rifle hits to break one', () => {
+  const { game, s } = bulletRange('rifle');
+  const g = game.grid, v0 = g.version;
+  s.shotStreak = 0; game.fire(s, WEAPONS.rifle);
+  assert.equal(g.get(16, 0, 10), 3, 'one bullet does not break it');
+  assert.ok(g.dmg[g.idx(16, 0, 10)] > 0, 'but it is damaged');
+  assert.ok(g.version > v0, 'grid changed so the renderer darkens it');
+  game.drainEvents();
+  const shots = 1 + shootUntilBroken(game, s, 'rifle');
+  assert.ok(shots >= 15 && shots <= 40, `rifle took ${shots} shots`);
+  assert.equal(g.get(16, 0, 10), EMPTY);
+  assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.length === 1));
+});
+
+test('the pistol breaks a block faster than the rifle, and neither touches map walls', () => {
+  const rifle = bulletRange('rifle'), pistol = bulletRange('pistol');
+  const nr = shootUntilBroken(rifle.game, rifle.s, 'rifle'), np = shootUntilBroken(pistol.game, pistol.s, 'pistol');
+  assert.ok(np < nr, `pistol ${np} vs rifle ${nr}`);
+  const { game, s } = bulletRange('rifle');
+  game.grid.set(16, 0, 10, STATIC);
+  for (let i = 0; i < 60; i++) { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; game.fire(s, WEAPONS.rifle); }
+  assert.equal(game.grid.get(16, 0, 10), STATIC);
+  assert.equal(game.grid.dmg[game.grid.idx(16, 0, 10)], 0);
+});
+
+test('a bullet that is blocked by a player hurts the player, not the block behind', () => {
+  const { game, s, e1 } = bulletRange('rifle');
+  e1.pos = { x: 49.5, y: 0, z: 60 };
+  s.recoil = 0; s.shotStreak = 0; game.fire(s, WEAPONS.rifle);
+  assert.equal(game.grid.dmg[game.grid.idx(16, 0, 10)], 0);
+  assert.ok(e1.hp < 100);
 });
