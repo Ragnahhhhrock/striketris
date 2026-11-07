@@ -15,7 +15,7 @@ export function makeActor(id, team, name, isHuman, cls = 'rifleman') {
 
 export function resetActor(a) {
   a.hp = 100; a.alive = true; a.vel = { x: 0, y: 0, z: 0 }; a.mantle = null;
-  a.hasBomb = false; a.recoil = 0; a.recoilYaw = 0; a.crouching = false; a.onGround = true;
+  a.shover = null; a.shoveT = 0; a.hasBomb = false; a.recoil = 0; a.recoilYaw = 0; a.crouching = false; a.onGround = true;
   a.cls = a.nextCls || a.cls;
   const k = CLASSES[a.cls];
   a.loadout = [k.primary, k.secondary];

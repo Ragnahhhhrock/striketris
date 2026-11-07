@@ -19,6 +19,14 @@ export const MEZZANINES = [
   { deck: [24, 25, 15, 19], steps: [[24, 25, 13, 13], [24, 25, 14, 14]] }, // long B
 ];
 
+// Rim ledges: the long A and long B mezzanines carry on across the lane and out through a gap in the outer wall. `deck`
+// is a bridge at the same height as the mezzanine, `carve` is the wall cut away above the wall top so the ledge ends in
+// open air. Past it is a sheer drop to the void (see RIM in config.js). Rows must match RIM.z0..z1.
+export const RIM_LEDGES = [
+  { deck: [3, 5, 16, 19], carve: [0, 2, 16, 19] },       // west, off long A
+  { deck: [26, 28, 16, 19], carve: [29, 31, 16, 19] },   // east, off long B
+];
+
 // Cover walls on the lower level: [x0, x1, z0, z1, height in blocks].
 const LOWER_COVER = [
   [6, 12, 8, 8, 2], [19, 25, 8, 8, 2], [6, 12, 24, 24, 2], [19, 25, 24, 24, 2],
@@ -63,5 +71,11 @@ export function addLevels(g) {
   for (const m of MEZZANINES) {
     for (const [x, z] of cells(m.deck)) g.set(x, 2, z, STATIC);
     m.steps.forEach((r, i) => { for (const [x, z] of cells(r)) for (let y = 0; y <= i; y++) g.set(x, y, z, STATIC); });
+  }
+
+  // Rim ledges: a bridge from the mezzanine and a notch cut through the wall above its top.
+  for (const r of RIM_LEDGES) {
+    for (const [x, z] of cells(r.deck)) g.set(x, 2, z, STATIC);
+    for (const [x, z] of cells(r.carve)) for (let y = 3; y < 8; y++) g.set(x, y, z, EMPTY);
   }
 }

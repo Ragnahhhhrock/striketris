@@ -23,6 +23,12 @@ export const MOVE = {
   fallSafe: 6, fallLethal: 30,
 };
 
+// The open rim. Two raised ledges (levels.js RIM_LEDGES) run out through gaps in the west and east walls with nothing at
+// the end, so the outer side is a sheer drop into the void. z0..z1 are the wall columns the gap covers. Anyone whose
+// centre is past the wall line and below killY metres is gone ("void" death). A fighter shoved off within `credit`
+// seconds of the last rocket blast that pushed them dies to that attacker, otherwise it counts as a plain fall.
+export const RIM = { z0: 16, z1: 19, killY: 5, credit: 8 };
+
 export const BULLET_RANGE = 200;   // total metres a round can travel, bounces included
 export const BLOCK_HP = 120;       // damage a settled block takes before it is destroyed, from bullets and rockets alike
 

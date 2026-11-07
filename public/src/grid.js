@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, PIT } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, PIT, RIM } from './config.js';
 
 export const EMPTY = 0;
 export const FLOOR = 253;    // the floor layer at y = -1; breaks like any other block and leaves a hole
@@ -27,12 +27,12 @@ export class Grid {
   get(x, y, z) {
     if (y < -PIT) return BEDROCK;
     if (y >= H) return EMPTY;
-    if (x < 0 || z < 0 || x >= W || z >= D) return STATIC;
+    if (x < 0 || z < 0 || x >= W || z >= D) return y >= 0 && (x < 0 || x >= W) && z >= RIM.z0 && z <= RIM.z1 ? EMPTY : STATIC;   // open air past the rim ledges
     return this.cells[this.idx(x, y, z)];
   }
   set(x, y, z, v) { const i = this.idx(x, y, z); this.cells[i] = v; this.dmg[i] = 0; }
   solid(x, y, z) { return this.get(x, y, z) !== EMPTY; }
-  isStatic(x, y, z) { return this.get(x, y, z) === STATIC; }
+  isStatic(x, y, z) { return x < 0 || z < 0 || x >= W || z >= D || this.get(x, y, z) === STATIC; }
   columnOpen(x, z) { return !this.isStatic(x, 0, z); }
   // Clears everything above the floor and leaves a flat floor over bedrock. For tests and tools.
   flatten() {

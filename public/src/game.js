@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, PIT, weaponName } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, PIT, RIM, weaponName } from './config.js';
 import { rayBox, rayBoxHit, cellCentre, EMPTY, breakable, CRATE } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -169,6 +169,7 @@ export class Game {
       if (this.isChannelling(a)) { a.input.f = a.input.r = 0; a.input.jump = false; }
       const fall = stepMovement(this.grid, a, dt);
       if (fall) { this.emit('fall', { actor: a, damage: fall }); this.damage(a, fall, null, 'fall'); }
+      if (a.alive && this.overTheEdge(a)) this.fallIntoVoid(a);
       if (!a.alive) continue;
       if (!frozen) this.stepWeapon(a, dt);
       if (a.isHuman && !frozen) stepDropPickup(this, a);
@@ -179,6 +180,26 @@ export class Game {
         this.emit('feed', { text: `${a.name} picked up the bomb` });
       }
     }
+  }
+
+  // Past the wall line and dropping: only the rim ledges lead here.
+  overTheEdge(a) {
+    const X = GRID_W * CELL;
+    return (a.pos.x < 0 || a.pos.x > X) && a.pos.y < RIM.killY;
+  }
+
+  // Dies to whoever last shoved them off (rocket blast within RIM.credit seconds), else it is a plain fall.
+  // An invulnerable player is put back on the ledge instead, so they cannot wander the outside of the map.
+  fallIntoVoid(a) {
+    if (a.isHuman && this.opts.god) {
+      const X = GRID_W * CELL;
+      a.pos.x = a.pos.x < 0 ? 4.5 : X - 4.5; a.pos.y = 9.05; a.pos.z = (RIM.z0 + RIM.z1 + 1) / 2 * CELL;
+      a.vel.x = a.vel.y = a.vel.z = 0; a.onGround = true;
+      return;
+    }
+    const by = a.shover && a.shover !== a && this.time - a.shoveT <= RIM.credit ? a.shover : null;
+    this.emit('void', { actor: a, by });
+    this.kill(a, by, 'void');
   }
 
   // True while Use already means plant or defuse, so it should not also pick up a weapon.
@@ -388,6 +409,7 @@ export class Game {
       const ul = Math.hypot(ux, uy, uz), kb = w.knock * fall;
       t.vel.x += ux / ul * kb; t.vel.y += uy / ul * kb; t.vel.z += uz / ul * kb;
       t.mantle = null;
+      if (by && t !== by && kb > 1) { t.shover = by; t.shoveT = this.time; }   // who gets the kill if this ends over the edge
       if (uy / ul * kb > 1) t.onGround = false;
       if (t !== by && !this.canHurt(by, t)) continue;
       let dmg = w.splash * fall + (t === victim ? w.direct : 0);
@@ -484,9 +506,9 @@ export class Game {
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
     const you = t.name === 'You';
-    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause]?.replace(/^was /, you ? 'were ' : 'was ')
+    const how = { void: by ? undefined : 'fell off the map', piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause]?.replace(/^was /, you ? 'were ' : 'was ')
       ?? (cause === 'rocket' && by === t ? (you ? 'blew yourself up' : 'blew themselves up') : undefined);
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}${teamKill ? ' Team kill' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? (cause === 'void' ? 'Off the edge' : cause)}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}${teamKill ? ' Team kill' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause, by, reason: how ? `${you ? 'You' : t.name} ${how}` : `Killed by ${by?.name ?? '?'}` });
   }
 
