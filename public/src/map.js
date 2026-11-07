@@ -3,6 +3,7 @@ import { Grid, STATIC, EMPTY, FLOOR, BEDROCK } from './grid.js';
 import { LIFT_SPOTS, makeLifts } from './lifts.js';
 import { makeWalls } from './walls.js';
 import { PICKUP_SPOTS } from './pickups.js';
+import { addLevels, STAIRWELLS, MEZZANINES } from './levels.js';
 
 // Original three-lane layout. Attackers start south, defenders north, sites flank the defenders.
 // Rects are inclusive [x0, x1, z0, z1] cell ranges.
@@ -41,7 +42,7 @@ export const SPAWNS = {
   defenders: { rect: [13, 18, 2, 4], cells: [[13, 3], [15, 3], [17, 3], [14, 2], [16, 2], [18, 3]] },
 };
 // Pieces may never land on these columns, so spawns and plant spots stay usable.
-export const KEEPOUT = [SITES.A.core, SITES.B.core, SPAWNS.attackers.rect, SPAWNS.defenders.rect, ...LIFT_SPOTS.map(l => l.rect), ...PICKUP_SPOTS.map(p => [p.x, p.x, p.z, p.z])];
+export const KEEPOUT = [SITES.A.core, SITES.B.core, SPAWNS.attackers.rect, SPAWNS.defenders.rect, ...LIFT_SPOTS.map(l => l.rect), ...PICKUP_SPOTS.map(p => [p.x, p.x, p.z, p.z]), ...STAIRWELLS.map(w => w.rect), ...MEZZANINES.flatMap(m => [m.deck, ...m.steps])];
 export const inRect = (r, x, z) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
 
 // Hold points give defenders and escorts somewhere sensible to stand.
@@ -71,6 +72,7 @@ export function buildMap() {
   g.lifts = makeLifts();
   // A piston's shaft is a hole in the floor all the way down to the bedrock.
   for (const L of g.lifts) if (L.deep) for (let z = L.cz0; z <= L.cz1; z++) for (let x = L.cx0; x <= L.cx1; x++) g.set(x, -1, z, EMPTY);
+  addLevels(g);
   g.walls = makeWalls();
   g.freeze();
   return g;

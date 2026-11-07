@@ -1132,3 +1132,24 @@ test('the death cam starts at the eyes, circles the body, and stays out of walls
   const far = deathView(game.grid, a, 1.5), d = Math.hypot(far.x - a.pos.x, far.z - a.pos.z);
   assert.ok(d > 1 && d < 4.5, `orbits close to the body (${d.toFixed(2)} m)`);
 });
+
+test('levels: stairwells, lower cover and mezzanines are built and keep clear of lifts and crates', async () => {
+  const { STAIRWELLS, MEZZANINES } = await import('../public/src/levels.js');
+  const { LIFT_SPOTS } = await import('../public/src/lifts.js');
+  const g = buildMap();
+  const inR = (r, x, z) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
+  for (const w of STAIRWELLS) {
+    assert.equal(g.get(w.rect[0], -1, w.rect[2]), EMPTY);
+    assert.ok(LIFT_SPOTS.every(l => l.rect[1] < w.rect[0] || l.rect[0] > w.rect[1] || l.rect[3] < w.rect[2] || l.rect[2] > w.rect[3]));
+    assert.ok(g.crates.every(c => !inR(w.rect, c.cx, c.cz)));
+  }
+  for (const m of MEZZANINES) {
+    assert.equal(g.get(m.deck[0], 2, m.deck[2]), STATIC);
+    assert.equal(g.get(m.deck[0], 1, m.deck[2]), EMPTY);
+    assert.ok(g.crates.every(c => !inR(m.deck, c.cx, c.cz) && m.steps.every(s => !inR(s, c.cx, c.cz))));
+  }
+  const nav = new Nav(g);
+  const deck = MEZZANINES[0].deck, from = { x: 6, y: 0, z: 11 };
+  const p = nav.path(from, { x: deck[0], y: 3, z: deck[2] });
+  assert.ok(p && p.length > 2, 'bots can climb the stairs to the mezzanine');
+});

@@ -46,7 +46,7 @@ export class ArenaFx {
     this.seen = this.seenDmg = -1;
     // Every wall cube the round starts with. Buried ones stay hidden until a neighbour is destroyed.
     const start = (x, y, z) => grid.base ? grid.base[grid.idx(x, y, z)] : grid.get(x, y, z);
-    for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    for (let y = -PIT + 1; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
       if (start(x, y, z) !== STATIC) continue;
       this.cubes.push({ x, y, z, h: hash(x, y, z), neon: hash(z, x, y) < NEON_SHARE, dirty: true, vis: false, shown: false, dmgf: 0 });
     }
