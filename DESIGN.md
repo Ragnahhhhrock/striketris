@@ -4,7 +4,9 @@ Source of truth: `public/design/tokens.css`. Live reference: `/style-guide.html`
 
 ## Direction
 
-StrikeTris is a prototype of a bomb-defusal shooter with falling Tetris blocks. The look comes from that: a dark well, a shifting arena in bright base colours with neon blocks, and seven saturated block colours. UI is plain, square and monospaced, like a debug overlay that grew up.
+StrikeTris is Tetris meets Counter-Strike: a team arena shooter where giant Tetris blocks fall into the map, crush anyone underneath and rebuild cover mid-round. The look comes from both halves. Tetris gives the dark well, the seven saturated block colours and a shifting neon arena. Counter-Strike gives the tactical HUD: crisp, flat and readable at a glance. UI is plain, square and monospaced, like a debug overlay that grew up.
+
+Lead with the combat. Gunfights, movement, steering blocks and line clears are the story. The round objective (plant and defuse) is one mode detail and does not appear in the title, tagline, share images or primary buttons.
 
 ## Principles
 
@@ -12,7 +14,7 @@ StrikeTris is a prototype of a bomb-defusal shooter with falling Tetris blocks. 
 2. **The world and blocks are the rainbow.** The seven tetromino colours appear on blocks, the next-block preview and the brand strip. The arena uses bright base colours (`BASE_COLOURS`) and neon colours (`NEON_COLOURS`) in `public/src/arenaFx.js`. Never on buttons, panels or text.
 3. **Square everything.** Radius is 0. Panels are flat translucent slabs.
 4. **Legible over a moving scene.** HUD text sits on `--panel` and carries a soft text shadow. Never place text directly on the 3D view.
-5. **One loud thing per screen.** The bomb red is the single accent: the main button, the bomb timer, the block warning.
+5. **One loud thing per screen.** Strike red is the single accent: the main button, the alert timer, the block warning. It is the colour of a hit, which fits both a shot and a falling block.
 
 ## Colour
 
@@ -23,7 +25,7 @@ StrikeTris is a prototype of a bomb-defusal shooter with falling Tetris blocks. 
 | `--well-700` | `#2c2f33` | Inputs |
 | `--well-500` | `#3a3e43` | Secondary buttons |
 | `--ink` | `#f1f2f3` | Text |
-| `--bomb` | `#ff4a3d` | Primary action, bomb timer, block warning |
+| `--strike` | `#ff4a3d` | Primary action, timer alert, block warning |
 | `--gold` | `#ffd76a` | Selection, freeze timer, your own row, progress |
 | `--go` | `#5dff7d` | Health, crosshair |
 | `--steer` | `#00e5ff` | Block steering mode bar |
@@ -32,7 +34,7 @@ StrikeTris is a prototype of a bomb-defusal shooter with falling Tetris blocks. 
 
 Blocks: I `#00e5ff`, O `#ffe600`, T `#b44dff`, S `#2ee62e`, Z `#ff2d2d`, J `#3a63ff`, L `#ff9a1a`. These must match `SHAPE_TINT` in `public/src/render.js`.
 
-Contrast: `--ink` on `--panel` and on `--well-900` passes WCAG AA at all sizes. `--bomb` carries white text at 16px bold (large text, AA). Do not put `--gold` or `--go` on `--concrete`.
+Contrast: `--ink` on `--panel` and on `--well-900` passes WCAG AA at all sizes. `--strike` carries white text at 16px bold (large text, AA). Do not put `--gold` or `--go` on `--concrete`.
 
 ## Type
 
@@ -53,11 +55,11 @@ Body line height `--leading-body` (1.45). Keep copy lines under 80 characters. S
 
 ## Space and shape
 
-4px base: 4, 8, 12, 16, 24, 32, 48 (`--space-1` to `--space-7`). HUD sits 14px from the screen edge (`--hud-edge`). Menu card has a 6px top bar in `--bomb`. Borders are 1px `--line`.
+4px base: 4, 8, 12, 16, 24, 32, 48 (`--space-1` to `--space-7`). HUD sits 14px from the screen edge (`--hud-edge`). Menu card has a 6px top bar in `--strike`. Borders are 1px `--line`.
 
 ## Components
 
-- **Primary button.** `--bomb` fill, white 16px bold, 12px 28px padding, hover `--bomb-hover`. One per view.
+- **Primary button.** `--strike` fill, white 16px bold, 12px 28px padding, hover `--strike-hover`. One per view.
 - **Secondary button.** `--well-500` fill, same shape.
 - **Select.** `--well-700` fill, 1px `--line`, 8px padding.
 - **Key cap (`kbd`).** `--well-600` fill, 1px `--line`, 1px 5px padding.
@@ -70,8 +72,10 @@ Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s),
 
 ## Copy
 
-Plain verbs, sentence case. Name actions by what happens: "Play", "Resume", "Plant", "Defuse". The warning says what to do: "Move! Block incoming".
+Plain verbs, sentence case. Name actions by what happens: "Play", "Resume", "Steer block". The warning says what to do: "Move! Block incoming".
+
+Tagline: "Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map." Use it as written, or shorten to "Tetris meets Counter-Strike". Describe the game as an arena shooter. Do not describe it as a bomb-defusal game. The interact key is "Hold to interact"; name the bomb only in the on-screen prompt that appears when you can plant or defuse.
 
 ## Share images
 
-`tools/share/share.html` is the source for `public/og-image.png` (1200x630) and `public/twitter-card.png` (1200x600). Rebuild with `npm run share` after changing the title, tagline or tokens. Composition: dark well, seven-colour brand strip, a falling block with its red ghost and beam. Keep important content inside the central 1000x500.
+`tools/share/share.html` is the source for `public/og-image.png` (1200x630) and `public/twitter-card.png` (1200x600). Rebuild with `npm run share` after changing the title, tagline or tokens. Composition: dark well, seven-colour brand strip, the "Tetris meets Counter-Strike" tagline, a falling block with its red ghost and beam. Keep important content inside the central 1000x500.

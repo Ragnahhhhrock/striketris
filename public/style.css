@@ -9,7 +9,7 @@ body[data-mode="menu"] #hud { display: none; }
 #top { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; background: var(--panel); padding: 6px 18px 8px; min-width: 150px; }
 #score { font-size: 13px; opacity: .85; }
 #timer { font-size: 30px; font-weight: 700; line-height: 1.15; }
-#timer.bomb { color: var(--bomb); }
+#timer.bomb { color: var(--strike); }
 #timer.freeze { color: var(--gold); }
 #round { font-size: 11px; opacity: .65; }
 
@@ -35,9 +35,9 @@ body[data-mode="menu"] #hud { display: none; }
 #hurt.on { animation: fade .4s linear; }
 @keyframes fade { from { opacity: 1; } to { opacity: 0; } }
 
-#walls { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border-top: 3px solid var(--bomb); padding: 6px 18px; font-size: 14px; font-weight: 700; }
-#walls.moving { background: var(--bomb); color: #fff; text-shadow: none; }
-#warn { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: var(--bomb); color: #fff; padding: 8px 18px; font-size: 20px; font-weight: 700; animation: pulse .3s infinite alternate; text-shadow: none; }
+#walls { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border-top: 3px solid var(--strike); padding: 6px 18px; font-size: 14px; font-weight: 700; }
+#walls.moving { background: var(--strike); color: #fff; text-shadow: none; }
+#warn { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: var(--strike); color: #fff; padding: 8px 18px; font-size: 20px; font-weight: 700; animation: pulse .3s infinite alternate; text-shadow: none; }
 @keyframes pulse { to { opacity: .55; } }
 #countdown { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 96px; font-weight: 700; line-height: 1; color: var(--ink); text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
 #countdown.go { color: var(--go); animation: fade .7s linear forwards; }
@@ -92,15 +92,15 @@ body:not([data-view="first"]) #cross { display: none; }
 #lockNote { position: absolute; bottom: 70px; right: 14px; background: var(--panel); padding: 4px 8px; font-size: 12px; }
 
 #menu { position: fixed; inset: 0; display: flex; padding: 16px; background: var(--scrim); overflow: auto; }
-.card { margin: auto; width: min(620px, 100%); background: var(--panel-solid); padding: 28px; border-top: 6px solid var(--bomb); }
+.card { margin: auto; width: min(620px, 100%); background: var(--panel-solid); padding: 28px; border-top: 6px solid var(--strike); }
 .card h1 { margin: 0; font-size: 44px; letter-spacing: -1px; }
 .sub { margin: 4px 0 22px; opacity: .75; font-size: 14px; line-height: 1.45; }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
 .opts label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; opacity: .92; }
 select { font: inherit; padding: 8px; background: var(--well-700); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; width: 100%; }
 .row { display: flex; gap: 10px; margin-bottom: 20px; }
-button { font: inherit; font-weight: 700; font-size: 16px; padding: 12px 28px; background: var(--bomb); color: #fff; border: 0; cursor: pointer; }
-button:hover { background: var(--bomb-hover); }
+button { font: inherit; font-weight: 700; font-size: 16px; padding: 12px 28px; background: var(--strike); color: #fff; border: 0; cursor: pointer; }
+button:hover { background: var(--strike-hover); }
 button.alt { background: var(--well-500); }
 button.alt:hover { background: var(--well-400); }
 button:focus-visible, select:focus-visible { outline: var(--focus); outline-offset: 2px; }
@@ -173,8 +173,8 @@ body[data-pad="steer"] #tSteer { background: var(--steer); color: #001418; text-
 /* Combat pad */
 body[data-ctl="play"]:not([data-pad]) #touch .tb[data-g="play"],
 body[data-ctl="play"][data-pad=""] #touch .tb[data-g="play"] { display: block; }
-#tFire { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--bomb) !important; font-size: 16px !important; font-weight: 700; text-shadow: none !important; color: #fff !important; border: 0 !important; }
-#tFire.on { background: var(--bomb-hover) !important; }
+#tFire { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--strike) !important; font-size: 16px !important; font-weight: 700; text-shadow: none !important; color: #fff !important; border: 0 !important; }
+#tFire.on { background: var(--strike-hover) !important; }
 #tJump { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
 #tReload { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 132px); }
 #tUse { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); }
@@ -189,7 +189,7 @@ body[data-pad="steer"] #touch .tb[data-g="steer"] { display: block; border-color
 #tLeft { left: calc(var(--sl) + 14px); bottom: calc(var(--sb) + 84px); }
 #tDown { left: calc(var(--sl) + 76px); bottom: calc(var(--sb) + 20px); }
 #tRight { left: calc(var(--sl) + 138px); bottom: calc(var(--sb) + 84px); }
-#tDrop { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--bomb) !important; border: 0 !important; color: #fff; text-shadow: none; font-weight: 700; }
+#tDrop { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 24px); width: 96px !important; height: 96px !important; background: var(--strike) !important; border: 0 !important; color: #fff; text-shadow: none; font-weight: 700; }
 #tTumble { right: calc(var(--sr) + 128px); bottom: calc(var(--sb) + 36px); width: 72px !important; height: 72px !important; }
 #tRotL { right: calc(var(--sr) + 20px); bottom: calc(var(--sb) + 132px); font-size: 24px !important; }
 #tRotR { right: calc(var(--sr) + 88px); bottom: calc(var(--sb) + 132px); font-size: 24px !important; }

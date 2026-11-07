@@ -14,6 +14,7 @@
 <body>
 <header class="top">
   <h1>StrikeTris style guide</h1>
+  <p class="tag">Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map.</p>
   <p>Tokens live in <code>design/tokens.css</code>. Rules live in <code>DESIGN.md</code>. The game UI uses only what is on this page.</p>
   <div class="strip" aria-hidden="true"><i style="background:var(--block-i)"></i><i style="background:var(--block-o)"></i><i style="background:var(--block-t)"></i><i style="background:var(--block-s)"></i><i style="background:var(--block-z)"></i><i style="background:var(--block-j)"></i><i style="background:var(--block-l)"></i></div>
 </header>
@@ -35,7 +36,7 @@
   <h2>Signals</h2>
   <p class="note">One job each. Nothing else uses these colours.</p>
   <div class="swatches">
-    <div><i style="background:var(--bomb)"></i><b>--bomb</b><span>#ff4a3d primary action, bomb timer, block warning</span></div>
+    <div><i style="background:var(--strike)"></i><b>--strike</b><span>#ff4a3d primary action, timer alert, block warning</span></div>
     <div><i style="background:var(--gold)"></i><b>--gold</b><span>#ffd76a selection, freeze timer, you</span></div>
     <div><i style="background:var(--go)"></i><b>--go</b><span>#5dff7d health, crosshair</span></div>
     <div><i style="background:var(--steer)"></i><b>--steer</b><span>#00e5ff block steering</span></div>
@@ -67,7 +68,7 @@
     <dt>Banner 26 / 700</dt><dd style="font-size:var(--text-2xl);font-weight:700">Attackers win the round</dd>
     <dt>Warning 20 / 700</dt><dd style="font-size:var(--text-xl);font-weight:700">Move! Block incoming</dd>
     <dt>Button 16 / 700</dt><dd style="font-size:var(--text-lg);font-weight:700">Play</dd>
-    <dt>Body 14 / 400</dt><dd style="font-size:var(--text-md)">Plant or defuse while giant blocks rebuild the map.</dd>
+    <dt>Body 14 / 400</dt><dd style="font-size:var(--text-md)">Tetris meets Counter-Strike arena combat.</dd>
     <dt>Label 12 / 400</dt><dd style="font-size:var(--text-sm)">Team size</dd>
     <dt>Caption 11 / 400</dt><dd style="font-size:var(--text-xs)">Round 1</dd>
   </dl>
@@ -87,13 +88,13 @@
   <div class="demo scene">
     <div class="card">
       <h3>StrikeTris</h3>
-      <p class="sub">Plant or defuse while giant blocks rebuild the map.</p>
+      <p class="sub">Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map.</p>
       <div class="opts">
         <label>Mode <select><option>Play</option><option>Play, invulnerable</option></select></label>
         <label>Side <select><option>Attackers</option><option>Defenders</option></select></label>
       </div>
       <div class="row"><button>Play</button><button class="alt">Resume</button></div>
-      <div class="keys"><div><kbd>WASD</kbd> Move</div><div><kbd>E</kbd> Hold to plant or defuse</div></div>
+      <div class="keys"><div><kbd>WASD</kbd> Move</div><div><kbd>E</kbd> Hold to interact</div></div>
     </div>
   </div>
   <div class="demo scene hud">
@@ -108,7 +109,7 @@
   <h2>Rules</h2>
   <ul class="rules">
     <li>Use a token, never a raw hex, in CSS. JavaScript block colours come from <code>SHAPE_TINT</code>.</li>
-    <li>One bomb red element per view.</li>
+    <li>One strike red element per view.</li>
     <li>HUD text sits on a panel, never directly on the 3D view.</li>
     <li>Every control has a visible focus ring.</li>
     <li>Motion answers game state only.</li>

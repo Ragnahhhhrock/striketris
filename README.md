@@ -1,6 +1,6 @@
 # StrikeTris
 
-A tactical shooter where giant falling blocks rebuild the map mid-round. This is the grey box build: untextured, single-player against bots, made to test whether the idea is fun. Target domain: striketris.com.
+Tetris meets Counter-Strike. A team arena shooter where giant Tetris blocks fall into the map, crush anyone underneath and rebuild cover mid-round. This is the grey box build: untextured, single-player against bots, made to test whether the idea is fun. Target domain: striketris.com.
 
 ## Run it
 
@@ -21,7 +21,7 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 
 ## The rules being tested
 
-- **Rounds:** bomb defuse. Attackers plant at A or B, defenders stop them. First to 8.
+- **Rounds:** team arena combat, first to 8. Attackers and defenders fight over the map while blocks fall. The round objective is a plant-and-defuse bomb at sites A and B.
 - **Spectate:** pick "Spectate only" in the menu, or press F after you die, for a free-fly camera. 1-4 set speed, P pauses, G drops a block. "Play, invulnerable" lets you walk the map without dying.
 - **Blocks:** classic Tetris colours (I cyan, O yellow, T purple, S green, Z red, J blue, L orange).
 - **Blocks:** a tetromino drops every few seconds. A red ghost and sky beam show where, about 3 seconds ahead. It kills anything underneath.
