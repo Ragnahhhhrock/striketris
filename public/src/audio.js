@@ -92,6 +92,7 @@ export class Audio {
         else if (e.what === 'ammo') { this.burst(0.14, 4200, 0.05, 'highpass'); this.tone(0.14, 300, 220, 0.09, 'square'); setTimeout(() => this.tone(0.14, 300, 220, 0.09, 'square'), 80); }
         else { this.tone(0.2, 220, 440, 0.25, 'sawtooth'); this.tone(0.14, 330, 660, 0.3); }
         break;
+      case 'blocksBroken': { const v = Math.max(0.2, at(e.pos)); this.burst(0.5 * v, 1400, 0.35); this.tone(0.25 * v, 220, 80, 0.3, 'square'); break; }
       case 'pickupSpawn': this.tone(0.05 * at(e.pickup), 900, 1300, 0.12); break;
       case 'ricochet': {
         const v = Math.max(at(e.pos), e.actor === viewer ? 0.5 : 0);

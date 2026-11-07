@@ -53,10 +53,12 @@ export const WEAPONS = {
 //   direct     extra damage to whoever the rocket hits head on, on top of the blast
 //   splash     blast damage at the centre, falling off to nothing at radius metres
 //   knock      blast shove in m/s at the centre; selfScale cuts the damage you do to yourself
+//   blockHp    damage a settled block takes before it is destroyed. Blast damage to blocks uses the same
+//              falloff as players, so a rocket at a wall breaks the cubes it touches and cracks the ones around them
 //   max        most rockets you can carry; start is what the launcher pickup gives you
 WEAPONS.rocket = {
   name: 'Rocket Launcher', mag: 12, max: 12, start: 5, noReload: true, reload: 0, interval: 0.8, auto: true,
-  speed: 24, life: 6, direct: 30, splash: 100, radius: 5, knock: 12, selfScale: 0.5,
+  speed: 24, life: 6, direct: 30, splash: 100, radius: 5, knock: 12, selfScale: 0.5, blockHp: 120,
   spread: 0, moveSpread: 0, damage: 0, headMult: 1, bounces: 0, bounceKeep: 1,
   kick: 0.06, kickMax: 0.12, kickYaw: 0.01, kickYawMax: 0.04, recover: 6,
   shake: 0.5, fov: 1.4, vmBack: 0.16, vmPitch: 0.22, vmRecover: 8,

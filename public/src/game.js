@@ -1,5 +1,5 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, ROUND, PIECE, SKILL, TEAM } from './config.js';
-import { rayBox, cellCentre } from './grid.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H } from './config.js';
+import { rayBox, cellCentre, EMPTY, STATIC } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
 import { SHAPES, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
@@ -231,11 +231,44 @@ export class Game {
     this.projectiles = keep;
   }
 
+  // Rockets chew through settled blocks. Each cube in reach that the blast can see takes the same falloff
+  // damage a player would, and breaks once it has taken blockHp. Map walls, crates and lifts are untouched.
+  damageBlocks(at, w) {
+    const g = this.grid, R = w.radius, broken = [];
+    let touched = false;
+    const lo = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v / CELL)));
+    for (let y = lo(at.y - R, GRID_H); y <= lo(at.y + R, GRID_H); y++) for (let z = lo(at.z - R, GRID_D); z <= lo(at.z + R, GRID_D); z++) for (let x = lo(at.x - R, GRID_W); x <= lo(at.x + R, GRID_W); x++) {
+      const v = g.get(x, y, z);
+      if (v === EMPTY || v === STATIC) continue;
+      const nx = Math.max(x * CELL, Math.min(at.x, (x + 1) * CELL)), ny = Math.max(y * CELL, Math.min(at.y, (y + 1) * CELL)), nz = Math.max(z * CELL, Math.min(at.z, (z + 1) * CELL));
+      const len = Math.hypot(nx - at.x, ny - at.y, nz - at.z);
+      if (len >= R) continue;
+      // Skip cubes hidden behind others: the ray to the nearest face must arrive about where the face is.
+      if (len > 0.01 && g.raycast(at.x, at.y, at.z, (nx - at.x) / len, (ny - at.y) / len, (nz - at.z) / len, len) < len - 0.3) continue;
+      const i = g.idx(x, y, z), taken = g.dmg[i] + Math.round(w.splash * (1 - len / R));
+      touched = true;
+      if (taken >= w.blockHp) { broken.push({ x, y, z, v }); g.set(x, y, z, EMPTY); } else g.dmg[i] = taken;
+    }
+    if (!touched) return;
+    g.version++;
+    if (!broken.length) return;
+    this.emit('blocksBroken', { cells: broken, pos: at });
+    // Whatever was resting on a broken block falls: the bomb drops to the next floor down.
+    const b = this.bomb;
+    if (b.pos && b.state !== 'carried') {
+      let cy = Math.floor(b.pos.y / CELL + 1e-6);
+      const bx = Math.floor(b.pos.x / CELL), bz = Math.floor(b.pos.z / CELL);
+      while (cy > 0 && !g.solid(bx, cy - 1, bz)) cy--;
+      b.pos.y = Math.min(b.pos.y, cy * CELL);
+    }
+  }
+
   // Blast damage falls off linearly with distance from the nearest point of each body, walls shield, and
   // everyone in range gets shoved away, friends included. Teammates take no damage; you take half of yours.
   explodeRocket(p, at, victim) {
     const w = WEAPONS.rocket, by = p.owner;
     this.emit('rocketExplode', { pos: at, proj: p, radius: w.radius, by });
+    this.damageBlocks(at, w);
     for (const t of this.actors) {
       if (!t.alive) continue;
       const h = actorHeight(t), r = MOVE.radius;

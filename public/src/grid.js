@@ -7,6 +7,7 @@ export const STATIC = 255; // values 1..7 are settled piece cubes (shape id + 1)
 export class Grid {
   constructor() {
     this.cells = new Uint8Array(W * D * H);
+    this.dmg = new Uint8Array(W * D * H);   // damage taken by each settled block, from rockets
     this.base = null;
     this.crates = [];
     this.baseCrates = [];
@@ -20,7 +21,7 @@ export class Grid {
     if (x < 0 || z < 0 || x >= W || z >= D) return STATIC;
     return this.cells[this.idx(x, y, z)];
   }
-  set(x, y, z, v) { this.cells[this.idx(x, y, z)] = v; }
+  set(x, y, z, v) { const i = this.idx(x, y, z); this.cells[i] = v; this.dmg[i] = 0; }
   solid(x, y, z) { return this.get(x, y, z) !== EMPTY; }
   isStatic(x, y, z) { return this.get(x, y, z) === STATIC; }
   columnOpen(x, z) { return !this.isStatic(x, 0, z); }
@@ -28,6 +29,7 @@ export class Grid {
   freeze() { this.base = this.cells.slice(); this.baseCrates = this.crates.map(c => ({ ...c })); }
   reset() {
     this.cells.set(this.base);
+    this.dmg.fill(0);
     this.crates = this.baseCrates.map(c => ({ ...c }));
     this.version++;
   }

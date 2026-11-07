@@ -605,3 +605,56 @@ test('bots in a full match pick things up and fire rockets without breaking anyt
   assert.ok(n.pickup > 10 && n.launcher > 0 && n.rocket > 0, JSON.stringify(n));
   assert.equal(n.rocket, n.explode + game.projectiles.length, 'every rocket burst or is still flying');
 });
+
+// ---- rockets versus blocks ----
+test('a rocket cracks the blocks around it and a second one breaks them; walls and crates stay', () => {
+  const { game, s } = rocketRange();
+  const g = game.grid;
+  for (let z = 10; z <= 12; z++) { g.set(16, 0, z, 3); g.set(16, 1, z, 3); }   // a block wall three cells deep in front of the shooter
+  g.set(10, 0, 10, STATIC);
+  const v0 = g.version;
+  const at = { x: 49.5, y: 1.5, z: 33.06 };   // against the face of the nearest cube (z cell 10 spans 30..33)
+  game.explodeRocket({ owner: s, id: 1 }, at, null);
+  assert.ok(g.version > v0, 'grid changed so the renderer remeshes');
+  assert.ok(g.dmg[g.idx(16, 0, 10)] > 60, 'cube at the blast is hurt');
+  assert.equal(g.get(16, 0, 10), 3, 'one rocket does not break it');
+  assert.equal(g.dmg[g.idx(16, 0, 12)], 0, 'cubes hidden behind others are not touched');
+  game.explodeRocket({ owner: s, id: 2 }, at, null);
+  assert.equal(g.get(16, 0, 10), EMPTY, 'second rocket breaks it');
+  assert.equal(g.dmg[g.idx(16, 0, 10)], 0);
+  assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.length > 0));
+  assert.equal(g.get(10, 0, 10), STATIC, 'map walls are permanent');
+});
+
+test('a rocket fired at a block wall opens a hole and breaks the real thing', () => {
+  const { game, s } = rocketRange();
+  const g = game.grid;
+  g.set(16, 0, 10, 2); g.set(16, 1, 10, 2);
+  for (let n = 0; n < 2; n++) {
+    s.pos.x = 49.5; s.weapons.rocket = 5; s.fireCd = 0; s.input.fire = true; game.stepWeapon(s, TICK); s.input.fire = false;
+    fly(game);
+  }
+  assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken'));
+  assert.ok(g.get(16, 0, 10) === EMPTY || g.get(16, 1, 10) === EMPTY, 'something broke');
+});
+
+test('block damage resets with the round, and a new block starts undamaged', () => {
+  const game = new Game({ seed: 3, human: false, teamSize: 1, pieces: false });
+  const g = game.grid;
+  g.set(16, 0, 16, 2); g.dmg[g.idx(16, 0, 16)] = 100;
+  g.reset();
+  assert.equal(g.dmg[g.idx(16, 0, 16)], 0);
+  g.set(5, 0, 5, 2); g.dmg[g.idx(5, 0, 5)] = 90; g.set(5, 0, 5, 4);
+  assert.equal(g.dmg[g.idx(5, 0, 5)], 0, 'replacing a cube clears its damage');
+});
+
+test('a planted bomb whose block is destroyed drops to the floor', () => {
+  const { game, s } = rocketRange();
+  const g = game.grid;
+  g.set(16, 0, 10, 2);
+  game.bomb.state = 'planted'; game.bomb.pos = { x: 49.5, y: 3, z: 31.5 };   // on top of the cube
+  g.dmg[g.idx(16, 0, 10)] = 119;
+  game.explodeRocket({ owner: s, id: 1 }, { x: 49.5, y: 1.5, z: 33.5 }, null);
+  assert.equal(g.get(16, 0, 10), EMPTY);
+  assert.equal(game.bomb.pos.y, 0);
+});

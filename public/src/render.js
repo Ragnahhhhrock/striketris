@@ -78,6 +78,8 @@ function mesh(grid, wantStatic) {
     const v = grid.get(x, y, z);
     if (v === EMPTY || (v === STATIC) !== wantStatic) continue;
     colour.setHex(wantStatic ? (y >= 4 ? 0x9099ad : 0x7d869a) : SHAPE_TINT[v - 1]);
+    // Rocket damage darkens a block toward charred as it nears breaking.
+    if (!wantStatic) colour.multiplyScalar(1 - 0.6 * Math.min(1, grid.dmg[grid.idx(x, y, z)] / WEAPONS.rocket.blockHp));
     for (const f of FACES) {
       if (grid.get(x + f.n[0], y + f.n[1], z + f.n[2]) !== EMPTY) continue;
       if (wantStatic && y + f.n[1] < 0) continue;
@@ -647,6 +649,26 @@ export class Renderer {
         for (const c of e.cells) { const b = new THREE.Mesh(this.cubeGeo, m); b.position.set((c.x + 0.5) * CELL, (c.y + 0.5) * CELL, (c.z + 0.5) * CELL); g.add(b); }
         this.addEffect(g, 0.7, (o, u) => { m.opacity = 1 - u; o.children.forEach(k => k.scale.setScalar(1 + u * 0.3)); });
         this.shake = Math.max(this.shake, 0.3);
+        break;
+      }
+      case 'blocksBroken': {
+        // Each broken cube bursts into a few tumbling chips in its own colour.
+        const chips = new THREE.Group(), geo = new THREE.BoxGeometry(0.45, 0.45, 0.45), mats = new Map(), seeds = [];
+        for (const c of e.cells.slice(0, 14)) {
+          if (!mats.has(c.v)) mats.set(c.v, new THREE.MeshBasicMaterial({ color: SHAPE_TINT[c.v - 1], transparent: true, fog: false }));
+          for (let k = 0; k < 4; k++) {
+            const m = new THREE.Mesh(geo, mats.get(c.v));
+            const p0 = new THREE.Vector3((c.x + Math.random()) * CELL, (c.y + Math.random()) * CELL, (c.z + Math.random()) * CELL);
+            const away = p0.clone().sub(new THREE.Vector3(e.pos.x, e.pos.y, e.pos.z)).normalize();
+            seeds.push({ m, p0, v: away.multiplyScalar(5 + Math.random() * 7).add(new THREE.Vector3(0, 3 + Math.random() * 4, 0)), s: 0.5 + Math.random() * 1.2 });
+            m.position.copy(p0); chips.add(m);
+          }
+        }
+        this.addEffect(chips, 1.1, (o, u) => {
+          const t = u * 1.1;
+          for (const s of seeds) { s.m.position.set(s.p0.x + s.v.x * t, Math.max(0.1, s.p0.y + s.v.y * t - 7 * t * t), s.p0.z + s.v.z * t); s.m.scale.setScalar(s.s * (1 - u * 0.6)); s.m.rotation.set(t * 6 * s.s, t * 5, t * 4); }
+          mats.forEach(m => { m.opacity = Math.min(1, 2.2 * (1 - u)); });
+        }, () => mats.forEach(m => m.dispose()));
         break;
       }
       case 'explode': {
