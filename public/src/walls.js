@@ -1,4 +1,4 @@
-import { CELL, CLOSE, GRID_W, GRID_D, GRID_H, MOVE } from './config.js';
+import { CELL, CLOSE, GRID_W, GRID_D, GRID_H, MOVE, PIT } from './config.js';
 import { actorHeight, hitsWorld } from './actor.js';
 
 // Closing walls. Four slabs slide in from the arena edges and meet in the middle, so anyone still alive
@@ -26,7 +26,7 @@ function place(w, inset) {
 }
 
 export function makeWalls() {
-  return SIDES.map((side, id) => { const w = { id, side, y0: -10, y1: SKY, inset: 0 }; place(w, 0); return w; });
+  return SIDES.map((side, id) => { const w = { id, side, y0: -(PIT + 1) * CELL, y1: SKY, inset: 0 }; place(w, 0); return w; });
 }
 
 export function resetWalls(game) {

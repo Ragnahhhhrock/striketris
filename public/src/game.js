@@ -1,5 +1,5 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, weaponName } from './config.js';
-import { rayBox, rayBoxHit, cellCentre, EMPTY, STATIC } from './grid.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, PIT, weaponName } from './config.js';
+import { rayBox, rayBoxHit, cellCentre, EMPTY, breakable, CRATE } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
 import { SHAPES, restHeight, choosePlacement, findLines, clearCells, adjustPlacement, directorAdjust } from './pieces.js';
@@ -258,21 +258,23 @@ export class Game {
         continue;
       }
       o.x += d.x * step; o.y += d.y * step; o.z += d.z * step;
-      if (p.age < w.life && o.y > -5 && o.y < 200) keep.push(p);
+      if (p.age < w.life && o.y > -(PIT + 1) * CELL && o.y < 200) keep.push(p);
     }
     this.projectiles = keep;
   }
 
-  // Rockets chew through settled blocks. Cubes the blast can see within blockCrush break outright, so a rocket
-  // always destroys the block it hits; further out each cube takes the same falloff damage a player would and
-  // breaks once it has taken BLOCK_HP. Map walls, crates and lifts are untouched.
+  // Blasts chew through every block in the arena, map walls and the floor included. Cubes the blast can see within
+  // blockCrush break outright, so a rocket always destroys the block it hits; further out each cube takes the same
+  // falloff damage a player would and breaks once it has taken BLOCK_HP. Only bedrock survives. Crates go the same
+  // way, at half the toughness. `w` needs radius, splash and blockCrush.
   damageBlocks(at, w) {
     const g = this.grid, R = w.radius, broken = [];
     let touched = false;
     const lo = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v / CELL)));
-    for (let y = lo(at.y - R, GRID_H); y <= lo(at.y + R, GRID_H); y++) for (let z = lo(at.z - R, GRID_D); z <= lo(at.z + R, GRID_D); z++) for (let x = lo(at.x - R, GRID_W); x <= lo(at.x + R, GRID_W); x++) {
+    const loY = v => Math.max(-PIT, Math.min(GRID_H - 1, Math.floor(v / CELL)));
+    for (let y = loY(at.y - R); y <= loY(at.y + R); y++) for (let z = lo(at.z - R, GRID_D); z <= lo(at.z + R, GRID_D); z++) for (let x = lo(at.x - R, GRID_W); x <= lo(at.x + R, GRID_W); x++) {
       const v = g.get(x, y, z);
-      if (v === EMPTY || v === STATIC) continue;
+      if (!breakable(v)) continue;
       const nx = Math.max(x * CELL, Math.min(at.x, (x + 1) * CELL)), ny = Math.max(y * CELL, Math.min(at.y, (y + 1) * CELL)), nz = Math.max(z * CELL, Math.min(at.z, (z + 1) * CELL));
       const len = Math.hypot(nx - at.x, ny - at.y, nz - at.z);
       if (len >= R) continue;
@@ -282,35 +284,49 @@ export class Game {
       touched = true;
       if (len <= w.blockCrush || taken >= BLOCK_HP) { broken.push({ x, y, z, v }); g.set(x, y, z, EMPTY); } else g.dmg[i] = taken;
     }
+    for (const c of g.crates.slice()) {
+      const len = Math.hypot(Math.max(c.x0, Math.min(at.x, c.x1)) - at.x, Math.max(c.y0, Math.min(at.y, c.y1)) - at.y, Math.max(c.z0, Math.min(at.z, c.z1)) - at.z);
+      if (len >= R) continue;
+      const taken = (c.dmg || 0) + Math.round(w.splash * (1 - len / R));
+      touched = true;
+      if (len <= w.blockCrush || taken >= BLOCK_HP / 2) { g.crates.splice(g.crates.indexOf(c), 1); broken.push({ x: c.cx, y: c.cy, z: c.cz, v: CRATE }); } else c.dmg = taken;
+    }
     if (!touched) return;
     this.blocksChanged(broken, at);
   }
 
-  // A bullet hit on the face of a settled block chips it. The point is nudged back into the cube to find it.
-  // Map walls, crates and lifts are not settled blocks, so they read as empty or static here and are skipped.
+  // A bullet hit on the face of a block chips it. The point is nudged back into the cube to find it. A crate is
+  // chipped directly: it breaks after half the damage a block takes.
   hitBlock(end, normal, amount) {
     if (!(amount > 0)) return;
     const g = this.grid;
+    const c = normal.crate;
+    if (c) {
+      c.dmg = (c.dmg || 0) + amount;
+      if (c.dmg >= BLOCK_HP / 2) { g.crates.splice(g.crates.indexOf(c), 1); this.blocksChanged([{ x: c.cx, y: c.cy, z: c.cz, v: CRATE }], end); }
+      else g.dmgVersion++;
+      return;
+    }
     const x = Math.floor((end.x - normal.nx * 0.01) / CELL), y = Math.floor((end.y - normal.ny * 0.01) / CELL), z = Math.floor((end.z - normal.nz * 0.01) / CELL);
     const v = g.get(x, y, z);
-    if (v === EMPTY || v === STATIC) return;
+    if (!breakable(v) || x < 0 || z < 0 || x >= GRID_W || z >= GRID_D) return;
     const i = g.idx(x, y, z), taken = g.dmg[i] + amount;
     if (taken >= BLOCK_HP) { g.set(x, y, z, EMPTY); this.blocksChanged([{ x, y, z, v }], end); }
-    else { g.dmg[i] = Math.ceil(taken); g.version++; }
+    else { g.dmg[i] = Math.ceil(taken); g.dmgVersion++; }
   }
 
   // Tell the renderer the grid changed, announce any broken cubes, and drop what rested on them.
   blocksChanged(broken, at) {
     const g = this.grid;
+    if (!broken.length) { g.dmgVersion++; return; }
     g.version++;
-    if (!broken.length) return;
     this.emit('blocksBroken', { cells: broken, pos: at });
-    // Whatever was resting on a broken block falls: the bomb drops to the next floor down.
+    // Whatever was resting on a broken block falls: the bomb drops to the next floor down, or into the pit.
     const b = this.bomb;
     if (b.pos && b.state !== 'carried') {
       let cy = Math.floor(b.pos.y / CELL + 1e-6);
       const bx = Math.floor(b.pos.x / CELL), bz = Math.floor(b.pos.z / CELL);
-      while (cy > 0 && !g.solid(bx, cy - 1, bz)) cy--;
+      if (!g.liftAt(bx, bz)) while (cy > -PIT && !g.solid(bx, cy - 1, bz)) cy--;
       b.pos.y = Math.min(b.pos.y, cy * CELL);
     }
   }
@@ -423,7 +439,7 @@ export class Game {
     if (by && by !== t) by.kills++;
     if (t.hasBomb) {
       t.hasBomb = false;
-      const y = Math.max(0, t.pos.y);
+      const y = t.pos.y;
       this.bomb.state = 'dropped'; this.bomb.carrier = null;
       this.bomb.pos = { x: t.pos.x, y, z: t.pos.z };
       this.emit('feed', { text: 'The bomb was dropped' });
@@ -482,6 +498,7 @@ export class Game {
 
   explode(pos, radius, damage, owner, cause) {
     this.emit('boom', { pos: { ...pos }, radius, cause });
+    this.damageBlocks(pos, { radius, splash: damage * 0.9, blockCrush: 0.8 });
     for (const t of this.actors) {
       if (!t.alive) continue;
       if (t.team === owner.team && t !== owner) continue;
@@ -515,7 +532,7 @@ export class Game {
             for (const o of ['x', 'y', 'z']) if (o !== ax) p.vel[o] *= 0.8;
           } else p.pos[ax] = n[ax];
         }
-        if (p.pos.y < -5) p.life = 0;
+        if (p.pos.y < -(PIT + 1) * CELL) p.life = 0;
         if (p.life <= 0) { p.dead = true; this.explode(p.pos, GADGETS.grenade.radius, GADGETS.grenade.damage, p.owner, 'grenade'); }
       }
     }
@@ -604,7 +621,7 @@ export class Game {
     if (!p.cells.length) { this.piece = null; this.emit('pieceDestroyed', { piece: p }); return; }
     const altitude = p.y * CELL + p.drop;
     const y = restHeight(this.grid, p.cells, p.x, p.z);
-    if (y >= -1 && y <= p.y) { p.y = y; p.drop = Math.max(0, altitude - y * CELL); }
+    if (y >= -PIT && y <= p.y) { p.y = y; p.drop = Math.max(0, altitude - y * CELL); }
   }
 
   // A rocket blast against the falling block: cubes within blockCrush break outright, others take falloff damage.

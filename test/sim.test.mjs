@@ -4,8 +4,8 @@ import { Game } from '../public/src/game.js';
 import { buildMap, SITES, SPAWNS } from '../public/src/map.js';
 import { Nav } from '../public/src/nav.js';
 import { orient, restHeight, findLines, clearCells, validPlacement, SHAPES } from '../public/src/pieces.js';
-import { STATIC, EMPTY } from '../public/src/grid.js';
-import { WEAPONS } from '../public/src/config.js';
+import { STATIC, EMPTY, FLOOR, BEDROCK } from '../public/src/grid.js';
+import { WEAPONS, PIT, CELL as CELL_M } from '../public/src/config.js';
 import { TICK, MIN_LINE, MOVE, TEAM } from '../public/src/config.js';
 import { makeActor, resetActor, stepMovement } from '../public/src/actor.js';
 
@@ -89,7 +89,7 @@ for (const seed of [1, 2, 3, 4]) {
       for (const e of game.drainEvents()) if (e.type === 'roundEnd') { outcomes[e.reason] = (outcomes[e.reason] || 0) + 1; rounds++; }
       if (steps % 60 === 0) for (const a of game.actors) {
         assert.ok(Number.isFinite(a.pos.x + a.pos.y + a.pos.z), 'position finite');
-        assert.ok(a.pos.y > -1, 'stays above floor');
+        assert.ok(a.pos.y >= -(PIT - 1) * CELL_M - 0.01, 'never falls out of the world');
       }
     }
     assert.ok(game.matchOver, 'match finishes');
@@ -202,7 +202,7 @@ test('the director steers an unattended block once', () => {
 // An open arena with the shooter in the middle and everyone else parked in a corner.
 function openRange(weapon) {
   const game = new Game({ seed: 9, teamSize: 1, human: false, pieces: false });
-  game.grid.cells.fill(EMPTY); game.grid.crates = [];
+  game.grid.flatten(); game.grid.lifts = [];
   game.drainEvents();
   const [shooter, target] = [game.actors.find(a => a.team === 'attackers'), game.actors.find(a => a.team === 'defenders')];
   Object.assign(shooter.pos, { x: 48, y: 0, z: 70 }); shooter.yaw = 0; shooter.cur = weapon; shooter.isHuman = true;
@@ -468,7 +468,7 @@ test('a new round puts every item back', () => {
 // An open arena for rocket tests: shooter at the south end facing north, a teammate and two enemies to place.
 function rocketRange() {
   const game = new Game({ seed: 9, teamSize: 2, human: false, pieces: false });
-  game.grid.cells.fill(EMPTY); game.grid.crates = []; game.grid.lifts = [];
+  game.grid.flatten(); game.grid.lifts = [];
   game.state = 'live'; game.timer = 100;
   const [s, mate] = game.actors.filter(a => a.team === 'attackers'), [e1, e2] = game.actors.filter(a => a.team === 'defenders');
   for (const a of game.actors) { a.brain = null; a.pos = { x: 6, y: 0, z: 6 }; }
@@ -527,11 +527,11 @@ test('walls shield from the blast, teammates take no damage, and your own damage
   const { game, s, mate, e1 } = rocketRange();
   const at = { x: 48, y: 1, z: 50 };
   e1.pos = { x: 48, y: 0, z: 52 };
-  game.grid.set(16, 0, 17, STATIC); game.grid.set(16, 1, 17, STATIC);   // wall between the blast and the target
-  game.grid.set(15, 0, 17, STATIC); game.grid.set(17, 0, 17, STATIC);
+  game.grid.set(16, 0, 17, BEDROCK); game.grid.set(16, 1, 17, BEDROCK);   // wall between the blast and the target (bedrock, so the blast cannot take it down)
+  game.grid.set(15, 0, 17, BEDROCK); game.grid.set(17, 0, 17, BEDROCK);
   game.explodeRocket({ owner: s, id: 1 }, { ...at, z: 50 }, null);
   assert.equal(e1.hp, 100, 'wall shields');
-  game.grid.cells.fill(EMPTY);
+  game.grid.flatten();
   mate.pos = { x: 48, y: 0, z: 51 }; mate.vel = { x: 0, y: 0, z: 0 };
   game.explodeRocket({ owner: s, id: 2 }, at, null);
   assert.equal(mate.hp, 100, 'friendly fire off');
@@ -612,7 +612,7 @@ test('one rocket destroys the block it hits and cracks its neighbours; walls and
   const g = game.grid;
   g.set(16, 0, 10, 3); g.set(16, 0, 9, 3);   // the cube that gets hit, and one directly behind it
   g.set(15, 0, 10, 3);                       // a neighbour beside it
-  g.set(10, 0, 10, STATIC);
+  g.set(10, 0, 10, BEDROCK);
   const v0 = g.version;
   const at = { x: 49.5, y: 1.5, z: 33.06 };   // in open air against the face of the cube (z cell 10 spans 30..33)
   game.explodeRocket({ owner: s, id: 1 }, at, null);
@@ -622,7 +622,7 @@ test('one rocket destroys the block it hits and cracks its neighbours; walls and
   assert.ok(g.dmg[g.idx(15, 0, 10)] > 30, 'but it is cracked');
   assert.equal(g.dmg[g.idx(16, 0, 9)], 0, 'cubes hidden behind others are not touched');
   assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.length > 0));
-  assert.equal(g.get(10, 0, 10), STATIC, 'map walls are permanent');
+  assert.equal(g.get(10, 0, 10), BEDROCK, 'bedrock is permanent');
 });
 
 test('a rocket fired at a block wall opens a hole and breaks the real thing', () => {
@@ -674,11 +674,11 @@ function shootUntilBroken(game, s, key, max = 80) {
 
 test('a bullet only chips a block: it takes many rifle hits to break one', () => {
   const { game, s } = bulletRange('rifle');
-  const g = game.grid, v0 = g.version;
+  const g = game.grid, v0 = g.version, dv0 = g.dmgVersion;
   s.shotStreak = 0; game.fire(s, WEAPONS.rifle);
   assert.equal(g.get(16, 0, 10), 3, 'one bullet does not break it');
   assert.ok(g.dmg[g.idx(16, 0, 10)] > 0, 'but it is damaged');
-  assert.ok(g.version > v0, 'grid changed so the renderer darkens it');
+  assert.ok(g.dmgVersion > dv0 && g.version === v0, 'a chip is reported as damage only, so the renderer and bots are not disturbed');
   game.drainEvents();
   const shots = 1 + shootUntilBroken(game, s, 'rifle');
   assert.ok(shots >= 15 && shots <= 40, `rifle took ${shots} shots`);
@@ -686,14 +686,14 @@ test('a bullet only chips a block: it takes many rifle hits to break one', () =>
   assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.length === 1));
 });
 
-test('the pistol breaks a block faster than the rifle, and neither touches map walls', () => {
+test('the pistol breaks a block faster than the rifle, and neither touches bedrock', () => {
   const rifle = bulletRange('rifle'), pistol = bulletRange('pistol');
   const nr = shootUntilBroken(rifle.game, rifle.s, 'rifle'), np = shootUntilBroken(pistol.game, pistol.s, 'pistol');
   assert.ok(np < nr, `pistol ${np} vs rifle ${nr}`);
   const { game, s } = bulletRange('rifle');
-  game.grid.set(16, 0, 10, STATIC);
+  game.grid.set(16, 0, 10, BEDROCK);
   for (let i = 0; i < 60; i++) { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; game.fire(s, WEAPONS.rifle); }
-  assert.equal(game.grid.get(16, 0, 10), STATIC);
+  assert.equal(game.grid.get(16, 0, 10), BEDROCK);
   assert.equal(game.grid.dmg[game.grid.idx(16, 0, 10)], 0);
 });
 
@@ -886,4 +886,167 @@ test('the countdown reaches zero when the walls start and the round resets them'
   game.startRound();
   assert.equal(game.grid.walls[0].inset, 0);
   assert.equal(game.grid.boxHits(9.65, 1, 48, 10.35, 2.8, 48.7), false);
+});
+
+// ---- a fully destructible arena: map walls, the floor, holes and pistons ----
+import { BEDROCK_TOP, liftSpec } from '../public/src/lifts.js';
+
+test('the world is a floor over open air over bedrock, with nothing else below', () => {
+  const g = buildMap();
+  assert.equal(g.get(10, -1, 10), FLOOR);
+  assert.equal(g.get(10, -2, 10), EMPTY);
+  assert.equal(g.get(10, -PIT, 10), BEDROCK);
+  assert.equal(g.get(10, -PIT - 5, 10), BEDROCK);
+  assert.equal(BEDROCK_TOP, -(PIT - 1) * CELL_M);
+});
+
+test('map walls take bullets like any block and eventually break; bedrock never does', () => {
+  const { game, s } = bulletRange('rifle');
+  const g = game.grid;
+  g.set(16, 0, 10, STATIC);
+  const shots = shootUntilBroken(game, s, 'rifle');
+  assert.ok(shots >= 15 && shots <= 40, `a map wall took ${shots} rifle shots`);
+  assert.equal(g.get(16, 0, 10), EMPTY);
+  assert.ok(game.drainEvents().some(e => e.type === 'blocksBroken' && e.cells.some(c => c.v === STATIC)));
+});
+
+test('a rocket blows a hole through the floor and the blocks around it', () => {
+  const { game, s } = rocketRange();
+  const g = game.grid;
+  g.set(16, 0, 10, STATIC);
+  const at = { x: 49.5, y: 0.2, z: 61.5 };   // low over floor cell (16, 20)
+  game.explodeRocket({ owner: s, id: 1 }, at, null);
+  assert.equal(g.get(16, -1, 20), EMPTY, 'the floor under the blast is gone');
+  assert.equal(g.get(16, -PIT, 20), BEDROCK, 'but the bedrock below it is not');
+  assert.ok(g.get(30, -1, 30) === FLOOR, 'floor well away from the blast is untouched');
+  game.explodeRocket({ owner: s, id: 2 }, { x: 49.5, y: 1.5, z: 33.06 }, null);
+  assert.equal(g.get(16, 0, 10), EMPTY, 'map walls break to rockets as well');
+});
+
+test('floor cells can be shot out and bedrock cannot', () => {
+  const { game, s } = bulletRange('rifle');
+  const g = game.grid;
+  s.pos = { x: 49.5, y: 0, z: 70 }; s.pitch = -Math.atan(1.62 / 10);   // aim at the floor 10 m ahead
+  g.set(16, 0, 10, EMPTY);
+  let n = 0;
+  while (g.get(16, -1, 20) === FLOOR && n++ < 400) { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; s.pitch = -Math.atan2(1.62, 70 - 61.5); game.fire(s, WEAPONS.rifle); }
+  assert.equal(g.get(16, -1, 20), EMPTY, `floor broke after ${n} shots`);
+  assert.equal(g.get(16, -PIT, 20), BEDROCK);
+});
+
+test('walking into a hole means falling to the bedrock, taking fall damage, and the world stops you there', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1, pieces: false, items: false });
+  game.grid.flatten(); game.grid.lifts = [];
+  game.state = 'live'; game.timer = 100;
+  for (const x of game.actors) x.brain = null;
+  const a = game.actors[0]; a.hasBomb = false; game.bomb.carrier = null;
+  const hole = { x: 21, z: 17 };
+  game.grid.set(hole.x, -1, hole.z, EMPTY);
+  a.pos = { x: (hole.x + 0.5) * CELL_M, y: 0, z: (hole.z + 0.5) * CELL_M }; a.vel = { x: 0, y: 0, z: 0 }; a.onGround = true;
+  for (let i = 0; i < 240; i++) game.step(TICK);
+  assert.ok(Math.abs(a.pos.y - BEDROCK_TOP) < 0.05, `landed on the bedrock at y=${a.pos.y}`);
+  assert.ok(a.alive && a.hp < 100 && a.hp > 40, `took fall damage, hp=${a.hp}`);
+  assert.ok(a.onGround);
+});
+
+test('a short drop onto a lower block is safe', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1, pieces: false, items: false });
+  game.grid.flatten(); game.grid.lifts = []; game.state = 'live'; game.timer = 100;
+  for (const x of game.actors) x.brain = null;
+  const a = game.actors[0];
+  a.pos = { x: 48, y: 4, z: 48 }; a.vel = { x: 0, y: 0, z: 0 }; a.onGround = false;
+  for (let i = 0; i < 120; i++) game.step(TICK);
+  assert.equal(a.hp, 100);
+});
+
+test('a falling block drops into a hole in the floor and rests on the bedrock', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1 });
+  game.grid.flatten(); game.state = 'live'; game.timer = 100;
+  for (let dz = 0; dz < 2; dz++) for (let dx = 0; dx < 2; dx++) game.grid.set(16 + dx, -1, 14 + dz, EMPTY);
+  const cells = orient(1, 0, 0);
+  assert.equal(restHeight(game.grid, cells, 16, 14), -PIT + 1, 'an O over a 2x2 hole falls to the bedrock');
+  assert.equal(restHeight(game.grid, cells, 20, 14), 0, 'elsewhere it still lands on the floor');
+  game.piece = { shapeId: 1, rot: 0, pose: 0, mirror: false, cells, x: 16, y: -PIT + 1, z: 14, t: 0, drop: 54, rev: 0, controlled: true, aiDone: true, fast: false };
+  for (let i = 0; i < 60 * 12 && game.piece; i++) game.stepPiece(TICK);
+  assert.equal(game.piece, null);
+  assert.equal(game.grid.get(16, -PIT + 1, 14), 2);
+});
+
+test('pistons sink into the floor, leaving an open shaft, and rise through it again', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1, pieces: false, items: false });
+  const deep = game.grid.lifts.filter(L => L.deep);
+  assert.ok(deep.length >= 4, 'several pistons');
+  assert.ok(game.grid.lifts.length >= 12, 'plenty of lifts');
+  const L = deep[0], spec = L.spec;
+  for (let z = L.cz0; z <= L.cz1; z++) for (let x = L.cx0; x <= L.cx1; x++) {
+    assert.equal(game.grid.get(x, -1, z), EMPTY, 'the shaft is a hole in the floor');
+    assert.equal(game.grid.get(x, -PIT, z), BEDROCK);
+  }
+  assert.equal(L.y0, BEDROCK_TOP);
+  assert.equal(liftTop(spec.down - 0.1, 0, spec), BEDROCK_TOP, 'rests on the bedrock');
+  assert.equal(liftTop(spec.down + spec.travel + 0.1, 0, spec), spec.rise, 'tops out above the floor');
+  let min = Infinity, max = -Infinity;
+  for (let t = 0; t < 40; t += 0.1) { const y = liftTop(t, L.offset, spec); min = Math.min(min, y); max = Math.max(max, y); }
+  assert.ok(min <= BEDROCK_TOP + 1e-9 && max >= spec.rise - 1e-9, 'sinks all the way down and comes all the way up');
+  assert.ok(liftSpec({ rise: 6 }).rise === 6 && liftSpec({}).rise === LIFT.rise);
+});
+
+test('someone who falls down a shaft can ride the piston back up', () => {
+  const game = new Game({ seed: 4, human: false, teamSize: 1, pieces: false, items: false });
+  game.state = 'live'; game.timer = 100;
+  const L = game.grid.lifts.find(l => l.deep);
+  for (const x of game.actors) x.brain = null;
+  const a = game.actors[0]; a.hasBomb = false; game.bomb.carrier = null;
+  // Park the piston at the bottom and start its rise on the next tick.
+  game.liftT = 0; L.offset = L.spec.down - 0.02; L.y1 = BEDROCK_TOP;
+  a.pos = { x: (L.x0 + L.x1) / 2, y: BEDROCK_TOP, z: (L.z0 + L.z1) / 2 }; a.vel = { x: 0, y: 0, z: 0 }; a.onGround = true;
+  let peak = -Infinity;
+  for (let i = 0; i < 60 * 9; i++) { game.step(TICK); peak = Math.max(peak, a.pos.y); assert.ok(a.alive); }
+  assert.ok(peak > 0, `carried up through the floor, peak y=${peak.toFixed(1)}`);
+});
+
+test('a bot that has fallen into the pit walks to a piston and rides back up', () => {
+  const game = new Game({ seed: 6, human: false, teamSize: 1, pieces: false, items: false });
+  game.state = 'live'; game.timer = 100;
+  const att = game.actors.find(a => a.team === 'attackers'), def = game.actors.find(a => a.team === 'defenders');
+  att.hasBomb = false; game.bomb.carrier = null;
+  const L = game.grid.lifts.find(l => l.deep);
+  att.pos = { x: (L.x0 + L.x1) / 2 + 7, y: BEDROCK_TOP, z: (L.z0 + L.z1) / 2 }; att.vel = { x: 0, y: 0, z: 0 }; att.onGround = true;
+  def.pos = { x: 45, y: 0, z: 90 };
+  let out = false;
+  for (let i = 0; i < 60 * 70 && !out; i++) { def.hp = 1e9; att.hp = 1e9; game.step(TICK); out = att.pos.y > -0.5; }
+  assert.ok(out, `bot is still down at y=${att.pos.y.toFixed(1)}`);
+});
+
+test('crates break to bullets and rockets', () => {
+  const { game, s } = bulletRange('rifle');
+  const g = game.grid;
+  g.set(16, 0, 10, EMPTY);
+  g.crates.push({ cx: 16, cy: 0, cz: 10, x0: 48.7, x1: 50.3, y0: 0, y1: 1.2, z0: 30.7, z1: 32.3 });
+  let n = 0;
+  s.pitch = -Math.atan(0.3 / 48);
+  while (g.crates.length && n++ < 60) { s.recoil = 0; s.recoilYaw = 0; s.shotStreak = 0; game.fire(s, WEAPONS.rifle); }
+  assert.equal(g.crates.length, 0, `crate broke after ${n} shots`);
+  assert.ok(n > 3, 'but not at once');
+  g.crates.push({ cx: 16, cy: 0, cz: 10, x0: 48.7, x1: 50.3, y0: 0, y1: 1.2, z0: 30.7, z1: 32.3 });
+  game.explodeRocket({ owner: s, id: 9 }, { x: 49.5, y: 1.5, z: 33.5 }, null);
+  assert.equal(g.crates.length, 0, 'a rocket takes a crate out');
+});
+
+test('the bomb dropped on a floor that is shot away ends up in the pit', () => {
+  const { game, s } = rocketRange();
+  game.bomb.state = 'dropped'; game.bomb.pos = { x: 49.5, y: 0, z: 61.5 };
+  game.explodeRocket({ owner: s, id: 1 }, { x: 49.5, y: 0.3, z: 61.5 }, null);
+  assert.equal(game.bomb.pos.y, BEDROCK_TOP);
+});
+
+test('a new round puts the walls, floor and pistons back', () => {
+  const game = new Game({ seed: 3, human: false, teamSize: 1, pieces: false });
+  game.grid.set(10, -1, 10, EMPTY); game.grid.set(16, 0, 16, STATIC); game.grid.version++;
+  const wall = [...game.grid.cells.keys()].length;
+  game.grid.set(1, 0, 1, EMPTY);
+  game.startRound();
+  assert.equal(game.grid.get(10, -1, 10), FLOOR);
+  assert.equal(game.grid.get(1, 0, 1), STATIC);
+  assert.ok(wall > 0);
 });

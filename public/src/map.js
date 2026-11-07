@@ -1,5 +1,5 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WALL_H } from './config.js';
-import { Grid, STATIC, EMPTY } from './grid.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WALL_H, PIT } from './config.js';
+import { Grid, STATIC, EMPTY, FLOOR, BEDROCK } from './grid.js';
 import { LIFT_SPOTS, makeLifts } from './lifts.js';
 import { makeWalls } from './walls.js';
 import { PICKUP_SPOTS } from './pickups.js';
@@ -53,6 +53,8 @@ export const POSTS = {
 
 export function buildMap() {
   const g = new Grid();
+  // A floor one block thick over open air, and unbreakable bedrock at the very bottom.
+  for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) { g.set(x, -1, z, FLOOR); g.set(x, -PIT, z, BEDROCK); }
   for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
     const edge = x === 0 || z === 0 || x === W - 1 || z === D - 1;
     g.set(x, y, z, (edge && y < 8) || y < WALL_H ? STATIC : EMPTY);
@@ -67,6 +69,8 @@ export function buildMap() {
     g.crates.push({ cx, cy: 0, cz, x0: mx - size / 2, x1: mx + size / 2, y0: 0, y1: tall, z0: mz - size / 2, z1: mz + size / 2 });
   }
   g.lifts = makeLifts();
+  // A piston's shaft is a hole in the floor all the way down to the bedrock.
+  for (const L of g.lifts) if (L.deep) for (let z = L.cz0; z <= L.cz1; z++) for (let x = L.cx0; x <= L.cx1; x++) g.set(x, -1, z, EMPTY);
   g.walls = makeWalls();
   g.freeze();
   return g;

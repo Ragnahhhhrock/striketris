@@ -180,6 +180,7 @@ export function updateBot(game, a, dt, frozen) {
   if (!b) return;
   inp.f = inp.r = 0; inp.jump = false; inp.fire = false; inp.use = false; inp.reload = false; inp.walk = false; inp.crouch = false; inp.gadget = false; inp.scope = false;
   if (frozen) return;
+  if (a.pos.y < -CELL * 0.5 && !a.mantle) { climbOut(game, a, dt); return; }
   perceive(game, a, dt);
 
   const bomb = game.bomb;
@@ -268,6 +269,26 @@ export function updateBot(game, a, dt, frozen) {
     b.lastPos = { ...a.pos };
     if (b.stuck > 0.8) { inp.jump = true; b.repath = 0; if (b.stuck > 2.5) { b.heard = null; b.stuck = 0; } }
   }
+}
+
+// A bot that has fallen through the floor can't path anywhere, so it walks to the nearest piston, waits for it to come
+// down if it is up, and rides it back to the surface. Nothing in the pit gets in the way, so it just walks straight.
+function climbOut(game, a, dt) {
+  const b = a.brain, inp = a.input;
+  let best = null, bestD = Infinity;
+  for (const L of game.grid.lifts) {
+    if (!L.deep) continue;
+    const d = Math.hypot((L.x0 + L.x1) / 2 - a.pos.x, (L.z0 + L.z1) / 2 - a.pos.z);
+    if (d < bestD) { best = L; bestD = d; }
+  }
+  b.path = null; b.target = null;
+  if (!best) return;
+  const tx = (best.x0 + best.x1) / 2, tz = (best.z0 + best.z1) / 2;
+  const dx = tx - a.pos.x, dz = tz - a.pos.z, n = Math.hypot(dx, dz);
+  if (n < 0.8) return;   // on the piston: stand still and let it carry us
+  a.yaw = wrap(a.yaw + wrap(Math.atan2(-dx, -dz) - a.yaw) * Math.min(1, 8 * dt));
+  setWish(a, dx / n, dz / n);
+  inp.jump = best.y1 > a.pos.y + 0.3;
 }
 
 // Off-duty behaviour for the kit gadgets: heal friends, lay mines, spot ahead.

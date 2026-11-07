@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H } from './config.js';
-import { STATIC, EMPTY } from './grid.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, PIT, BLOCK_HP } from './config.js';
+import { STATIC, EMPTY, FLOOR } from './grid.js';
 
-// The shifting arena. Every wall cube and floor tile is its own instance that periodically
-// rotates, flips or slides and comes back to rest on its own cell, with a travelling wave so the
-// whole room ripples. Collision stays on the voxel grid, so the transforms are visual only.
+// The shifting arena. Every wall cube is its own instance that periodically rotates, flips or slides and comes
+// back to rest on its own cell, with a travelling wave so the room ripples. Collision stays on the voxel grid, so
+// those transforms are visual only. Every wall cube and floor tile follows the grid: shoot one away and it is gone,
+// shoot the block in front of one and it appears. Floor tiles never move, so a gap in the floor is always a real hole.
 
 export const BASE_COLOURS = [0xff3d81, 0x2dd4ff, 0xb6ff00, 0xff8a00, 0xffe11a, 0x8f5bff, 0x00e08a, 0xff4d2e];
 export const NEON_COLOURS = [0x39ff14, 0xff10f0, 0x00f0ff, 0xfff700, 0xff6a00, 0xbc13fe];
@@ -13,6 +14,7 @@ const NEON_SHARE = 0.16;   // share of wall cubes that are neon
 const ACTIVE = 0.24;       // share of each cube's cycle spent moving
 const hash = (a, b, c) => { let h = Math.imul(a + 1, 374761393) ^ Math.imul(b + 7, 668265263) ^ Math.imul(c + 13, 2147483647); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const ease = s => s * s * (3 - 2 * s);
+const NEIGHBOURS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 
 // White frame with a dimmer centre. Multiplied by the cube colour it reads as a lit neon tube.
 export function neonTexture() {
@@ -40,17 +42,18 @@ export class ArenaFx {
     this.cubes = [];
     this.tiles = [];
 
-    // Wall cubes that touch open air. Buried ones never show, so they are skipped.
+    this.grid = grid;
+    this.seen = this.seenDmg = -1;
+    // Every wall cube the round starts with. Buried ones stay hidden until a neighbour is destroyed.
+    const start = (x, y, z) => grid.base ? grid.base[grid.idx(x, y, z)] : grid.get(x, y, z);
     for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
-      if (grid.get(x, y, z) !== STATIC) continue;
-      const open = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, -1]].some(([a, b, c]) => grid.get(x + a, y + b, z + c) === EMPTY);
-      if (!open) continue;
-      this.cubes.push({ x, y, z, h: hash(x, y, z), neon: hash(z, x, y) < NEON_SHARE, dirty: true });
+      if (start(x, y, z) !== STATIC) continue;
+      this.cubes.push({ x, y, z, h: hash(x, y, z), neon: hash(z, x, y) < NEON_SHARE, dirty: true, vis: false, shown: false, dmgf: 0 });
     }
-    // Floor tiles over open ground only.
+    // A floor tile over every floor cell, except under the lifts, which are their own floor.
     for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
-      if (grid.get(x, 0, z) !== EMPTY || grid.liftAt(x, z)) continue;
-      this.tiles.push({ x, y: 0, z, h: hash(x, 99, z), dirty: true });
+      if (start(x, -1, z) !== FLOOR || grid.liftAt(x, z)) continue;
+      this.tiles.push({ x, z, h: hash(x, 99, z), dirty: true, vis: false, dmgf: 0 });
     }
 
     const solid = this.cubes.filter(c => !c.neon), neon = this.cubes.filter(c => c.neon);
@@ -59,18 +62,29 @@ export class ArenaFx {
     this.wallMesh = this.instanced(this.cubeGeo, wallMat, solid.length, true);
     this.neonMesh = this.instanced(this.cubeGeo, new THREE.MeshBasicMaterial({ map: neonTex, fog: false }), neon.length, false);
     this.haloMesh = this.instanced(this.cubeGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide, fog: false }), neon.length, false);
-    this.tileGeo = new THREE.BoxGeometry(CELL - 0.06, 0.5, CELL - 0.06);
+    this.tileGeo = new THREE.BoxGeometry(CELL - 0.06, CELL, CELL - 0.06);
     this.tileMesh = this.instanced(this.tileGeo, new THREE.MeshLambertMaterial({ map: tex }), this.tiles.length, true);
 
-    // What shows through when a tile drops out of the floor.
+    // The pit under the floor: a bedrock floor and four walls, lit in a slowly cycling colour. This is what you see,
+    // and land on, when a hole opens in the floor.
     const under = document.createElement('canvas'); under.width = under.height = 64;
     const ux = under.getContext('2d');
     ux.fillStyle = '#12062e'; ux.fillRect(0, 0, 64, 64);
     ux.strokeStyle = '#ff2fd6'; ux.lineWidth = 3; ux.strokeRect(0, 0, 64, 64);
     const underTex = new THREE.CanvasTexture(under);
     underTex.wrapS = underTex.wrapT = THREE.RepeatWrapping; underTex.repeat.set(W, D); underTex.colorSpace = THREE.SRGBColorSpace;
-    this.under = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, D * CELL), new THREE.MeshBasicMaterial({ map: underTex, fog: false }));
-    this.under.rotation.x = -Math.PI / 2; this.under.position.set(W * CELL / 2, -CELL - 0.4, D * CELL / 2);
+    const pitH = (PIT - 1) * CELL, wallTex = underTex.clone();
+    wallTex.repeat.set(W, PIT - 1); wallTex.needsUpdate = true;
+    this.pitMats = [new THREE.MeshBasicMaterial({ map: underTex, fog: false }), new THREE.MeshBasicMaterial({ map: wallTex, fog: false, side: THREE.DoubleSide })];
+    this.under = new THREE.Group();
+    const bottom = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, D * CELL), this.pitMats[0]);
+    bottom.rotation.x = -Math.PI / 2; bottom.position.set(W * CELL / 2, -pitH, D * CELL / 2);
+    this.under.add(bottom);
+    for (const [px, pz, ry] of [[W * CELL / 2, 0, 0], [W * CELL / 2, D * CELL, 0], [0, D * CELL / 2, Math.PI / 2], [W * CELL, D * CELL / 2, Math.PI / 2]]) {
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(W * CELL, pitH), this.pitMats[1]);
+      wall.position.set(px, -pitH / 2, pz); wall.rotation.y = ry;
+      this.under.add(wall);
+    }
 
     // Neon blocks floating around the outside of the well.
     this.floaters = [];
@@ -110,12 +124,43 @@ export class ArenaFx {
     return palette[(band + (this.calm ? 0 : n)) % palette.length];
   }
 
+  // Compare the grid with what is drawn: which cubes and tiles are gone, newly uncovered or more chipped.
+  refresh() {
+    const g = this.grid;
+    const exposed = (x, y, z) => NEIGHBOURS.some(([a, b, c]) => g.get(x + a, y + b, z + c) === EMPTY);
+    for (const c of this.cubes) {
+      const live = g.get(c.x, c.y, c.z) === STATIC;
+      const vis = live && exposed(c.x, c.y, c.z), dmgf = live ? Math.min(1, g.dmg[g.idx(c.x, c.y, c.z)] / BLOCK_HP) : 0;
+      if (vis !== c.vis || dmgf !== c.dmgf) c.dirty = true;
+      c.vis = vis; c.dmgf = dmgf;
+    }
+    for (const c of this.tiles) {
+      const live = g.get(c.x, -1, c.z) === FLOOR, dmgf = live ? Math.min(1, g.dmg[g.idx(c.x, -1, c.z)] / BLOCK_HP) : 0;
+      if (live !== c.vis || dmgf !== c.dmgf) c.dirty = true;
+      c.vis = live; c.dmgf = dmgf;
+    }
+    this.seen = g.version; this.seenDmg = g.dmgVersion;
+  }
+
+  // Parks an instance out of sight.
+  hideAt(mesh, i) {
+    const d = this.dummy;
+    d.position.set(0, -500, 0); d.quaternion.identity(); d.scale.setScalar(0.0001); d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+  }
+
   update(t) {
+    if (this.seen !== this.grid.version || this.seenDmg !== this.grid.dmgVersion) this.refresh();
     const d = this.dummy, q = this.q, e = this.euler;
     const rest = (c, y) => d.position.set((c.x + 0.5) * CELL, (c.y + 0.5) * CELL + (y || 0), (c.z + 0.5) * CELL);
 
     const upd = (list, mesh, halo, palette, neon) => {
       list.forEach((c, i) => {
+        if (!c.vis) {
+          if (c.shown) { this.hideAt(mesh, i); if (halo) this.hideAt(halo, i); c.shown = false; }
+          return;
+        }
+        c.shown = true;
         const wave = c.x * 0.55 + c.z * 0.8 + c.y * 0.35;
         const { cycle, s, kind } = this.phase(c, t, 12, wave);
         const pulse = neon ? 0.75 + 0.25 * Math.sin(t * 3 + c.h * 40) : 1;
@@ -139,7 +184,8 @@ export class ArenaFx {
         d.scale.setScalar(scale);
         d.updateMatrix();
         mesh.setMatrixAt(i, d.matrix);
-        const col = this.tmp.setHex(this.colourFor(palette, neon ? Math.floor(c.h * 97) : Math.floor((c.x + c.z) / 3) + Math.floor(c.y / 2), cycle, s)).multiplyScalar(neon ? pulse : 1);
+        // Gunfire and blasts char a cube toward black as it nears breaking.
+        const col = this.tmp.setHex(this.colourFor(palette, neon ? Math.floor(c.h * 97) : Math.floor((c.x + c.z) / 3) + Math.floor(c.y / 2), cycle, s)).multiplyScalar((neon ? pulse : 1) * (1 - 0.6 * c.dmgf));
         mesh.setColorAt(i, col);
         if (halo) {
           d.scale.setScalar(scale * (1.12 + 0.04 * Math.sin(t * 4 + c.h * 30)));
@@ -156,27 +202,16 @@ export class ArenaFx {
     upd(this.solid, this.wallMesh, null, BASE_COLOURS, false);
     upd(this.neon, this.neonMesh, this.haloMesh, NEON_COLOURS, true);
 
-    // Floor: each tile drops out, turns over or spins and comes back, in a wave from one corner.
+    // Floor: tiles never move. Each one is a real block of floor, so it only changes when the grid does.
     this.tiles.forEach((c, i) => {
-      const wave = (c.x + c.z) * 0.45;
-      const { cycle, s, kind } = this.phase(c, t, 9, wave);
-      if (s < 0 && !c.dirty) return;
-      d.position.set((c.x + 0.5) * CELL, -0.25, (c.z + 0.5) * CELL);
-      e.set(0, 0, 0);
-      if (s >= 0) {
-        const a = s * Math.PI;
-        d.position.y -= Math.sin(a) * CELL * 0.7;
-        if (kind === 0) e.x = s * Math.PI;
-        else if (kind === 1) e.z = s * Math.PI;
-        else if (kind === 2) e.y = s * Math.PI / 2;
-        else { e.x = s * Math.PI; e.z = s * Math.PI; }
-      }
-      d.quaternion.setFromEuler(e);
-      d.scale.setScalar(1);
+      if (!c.dirty) return;
+      c.dirty = false;
+      if (!c.vis) { this.hideAt(this.tileMesh, i); return; }
+      d.position.set((c.x + 0.5) * CELL, -CELL / 2, (c.z + 0.5) * CELL);
+      d.quaternion.identity(); d.scale.setScalar(1);
       d.updateMatrix();
       this.tileMesh.setMatrixAt(i, d.matrix);
-      this.tileMesh.setColorAt(i, this.tmp.setHex(this.colourFor(BASE_COLOURS, Math.floor(c.x / 2) + Math.floor(c.z / 2) + 3, cycle, s)));
-      c.dirty = s >= 0;
+      this.tileMesh.setColorAt(i, this.tmp.setHex(BASE_COLOURS[(Math.floor(c.x / 2) + Math.floor(c.z / 2) + 3) % BASE_COLOURS.length]).multiplyScalar(1 - 0.6 * c.dmgf));
     });
     this.tileMesh.instanceMatrix.needsUpdate = true;
     if (this.tileMesh.instanceColor) this.tileMesh.instanceColor.needsUpdate = true;
@@ -185,7 +220,7 @@ export class ArenaFx {
     const cx = W * CELL / 2, cz = D * CELL / 2;
     for (const f of this.floaters) {
       const ang = f.a + t * f.orbit;
-      const px = cx + Math.cos(ang) * f.rad, pz = cz + Math.sin(ang) * f.rad, py = f.y + Math.sin(t * 0.8 + f.bob) * 4;
+      const px = cx + Math.cos(ang) * f.rad, pz = cz + Math.sin(ang) * f.rad, py = f.y;
       e.set(f.tilt[0] + t * f.spin * 0.5, t * f.spin, f.tilt[1]);
       q.setFromEuler(e);
       f.cells.forEach(([a, b], k) => {
@@ -204,10 +239,12 @@ export class ArenaFx {
     }
     this.floatMesh.instanceMatrix.needsUpdate = this.floatHalo.instanceMatrix.needsUpdate = true;
     this.floatMesh.instanceColor.needsUpdate = this.floatHalo.instanceColor.needsUpdate = true;
-    this.under.material.color.setHSL((t * 0.04) % 1, 0.9, 0.55);
+    for (const m of this.pitMats) m.color.setHSL((t * 0.04) % 1, 0.9, 0.5);
   }
 
   dispose() {
-    this.cubeGeo.dispose(); this.tileGeo.dispose(); this.under.geometry.dispose();
+    this.cubeGeo.dispose(); this.tileGeo.dispose();
+    this.under.traverse(o => o.geometry?.dispose());
+    for (const m of this.pitMats) { m.map?.dispose(); m.dispose(); }
   }
 }

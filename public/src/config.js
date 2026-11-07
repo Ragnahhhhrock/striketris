@@ -3,6 +3,7 @@ export const CELL = 3;            // metres per voxel: one tetromino cube
 export const GRID_W = 32;         // cells on X
 export const GRID_D = 32;         // cells on Z
 export const GRID_H = 16;         // cells on Y
+export const PIT = 6;             // layers under the playfield: y = -1 is the floor, y = -PIT is unbreakable bedrock, the cells between are open air
 export const WALL_H = 5;          // interior wall height in cells
 export const MAX_STACK = 12;      // pieces may not rest above this layer
 export const MIN_LINE = 5;        // shortest wall-to-wall run that clears
@@ -179,4 +180,7 @@ export const LIFT = {
   travel: 2.2,   // seconds to rise or lower
   down: 5,       // seconds resting at floor level
   up: 4,         // seconds held at the top
+  // Pistons run from the bedrock under the arena up through a hole in the floor. They sink out of sight, leaving an
+  // open shaft, then rise through the floor again. They are also the way back up for anyone who falls into a hole.
+  deep: { travel: 5, down: 8, up: 3 },
 };

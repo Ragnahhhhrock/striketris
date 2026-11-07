@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS, BLOCK_HP } from './config.js';
-import { STATIC, EMPTY } from './grid.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, PIT, MOVE, TEAM, PIECE, WEAPONS, BLOCK_HP } from './config.js';
+import { STATIC, EMPTY, FLOOR, CRATE } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
 import { SHAPES } from './pieces.js';
@@ -71,18 +71,18 @@ function skyTexture() {
   return t;
 }
 
-function mesh(grid, wantStatic) {
+// Settled piece cubes only. Map walls and the floor are drawn by ArenaFx. Pieces can rest down in the pit too.
+function mesh(grid) {
   const pos = [], nor = [], uv = [], col = [], idx = [];
   const colour = new THREE.Color();
-  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+  for (let y = -PIT; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
     const v = grid.get(x, y, z);
-    if (v === EMPTY || (v === STATIC) !== wantStatic) continue;
-    colour.setHex(wantStatic ? (y >= 4 ? 0x9099ad : 0x7d869a) : SHAPE_TINT[v - 1]);
+    if (v < 1 || v > 7) continue;
+    colour.setHex(SHAPE_TINT[v - 1]);
     // Bullet and rocket damage darkens a block toward charred as it nears breaking.
-    if (!wantStatic) colour.multiplyScalar(1 - 0.6 * Math.min(1, grid.dmg[grid.idx(x, y, z)] / BLOCK_HP));
+    colour.multiplyScalar(1 - 0.6 * Math.min(1, grid.dmg[grid.idx(x, y, z)] / BLOCK_HP));
     for (const f of FACES) {
       if (grid.get(x + f.n[0], y + f.n[1], z + f.n[2]) !== EMPTY) continue;
-      if (wantStatic && y + f.n[1] < 0) continue;
       const base = pos.length / 3;
       f.v.forEach(([a, b, c]) => {
         const wx = (x + a) * CELL, wy = (y + b) * CELL, wz = (z + c) * CELL;
@@ -167,6 +167,9 @@ function pickupModel(kind) {
   }
   return g;
 }
+
+// Colour of the chips a broken cube throws: a piece's own colour, or the grey of a map wall, the floor or a crate.
+const chipTint = v => (v >= 1 && v <= 7 ? SHAPE_TINT[v - 1] : v === STATIC ? 0x8d96ab : v === FLOOR ? 0x9a8fb8 : v === CRATE ? 0x7c7468 : 0xcccccc);
 
 const PICKUP_GLOW = { health: 0x5dff7d, ammo: 0xffd76a, rocket: 0xff4a3d };
 
@@ -348,7 +351,7 @@ export class Renderer {
     if (this.arenaFx) { this.scene.remove(this.arenaFx.group); this.arenaFx.dispose(); }
     this.arenaFx = new ArenaFx(game.grid, { tex: this.tex, neonTex: this.neonTex, calm: matchMedia('(prefers-reduced-motion: reduce)').matches });
     this.scene.add(this.arenaFx.group);
-    this.gridVersion = -1;
+    this.gridVersion = this.dmgVersion = -1; this.lastMesh = -1;
     if (this.actorViews) for (const v of this.actorViews) this.scene.remove(v.group);
     this.actorViews = game.actors.map(a => this.makeActorView(a));
     this.clearEffects();
@@ -367,8 +370,8 @@ export class Renderer {
     this.liftGroup = new THREE.Group(); this.scene.add(this.liftGroup);
     this.liftViews = game.grid.lifts.map(L => {
       const w = L.x1 - L.x0 - 0.06, d = L.z1 - L.z0 - 0.06;
-      const shaft = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshLambertMaterial({ color: 0x2c2f33 }));
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), new THREE.MeshBasicMaterial({ map: this.neonTex, color: 0xfff700, fog: false }));
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshLambertMaterial({ color: L.deep ? 0x24304a : 0x2c2f33 }));
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), new THREE.MeshBasicMaterial({ map: this.neonTex, color: L.deep ? 0x00e5ff : 0xfff700, fog: false }));
       shaft.castShadow = shaft.receiveShadow = true;
       const x = (L.x0 + L.x1) / 2, z = (L.z0 + L.z1) / 2;
       shaft.position.x = cap.position.x = x; shaft.position.z = cap.position.z = z;
@@ -412,12 +415,13 @@ export class Renderer {
     return { p, group, item, ring, beam };
   }
 
-  // Shaft fills the floor up to the cap; the cap turns orange while the lift is moving.
+  // Shaft fills the floor up to the cap; the cap turns orange while the lift is moving. A piston's body runs all the
+  // way down to the bedrock, so you see it sink out of sight into its hole and rise out of it again.
   updateLift({ L, shaft, cap }) {
-    const h = Math.max(L.y1 - 0.3, 0.001);
-    shaft.scale.y = h; shaft.position.y = h / 2;
+    const base = L.deep ? L.y0 : 0, h = Math.max(L.y1 - base - 0.3, 0.001);
+    shaft.scale.y = h; shaft.position.y = base + h / 2;
     cap.position.y = L.y1 - 0.15;
-    cap.material.color.setHex(L.moving ? 0xff6a00 : 0xfff700);
+    cap.material.color.setHex(L.moving ? 0xff6a00 : L.deep ? 0x00e5ff : 0xfff700);
   }
 
   // Slab covers the strip the wall has taken; the red face is a thin skin on its inner side. Hidden until it moves.
@@ -752,10 +756,14 @@ export class Renderer {
         break;
       }
       case 'blocksBroken': {
-        // Each broken cube bursts into a few tumbling chips in its own colour.
+        // Each broken cube bursts into a few tumbling chips in its own colour. They only ever fall: over solid floor
+        // they land on it, and over a hole (including the one a broken floor block leaves) they keep dropping toward
+        // the bedrock at the bottom of the world.
         const chips = new THREE.Group(), geo = new THREE.BoxGeometry(0.45, 0.45, 0.45), mats = new Map(), seeds = [];
+        const grid = this.game.grid, bedrock = -(PIT - 1) * CELL + 0.1;
+        const landing = (x, z) => grid.get(Math.floor(x / CELL), -1, Math.floor(z / CELL)) === EMPTY ? bedrock : 0.1;
         for (const c of e.cells.slice(0, 14)) {
-          if (!mats.has(c.v)) mats.set(c.v, new THREE.MeshBasicMaterial({ color: SHAPE_TINT[c.v - 1], transparent: true, fog: false }));
+          if (!mats.has(c.v)) mats.set(c.v, new THREE.MeshBasicMaterial({ color: chipTint(c.v), transparent: true, fog: false }));
           for (let k = 0; k < 4; k++) {
             const m = new THREE.Mesh(geo, mats.get(c.v));
             const p0 = new THREE.Vector3((c.x + Math.random()) * CELL, (c.y + Math.random()) * CELL, (c.z + Math.random()) * CELL);
@@ -766,7 +774,7 @@ export class Renderer {
         }
         this.addEffect(chips, 1.1, (o, u) => {
           const t = u * 1.1;
-          for (const s of seeds) { s.m.position.set(s.p0.x + s.v.x * t, Math.max(0.1, s.p0.y + s.v.y * t - 7 * t * t), s.p0.z + s.v.z * t); s.m.scale.setScalar(s.s * (1 - u * 0.6)); s.m.rotation.set(t * 6 * s.s, t * 5, t * 4); }
+          for (const s of seeds) { const x = s.p0.x + s.v.x * t, z = s.p0.z + s.v.z * t; s.m.position.set(x, Math.max(landing(x, z), s.p0.y + s.v.y * t - 7 * t * t), z); s.m.scale.setScalar(s.s * (1 - u * 0.6)); s.m.rotation.set(t * 6 * s.s, t * 5, t * 4); }
           mats.forEach(m => { m.opacity = Math.min(1, 2.2 * (1 - u)); });
         }, () => mats.forEach(m => m.dispose()));
         break;
@@ -841,10 +849,13 @@ export class Renderer {
 
   update(dt, view) {
     const game = this.game;
-    if (this.gridVersion !== game.grid.version) {
-      this.gridVersion = game.grid.version;
+    // A block broken or placed remeshes at once. Chips only darken a block, which can wait a moment, so a long burst of
+    // gunfire does not rebuild the mesh every frame.
+    const g = game.grid;
+    if (this.gridVersion !== g.version || (this.dmgVersion !== g.dmgVersion && this.fxT - this.lastMesh > 0.15)) {
+      this.gridVersion = g.version; this.dmgVersion = g.dmgVersion; this.lastMesh = this.fxT;
       if (this.dynamicMesh) { this.dynamicGroup.remove(this.dynamicMesh); this.dynamicMesh.geometry.dispose(); }
-      this.dynamicMesh = new THREE.Mesh(mesh(game.grid, false), this.pieceMat);
+      this.dynamicMesh = new THREE.Mesh(mesh(game.grid), this.pieceMat);
       this.dynamicMesh.castShadow = this.dynamicMesh.receiveShadow = true;
       this.dynamicGroup.add(this.dynamicMesh);
     }

@@ -133,10 +133,12 @@ export class Hud {
     const g = this.game, c = this.mini, s = 6;
     c.fillStyle = '#2b2d30'; c.fillRect(0, 0, W * s, D * s);
     for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
-      if (g.grid.get(x, 0, z) === STATIC) continue;
       let top = -1;
       for (let y = H - 1; y >= 0; y--) if (g.grid.get(x, y, z) !== EMPTY) { top = y; break; }
-      c.fillStyle = top < 0 ? '#8c9096' : hex(SHAPE_TINT[g.grid.get(x, top, z) - 1]);
+      const v = top < 0 ? EMPTY : g.grid.get(x, top, z);
+      if (v === STATIC) continue;   // map wall: leave the dark background
+      // Open floor is grey, a hole in the floor is black, and a piston shaft is dark violet.
+      c.fillStyle = v !== EMPTY ? hex(SHAPE_TINT[v - 1]) : g.grid.get(x, -1, z) === EMPTY ? (g.grid.liftAt(x, z) ? '#2a1450' : '#050308') : '#8c9096';
       c.fillRect(x * s, z * s, s, s);
     }
     c.font = '700 13px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';

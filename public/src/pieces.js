@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE, CLOSE } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE, CLOSE, PIT } from './config.js';
 import { EMPTY, STATIC } from './grid.js';
 import { KEEPOUT, inRect, SITES, SPAWNS } from './map.js';
 
@@ -26,11 +26,11 @@ export function orient(shapeId, rot, pose, mirror = false) {
   });
 }
 
-// Lowest height a piece can fall to from the sky.
+// Lowest height a piece can fall to from the sky. Over a hole in the floor that is the bottom of the pit.
 export function restHeight(grid, cells, x, z) {
   let y = H - 1;
-  while (y > -1) {
-    if (cells.some(c => grid.solid(x + c.x, y + c.y - 1, z + c.z) || (y + c.y - 1) < 0)) break;
+  while (y > -PIT) {
+    if (cells.some(c => grid.solid(x + c.x, y + c.y - 1, z + c.z))) break;
     y--;
   }
   return y;

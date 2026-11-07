@@ -1,23 +1,31 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, PIT } from './config.js';
 
 export const EMPTY = 0;
-export const STATIC = 255; // values 1..7 are settled piece cubes (shape id + 1)
+export const FLOOR = 253;    // the floor layer at y = -1; breaks like any other block and leaves a hole
+export const BEDROCK = 254;  // the bottom of the world at y = -PIT, and the only thing that cannot be destroyed
+export const STATIC = 255;   // map wall cube. Values 1..7 are settled piece cubes (shape id + 1)
+export const CRATE = 252;    // only used to describe a broken crate in a blocksBroken event
 
-// The whole level is one voxel grid plus a short list of low crates.
+// Everything inside the grid can be shot or blown apart except bedrock. Past the sides of the grid is an invisible
+// boundary, and below the bedrock is more bedrock, so nothing can leave the world.
+export const breakable = v => v !== EMPTY && v !== BEDROCK;
+
+// The whole level is one voxel grid, from the bedrock (y = -PIT) up to the sky, plus a short list of low crates.
 export class Grid {
   constructor() {
-    this.cells = new Uint8Array(W * D * H);
-    this.dmg = new Uint8Array(W * D * H);   // damage taken by each settled block, from rockets
+    this.cells = new Uint8Array(W * D * (H + PIT));
+    this.dmg = new Uint8Array(W * D * (H + PIT));   // damage taken by each block, from bullets and rockets
     this.base = null;
     this.crates = [];
     this.baseCrates = [];
     this.lifts = [];     // elevator floor sections, moved by lifts.js
     this.walls = [];     // closing wall slabs, moved by walls.js
-    this.version = 0;
+    this.version = 0;    // bumps when a block is broken, placed or the round resets
+    this.dmgVersion = 0; // bumps when a block is only chipped, which the renderer can pick up less urgently
   }
-  idx(x, y, z) { return x + z * W + y * W * D; }
+  idx(x, y, z) { return x + z * W + (y + PIT) * W * D; }
   get(x, y, z) {
-    if (y < 0) return STATIC;
+    if (y < -PIT) return BEDROCK;
     if (y >= H) return EMPTY;
     if (x < 0 || z < 0 || x >= W || z >= D) return STATIC;
     return this.cells[this.idx(x, y, z)];
@@ -26,6 +34,13 @@ export class Grid {
   solid(x, y, z) { return this.get(x, y, z) !== EMPTY; }
   isStatic(x, y, z) { return this.get(x, y, z) === STATIC; }
   columnOpen(x, z) { return !this.isStatic(x, 0, z); }
+  // Clears everything above the floor and leaves a flat floor over bedrock. For tests and tools.
+  flatten() {
+    this.cells.fill(EMPTY); this.dmg.fill(0);
+    for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) { this.set(x, -1, z, FLOOR); this.set(x, -PIT, z, BEDROCK); }
+    this.crates = [];
+    this.version++;
+  }
 
   freeze() { this.base = this.cells.slice(); this.baseCrates = this.crates.map(c => ({ ...c })); }
   reset() {
@@ -55,7 +70,7 @@ export class Grid {
       if (x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
     }
     for (const c of this.lifts) {
-      if (c.y1 > 0.02 && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
+      if (c.y1 - c.y0 > 0.02 && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
     }
     for (const w of this.walls) {
       if (w.inset > 1e-3 && x1 > w.x0 && x0 < w.x1 && z1 > w.z0 && z0 < w.z1) return true;
@@ -101,7 +116,7 @@ export class Grid {
       if (h !== null && h < best) best = h;
     }
     for (const c of this.lifts) {
-      if (c.y1 <= 0.02) continue;
+      if (c.y1 - c.y0 <= 0.02) continue;
       const h = rayBox(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
       if (h !== null && h < best) best = h;
     }
@@ -137,12 +152,17 @@ export class Grid {
     }
     for (const c of this.crates) {
       const h = rayBoxHit(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
-      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; }
+      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; out.crate = c; }
+    }
+    for (const c of this.lifts) {
+      if (c.y1 - c.y0 <= 0.02) continue;
+      const h = rayBoxHit(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
+      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; out.crate = null; }
     }
     for (const c of this.walls) {
       if (c.inset <= 1e-3) continue;
       const h = rayBoxHit(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
-      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; }
+      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; out.crate = null; }
     }
     return out;
   }
