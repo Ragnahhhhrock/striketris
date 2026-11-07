@@ -3,6 +3,7 @@ import { cellCentre } from './grid.js';
 import { SITES, POSTS } from './map.js';
 import { eyePos, aimDir } from './actor.js';
 import { wants } from './pickups.js';
+import { clampOpen } from './walls.js';
 
 const wrap = a => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 const eyeOf = t => ({ x: t.pos.x, y: t.pos.y + (t.crouching ? 1.1 : 1.5), z: t.pos.z });
@@ -29,7 +30,16 @@ const newBrain = game => ({
   stuck: 0, weaponT: 0, lastPos: null, strafe: 1, strafeT: 0, burstT: 0, burstPause: 0, lookT: 0, lookYaw: null,
 });
 
+// While the walls are closing, bots head for the shrinking floor: any goal outside it is pulled back in.
 function goalFor(game, a) {
+  const g = baseGoal(game, a);
+  const o = game.grid.openBounds();
+  if (!g || !o || game.grid.walls[0].inset <= 1e-3) return g;
+  const c = cellCentre(g.x, g.y, g.z), m = clampOpen(game.grid, c, CELL * 1.5);
+  return m.x === c.x && m.z === c.z ? g : game.nav.nearest(m) || g;
+}
+
+function baseGoal(game, a) {
   const b = a.brain, bomb = game.bomb, nav = game.nav;
   const danger = game.dangerColumns();
   // First priority: step out from under the incoming piece.

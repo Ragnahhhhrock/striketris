@@ -35,6 +35,8 @@ body[data-mode="menu"] #hud { display: none; }
 #hurt.on { animation: fade .4s linear; }
 @keyframes fade { from { opacity: 1; } to { opacity: 0; } }
 
+#walls { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); background: var(--panel); color: var(--ink); border-top: 3px solid var(--bomb); padding: 6px 18px; font-size: 14px; font-weight: 700; }
+#walls.moving { background: var(--bomb); color: #fff; text-shadow: none; }
 #warn { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: var(--bomb); color: #fff; padding: 8px 18px; font-size: 20px; font-weight: 700; animation: pulse .3s infinite alternate; text-shadow: none; }
 @keyframes pulse { to { opacity: .55; } }
 #countdown { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 96px; font-weight: 700; line-height: 1; color: var(--ink); text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }

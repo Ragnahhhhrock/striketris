@@ -87,6 +87,14 @@ export const ROUND = {
   winScore: 8,
 };
 
+// Closing walls. Four slabs slide in from the edges and meet in the middle, squashing anyone still alive.
+// Times are seconds after the round goes live, so with ROUND.time at 115 everything is over before the clock.
+//   start   when the walls begin to move
+//   end     when they meet
+//   gap     width left between them at the end, in metres (narrower than a player, so nobody fits)
+//   lead    blocks do not land this close to a slab, in metres, since the slab keeps coming
+export const CLOSE = { start: 40, end: 100, gap: 0.5, lead: 6 };
+
 export const PIECE = {
   firstDelay: 1,      // seconds after freeze ends
   interval: 5,        // seconds between pieces at round start

@@ -1,6 +1,7 @@
 import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WALL_H } from './config.js';
 import { Grid, STATIC, EMPTY } from './grid.js';
 import { LIFT_SPOTS, makeLifts } from './lifts.js';
+import { makeWalls } from './walls.js';
 import { PICKUP_SPOTS } from './pickups.js';
 
 // Original three-lane layout. Attackers start south, defenders north, sites flank the defenders.
@@ -66,6 +67,7 @@ export function buildMap() {
     g.crates.push({ cx, cy: 0, cz, x0: mx - size / 2, x1: mx + size / 2, y0: 0, y1: tall, z0: mz - size / 2, z1: mz + size / 2 });
   }
   g.lifts = makeLifts();
+  g.walls = makeWalls();
   g.freeze();
   return g;
 }

@@ -6,6 +6,7 @@ import { SHAPES, restHeight, choosePlacement, findLines, clearCells, adjustPlace
 import { makeActor, resetActor, stepMovement, eyePos, aimDir, actorHeight, hitsWorld } from './actor.js';
 import { updateBot, initBrains } from './bots.js';
 import { stepLifts, resetLifts } from './lifts.js';
+import { stepWalls, resetWalls } from './walls.js';
 import { makePickups, resetPickups, stepPickups } from './pickups.js';
 
 export function mulberry(seed) {
@@ -70,6 +71,7 @@ export class Game {
     this.round++;
     this.grid.reset();
     resetLifts(this);
+    resetWalls(this);
     resetPickups(this);
     this.projectiles = [];
     this.state = 'freeze';
@@ -128,6 +130,7 @@ export class Game {
       return;
     }
     this.timer -= dt;
+    stepWalls(this, dt);
     this.stepActors(dt, false);
     this.stepPiece(dt);
     this.stepBomb(dt);
@@ -399,7 +402,7 @@ export class Game {
     }
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
-    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear' }[cause] ?? (cause === 'rocket' && by === t ? 'blew themselves up' : undefined);
+    const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause] ?? (cause === 'rocket' && by === t ? 'blew themselves up' : undefined);
     this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
   }
@@ -625,6 +628,8 @@ export class Game {
   checkRoundEnd() {
     if (this.state !== 'live') return;
     const planted = this.bomb.state === 'planted';
+    // Nobody left on either side (the walls closing, say) and no bomb down: the attackers failed to plant.
+    if (!this.alive(TEAM.DEF).length && !this.alive(TEAM.ATT).length && !planted) return this.endRound(TEAM.DEF, 'Everyone was crushed');
     if (!this.alive(TEAM.DEF).length) return this.endRound(TEAM.ATT, 'Defenders eliminated');
     if (!this.alive(TEAM.ATT).length && !planted) return this.endRound(TEAM.DEF, 'Attackers eliminated');
     if (this.timer <= 0 && !planted) return this.endRound(TEAM.DEF, 'Time ran out');

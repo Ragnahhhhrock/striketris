@@ -2,6 +2,7 @@ import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM } from './co
 import { STATIC, EMPTY } from './grid.js';
 import { SHAPES, orient } from './pieces.js';
 import { SITES } from './map.js';
+import { wallsIn, wallsMoving } from './walls.js';
 import { eyePos } from './actor.js';
 import { SHAPE_TINT } from './render.js';
 
@@ -85,6 +86,12 @@ export class Hud {
     const under = human?.alive && danger && danger.has(Math.floor(human.pos.x / CELL) + Math.floor(human.pos.z / CELL) * W);
     $('warn').hidden = !under;
 
+    const wl = $('walls'), live = g.state === 'live';
+    const soon = wallsIn(g), closing = wallsMoving(g);
+    wl.hidden = !live || (!closing && soon > 10);
+    wl.className = closing ? 'moving' : '';
+    wl.textContent = closing ? 'The walls are closing in' : `Walls close in ${Math.ceil(soon)}`;
+
     const prog = g.plantProgress || g.defuseProgress;
     const who = g.planter === human || g.defuser === human;
     $('progress').hidden = !(prog > 0 && who);
@@ -140,6 +147,14 @@ export class Hud {
       if (p.kind === 'health') { c.fillStyle = '#5dff7d'; c.fillRect(x - 4, z - 1.5, 8, 3); c.fillRect(x - 1.5, z - 4, 3, 8); }
       else if (p.kind === 'ammo') { c.fillStyle = '#ffd76a'; c.fillRect(x - 3, z - 3, 6, 6); }
       else { c.fillStyle = '#ff4a3d'; c.beginPath(); c.moveTo(x, z - 5); c.lineTo(x + 5, z + 4); c.lineTo(x - 5, z + 4); c.closePath(); c.fill(); }
+    }
+    // Floor the walls have taken, shaded red.
+    const o = g.grid.openBounds();
+    if (o && g.grid.walls[0].inset > 1e-3) {
+      const k = s / CELL, X = W * s, Z = D * s;
+      c.fillStyle = 'rgba(255,74,61,.55)';
+      c.fillRect(0, 0, o.x0 * k, Z); c.fillRect(o.x1 * k, 0, X - o.x1 * k, Z);
+      c.fillRect(0, 0, X, o.z0 * k); c.fillRect(0, o.z1 * k, X, Z - o.z1 * k);
     }
     if (g.piece) {
       c.fillStyle = Math.sin(g.piece.t * 12) > 0 ? hex(SHAPE_TINT[g.piece.shapeId]) : '#ffffff';

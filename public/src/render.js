@@ -361,6 +361,18 @@ export class Renderer {
     });
     this.liftViews.forEach(v => this.updateLift(v));
 
+    // Closing walls: a dark slab with a glowing red face on the side that faces the arena.
+    this.wallGroup && this.scene.remove(this.wallGroup);
+    this.wallGroup = new THREE.Group(); this.scene.add(this.wallGroup);
+    this.wallViews = game.grid.walls.map(W => {
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0x1b1d20 }));
+      const face = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ map: this.neonTex, color: 0xff3b30, fog: false }));
+      slab.frustumCulled = face.frustumCulled = false;
+      this.wallGroup.add(slab, face);
+      return { W, slab, face };
+    });
+    this.wallViews.forEach(v => this.updateWall(v));
+
     this.pickupGroup && this.scene.remove(this.pickupGroup);
     this.pickupGroup = new THREE.Group(); this.scene.add(this.pickupGroup);
     this.pickupViews = game.pickups.map(p => this.makePickupView(p));
@@ -390,6 +402,21 @@ export class Renderer {
     shaft.scale.y = h; shaft.position.y = h / 2;
     cap.position.y = L.y1 - 0.15;
     cap.material.color.setHex(L.moving ? 0xff6a00 : 0xfff700);
+  }
+
+  // Slab covers the strip the wall has taken; the red face is a thin skin on its inner side. Hidden until it moves.
+  updateWall({ W, slab, face }) {
+    const on = W.inset > 1e-3;
+    slab.visible = face.visible = on;
+    if (!on) return;
+    const h = W.y1 - W.y0, y = (W.y0 + W.y1) / 2, skin = 0.12;
+    const alongX = W.side === 'west' || W.side === 'east';
+    const sx = W.x1 - W.x0, sz = W.z1 - W.z0;
+    slab.scale.set(sx, h, sz); slab.position.set((W.x0 + W.x1) / 2, y, (W.z0 + W.z1) / 2);
+    face.scale.set(alongX ? skin : sx, h, alongX ? sz : skin);
+    const fx = W.side === 'west' ? W.x1 + skin / 2 : W.side === 'east' ? W.x0 - skin / 2 : (W.x0 + W.x1) / 2;
+    const fz = W.side === 'north' ? W.z1 + skin / 2 : W.side === 'south' ? W.z0 - skin / 2 : (W.z0 + W.z1) / 2;
+    face.position.set(fx, y, fz);
   }
 
   updatePickups(dt) {
@@ -792,6 +819,7 @@ export class Renderer {
       this.pieceLight.position.set(v.cx + v.slide.x, v.cy + p.drop + 2, v.cz + v.slide.z);
     }
     for (const v of this.liftViews) this.updateLift(v);
+    for (const v of this.wallViews) this.updateWall(v);
     this.updateArena(dt);
     this.fxT += dt;
     this.arenaFx.update(this.fxT);

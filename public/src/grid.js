@@ -12,6 +12,7 @@ export class Grid {
     this.crates = [];
     this.baseCrates = [];
     this.lifts = [];     // elevator floor sections, moved by lifts.js
+    this.walls = [];     // closing wall slabs, moved by walls.js
     this.version = 0;
   }
   idx(x, y, z) { return x + z * W + y * W * D; }
@@ -56,7 +57,22 @@ export class Grid {
     for (const c of this.lifts) {
       if (c.y1 > 0.02 && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1 && z1 > c.z0 && z0 < c.z1) return true;
     }
+    for (const w of this.walls) {
+      if (w.inset > 1e-3 && x1 > w.x0 && x0 < w.x1 && z1 > w.z0 && z0 < w.z1) return true;
+    }
     return false;
+  }
+  // The floor the closing walls have left open, in metres, or null when there are no walls.
+  openBounds() {
+    const w = this.walls;
+    return w.length ? { x0: w[0].x1, x1: w[1].x0, z0: w[2].z1, z1: w[3].z0 } : null;
+  }
+  // Has the centre of this cell been swallowed by a wall, or is it within `margin` metres of one?
+  cellClosed(cx, cz, margin = 0) {
+    const o = this.openBounds();
+    if (!o || this.walls[0].inset <= 1e-3) return false;
+    const x = (cx + 0.5) * CELL, z = (cz + 0.5) * CELL;
+    return x < o.x0 + margin || x > o.x1 - margin || z < o.z0 + margin || z > o.z1 - margin;
   }
   liftAt(cx, cz) {
     return this.lifts.some(L => cx >= L.cx0 && cx <= L.cx1 && cz >= L.cz0 && cz <= L.cz1);
@@ -89,6 +105,11 @@ export class Grid {
       const h = rayBox(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
       if (h !== null && h < best) best = h;
     }
+    for (const c of this.walls) {
+      if (c.inset <= 1e-3) continue;
+      const h = rayBox(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
+      if (h !== null && h < best) best = h;
+    }
     return best;
   }
   // Same walk as raycast, but also says which face was struck. The normal is zero when
@@ -115,6 +136,11 @@ export class Grid {
       else { z += sz; t = tz; tz += tdz; axis = 2; }
     }
     for (const c of this.crates) {
+      const h = rayBoxHit(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
+      if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; }
+    }
+    for (const c of this.walls) {
+      if (c.inset <= 1e-3) continue;
       const h = rayBoxHit(ox, oy, oz, dx, dy, dz, c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
       if (h && h.t < out.dist) { out.dist = h.t; out.nx = h.nx; out.ny = h.ny; out.nz = h.nz; }
     }

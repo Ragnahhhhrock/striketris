@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE, CLOSE } from './config.js';
 import { EMPTY, STATIC } from './grid.js';
 import { KEEPOUT, inRect, SITES, SPAWNS } from './map.js';
 
@@ -41,6 +41,7 @@ export function validPlacement(grid, cells, x, z, bombColumn) {
     const cx = x + c.x, cz = z + c.z;
     if (cx < 1 || cz < 1 || cx >= W - 1 || cz >= D - 1) return null;
     if (!grid.columnOpen(cx, cz)) return null;
+    if (grid.cellClosed(cx, cz, CLOSE.lead)) return null;
     for (const r of KEEPOUT) if (inRect(r, cx, cz)) return null;
     if (bombColumn && bombColumn.x === cx && bombColumn.z === cz) return null;
   }
