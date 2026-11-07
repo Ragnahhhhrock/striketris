@@ -28,7 +28,7 @@ const DEF_NAMES = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 // The full match simulation. It knows nothing about rendering, so it can run headless in tests.
 export class Game {
   constructor(opts = {}) {
-    this.opts = { seed: Date.now() & 0xffff, teamSize: 5, humanTeam: TEAM.ATT, human: true, pieceInterval: PIECE.interval, skill: 'normal', pieces: true, items: true, ...opts };
+    this.opts = { seed: Date.now() & 0xffff, teamSize: 5, humanTeam: TEAM.ATT, human: true, pieceInterval: PIECE.interval, skill: 'normal', pieces: true, items: true, friendlyFire: true, ...opts };
     this.rng = mulberry(this.opts.seed);
     this.grid = buildMap();
     this.nav = new Nav(this.grid);
@@ -224,9 +224,30 @@ export class Game {
     if (!inp.fire) a.shotStreak = Math.max(0, a.shotStreak - dt * 10);
     if (trigger && a.fireCd <= 0 && !this.isChannelling(a)) {
       a.fireCd = w.interval;
-      a.weapons[a.cur]--;
-      if (a.cur === 'rocket') this.fireRocket(a, w); else this.fire(a, w);
+      if (!w.melee) a.weapons[a.cur]--;
+      if (a.cur === 'rocket') this.fireRocket(a, w); else if (w.melee) this.stab(a, w); else this.fire(a, w);
     }
+  }
+
+  // Friendly fire: with it on (the default) your bullets, blasts and blade hurt teammates as well as enemies.
+  canHurt(by, t) { return t !== by && (this.opts.friendlyFire || t.team !== by.team); }
+
+  // The knife: one stab along the crosshair. It hits the nearest body inside reach that no wall, block or piece
+  // stands in front of, and only injures. Teammates are fair game under friendly fire.
+  stab(a, w) {
+    const d = aimDir(a), eye = eyePos(a);
+    let dist = this.grid.raycast(eye.x, eye.y, eye.z, d.x, d.y, d.z, w.range);
+    let victim = null;
+    for (const t of this.actors) {
+      if (!t.alive || !this.canHurt(a, t)) continue;
+      const h = actorHeight(t), r = MOVE.radius;
+      const bd = rayBox(eye.x, eye.y, eye.z, d.x, d.y, d.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h, t.pos.z + r);
+      if (bd !== null && bd < dist) { dist = bd; victim = t; }
+    }
+    const cube = this.rayPiece(eye, d, dist);
+    if (cube) victim = null;
+    this.emit('stab', { actor: a, from: eye, dir: d, hit: !!victim, victim });
+    if (victim) this.damage(victim, w.damage, a, 'knife');
   }
 
   // A weapon can be selected once you own it, and a rocket launcher only while it has rockets.
@@ -346,7 +367,7 @@ export class Game {
   }
 
   // Blast damage falls off linearly with distance from the nearest point of each body, walls shield, and
-  // everyone in range gets shoved away, friends included. Teammates take no damage; you take half of yours.
+  // everyone in range gets shoved away, friends included. Teammates take damage only with friendly fire on; you take half of yours.
   explodeRocket(p, at, victim) {
     const w = WEAPONS.rocket, by = p.owner;
     this.emit('rocketExplode', { pos: at, proj: p, radius: w.radius, by });
@@ -368,7 +389,7 @@ export class Game {
       t.vel.x += ux / ul * kb; t.vel.y += uy / ul * kb; t.vel.z += uz / ul * kb;
       t.mantle = null;
       if (uy / ul * kb > 1) t.onGround = false;
-      if (t.team === by.team && t !== by) continue;
+      if (t !== by && !this.canHurt(by, t)) continue;
       let dmg = w.splash * fall + (t === victim ? w.direct : 0);
       if (t === by) dmg *= w.selfScale;
       this.damage(t, dmg, by, 'rocket');
@@ -396,7 +417,7 @@ export class Game {
       let dist = hit.dist;
       victim = null; head = false;
       for (const t of this.actors) {
-        if (!t.alive || t.team === a.team) continue;
+        if (!t.alive || !this.canHurt(a, t)) continue;
         const h = actorHeight(t), r = MOVE.radius;
         const headH = 0.3;
         const hd = rayBox(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, t.pos.x - 0.14, t.pos.y + h - headH, t.pos.z - 0.14, t.pos.x + 0.14, t.pos.y + h, t.pos.z + 0.14);
@@ -450,7 +471,8 @@ export class Game {
     if (!t.alive) return;
     if (t.isHuman && this.opts.god) return;
     t.hp = 0; t.alive = false; t.deaths++; t.mantle = null;
-    if (by && by !== t) by.kills++;
+    const teamKill = !!by && by !== t && by.team === t.team;
+    if (by && by !== t) by.kills += teamKill ? -1 : 1;
     if (t.hasBomb) {
       t.hasBomb = false;
       const y = t.pos.y;
@@ -464,7 +486,7 @@ export class Game {
     const you = t.name === 'You';
     const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause]?.replace(/^was /, you ? 'were ' : 'was ')
       ?? (cause === 'rocket' && by === t ? (you ? 'blew yourself up' : 'blew themselves up') : undefined);
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}${teamKill ? ' Team kill' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause, by, reason: how ? `${you ? 'You' : t.name} ${how}` : `Killed by ${by?.name ?? '?'}` });
   }
 
@@ -518,7 +540,7 @@ export class Game {
     this.damageBlocks(pos, { radius, splash: damage * 0.9, blockCrush: 0.8 });
     for (const t of this.actors) {
       if (!t.alive) continue;
-      if (t.team === owner.team && t !== owner) continue;
+      if (t !== owner && !this.canHurt(owner, t)) continue;
       const c = { x: t.pos.x, y: t.pos.y + 0.9, z: t.pos.z };
       const d = Math.hypot(c.x - pos.x, c.y - pos.y, c.z - pos.z);
       if (d > radius) continue;
@@ -533,7 +555,7 @@ export class Game {
     for (const m of this.mines) {
       if (m.arm > 0) { m.arm -= dt; continue; }
       const g = GADGETS.mine;
-      const hit = this.actors.find(t => t.alive && t.team !== m.team && Math.hypot(t.pos.x - m.pos.x, t.pos.z - m.pos.z) < g.trigger && Math.abs(t.pos.y - m.pos.y) < 1.2);
+      const hit = this.actors.find(t => t.alive && (this.opts.friendlyFire || t.team !== m.team) && Math.hypot(t.pos.x - m.pos.x, t.pos.z - m.pos.z) < g.trigger && Math.abs(t.pos.y - m.pos.y) < 1.2);
       if (hit) { m.dead = true; this.explode({ x: m.pos.x, y: m.pos.y + 0.2, z: m.pos.z }, g.radius, g.damage, m.owner, 'mine'); }
     }
     this.mines = this.mines.filter(m => !m.dead);

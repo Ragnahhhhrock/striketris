@@ -126,8 +126,8 @@ test('grenades arc, bounce and blow up after the fuse; the count runs down', () 
   assert.equal(g.thrown.length, 0);
 });
 
-test('engineer mines arm, then kill enemies who walk over them; friends walk past', () => {
-  const g = arena('engineer'); const h = me(g), t = foe(g);
+test('engineer mines arm, then kill enemies who walk over them; friends walk past with friendly fire off', () => {
+  const g = arena('engineer', { friendlyFire: false }); const h = me(g), t = foe(g);
   face(g, h, t, 8);
   const mate = g.actors.find(a => a.team === h.team && a !== h);
   h.input.gadget = true; run(g, 1); h.input.gadget = false; run(g, 1);
@@ -230,4 +230,61 @@ test('the player can wear any roster look, and the bot who had it gets the defau
   assert.equal(lookFor(cole), (await import('../public/src/looks.js')).ROSTER.You, 'Cole the bot swapped to the recruit look');
   const plain = new Game({ seed: 2, human: true, teamSize: 3 });
   assert.equal(lookFor(plain.human), (await import('../public/src/looks.js')).ROSTER.You);
+});
+
+// ---- knife and friendly fire ----
+const mate = g => g.actors.find(a => a.team === g.human.team && a !== g.human && a.alive);
+const stabBurst = (g, n) => { for (let i = 0; i < n; i++) { me(g).input.fire = true; me(g).fireCd = 0; g.step(); me(g).input.fire = false; g.step(); } };
+
+test('every kit carries a knife', () => {
+  for (const c of CLASS_ORDER) {
+    const g = arena(c);
+    for (const a of g.actors) assert.ok(a.weapons.knife > 0, `${c} actor has a knife`);
+  }
+});
+
+test('a knife stab injures but does not kill; three stabs do', () => {
+  const g = arena('assault');
+  const f = foe(g);
+  face(g, me(g), f, 1.5);
+  me(g).cur = 'knife';
+  stabBurst(g, 1);
+  assert.equal(f.alive, true);
+  assert.equal(f.hp, 100 - WEAPONS.knife.damage);
+  stabBurst(g, 2);
+  assert.equal(f.alive, false);
+});
+
+test('the knife cannot reach past its range', () => {
+  const g = arena('assault');
+  const f = foe(g);
+  face(g, me(g), f, WEAPONS.knife.range + 2);
+  me(g).cur = 'knife';
+  stabBurst(g, 1);
+  assert.equal(f.hp, 100);
+});
+
+test('friendly fire: bullets and knives hurt teammates', () => {
+  const g = arena('assault', { teamSize: 2 });
+  const m = mate(g);
+  assert.ok(m, 'a teammate exists');
+  face(g, me(g), m, 1.5);
+  me(g).cur = 'knife';
+  stabBurst(g, 1);
+  assert.ok(m.hp < 100, 'teammate was stabbed');
+  const g2 = arena('assault', { teamSize: 2 });
+  const m2 = mate(g2);
+  face(g2, me(g2), m2, 8);
+  me(g2).input.fire = true; me(g2).fireCd = 0;
+  run(g2, 30);
+  assert.ok(m2.hp < 100, 'teammate was shot');
+});
+
+test('friendlyFire: false protects teammates', () => {
+  const g = arena('assault', { teamSize: 2, friendlyFire: false });
+  const m = mate(g);
+  face(g, me(g), m, 1.5);
+  me(g).cur = 'knife';
+  stabBurst(g, 3);
+  assert.equal(m.hp, 100);
 });

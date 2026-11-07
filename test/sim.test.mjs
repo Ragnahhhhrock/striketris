@@ -523,8 +523,9 @@ test('a direct hit does extra damage and kills at full health', () => {
   assert.equal(s.kills, 1);
 });
 
-test('walls shield from the blast, teammates take no damage, and your own damage is halved', () => {
+test('walls shield from the blast, teammates take no damage with friendly fire off, and your own damage is halved', () => {
   const { game, s, mate, e1 } = rocketRange();
+  game.opts.friendlyFire = false;
   const at = { x: 48, y: 1, z: 50 };
   e1.pos = { x: 48, y: 0, z: 52 };
   game.grid.set(16, 0, 17, BEDROCK); game.grid.set(16, 1, 17, BEDROCK);   // wall between the blast and the target (bedrock, so the blast cannot take it down)
@@ -536,6 +537,9 @@ test('walls shield from the blast, teammates take no damage, and your own damage
   game.explodeRocket({ owner: s, id: 2 }, at, null);
   assert.equal(mate.hp, 100, 'friendly fire off');
   assert.ok(Math.hypot(mate.vel.x, mate.vel.y, mate.vel.z) > 3, 'but teammates are shoved');
+  game.opts.friendlyFire = true;
+  game.explodeRocket({ owner: s, id: 4 }, at, null);
+  assert.ok(mate.hp < 100, 'friendly fire on: teammates are hurt by the blast');
   s.pos = { x: 48, y: 0, z: 50 }; s.vel = { x: 0, y: 0, z: 0 };
   game.explodeRocket({ owner: s, id: 3 }, at, null);
   const lost = 100 - s.hp;

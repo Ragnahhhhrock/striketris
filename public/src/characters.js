@@ -306,7 +306,18 @@ function buildLauncher() {
   return { body, mag, right: [0, -0.06, 0.0], left: [0, -0.06, -0.4], magWell: [0, 0.1, -0.7], muzzle: [0, 0.1, -0.9] };
 }
 
-const BUILDERS = { rifle: buildRifle, bolt: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, rocket: buildLauncher };
+// Knife: a short blade held point-forward, no magazine. The empty mag mesh keeps the rig's reload code happy.
+function buildKnife() {
+  const body = new Mesher();
+  body.box(0.03, 0.035, 0.11, 0, 0, 0.02, GUN_DARK);
+  body.box(0.05, 0.012, 0.012, 0, 0, -0.04, GUN_MID);
+  body.box(0.012, 0.04, 0.22, 0, 0.005, -0.16, 0xd8dde2);
+  body.box(0.012, 0.014, 0.06, 0, 0.026, -0.3, 0xd8dde2);
+  const mag = new Mesher().box(0.001, 0.001, 0.001, 0, 0, 0, GUN_DARK);
+  return { body, mag, right: [0, -0.02, 0.04], left: [0, -0.02, 0.04], magWell: [0, 0, 0], muzzle: [0, 0, -0.3] };
+}
+
+const BUILDERS = { knife: buildKnife, rifle: buildRifle, bolt: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, rocket: buildLauncher };
 
 // Gear worn by each kit, in spine space (waist origin, front is -Z). Silhouettes read at a glance.
 function buildKit(cls, look, bw, bx) {
@@ -627,7 +638,7 @@ export class Rig {
 
   // Rebuild the carried weapons and worn gear when the kit changes (a new round can change class).
   sync(a) {
-    const key = (a.loadout ?? ['rifle', 'pistol']).join();
+    const key = [...(a.loadout ?? ['rifle', 'pistol']), 'knife'].join();
     if (key !== this.loadoutKey) {
       this.loadoutKey = key;
       for (const g of Object.values(this.guns)) { this.weaponGroup.remove(g.group); g.group.traverse(o => o.geometry?.dispose()); }

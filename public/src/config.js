@@ -72,6 +72,18 @@ WEAPONS.rocket = {
   flash: { colour: 0xff8a2a, size: 2.8, life: 0.09, light: 10 },
 };
 
+// Knife. Every loadout carries one. A stab only injures: damage is below half of full health, so it takes several
+// to kill (three at 34). It reaches `range` metres along the crosshair, never goes through walls or blocks, never
+// headshots, and hits teammates like any other weapon while friendly fire is on.
+WEAPONS.knife = {
+  name: 'Knife', melee: true, noReload: true, mag: Infinity, reload: 0, interval: 0.45, auto: true, damage: 34, headMult: 1, range: 2.2,
+  spread: 0, moveSpread: 0, blockDmg: 0, bounces: 0, bounceKeep: 1,
+  kick: 0, kickMax: 0, kickYaw: 0, kickYawMax: 0, recover: 6,
+  shake: 0.2, fov: 0, vmBack: 0.12, vmPitch: 0.25, vmRecover: 12,
+  tracer: { colour: 0xffffff, ricochet: 0xffffff, width: 0.02, life: 0.05 },
+  flash: { colour: 0xffffff, size: 0.1, life: 0.01, light: 0 },
+};
+
 // Items that sit on the map and come back after a while. Positions are in pickups.js.
 //   health     heals up to 100
 //   ammo       refills every magazine at once and adds rockets for anyone who has the launcher

@@ -129,6 +129,7 @@ export class Audio {
         break;
       }
       case 'death': if (e.actor === viewer) { this.tone(0.3, 330, 70, 0.7, 'sawtooth'); this.burst(0.2, 500, 0.5); } break;
+      case 'stab': if (e.actor === viewer) this.tone(0.08, e.hit ? 420 : 900, 300, 0.05); break;
       case 'hurt': if (e.by === viewer) this.tone(0.14, e.head ? 1700 : 1100, e.head ? 1500 : 900, 0.07); break;
       case 'planted': this.tone(0.2, 880, 880, 0.15, 'square'); break;
       case 'explode': this.burst(0.9, 500, 1.6); this.tone(0.8, 70, 20, 1.4); break;

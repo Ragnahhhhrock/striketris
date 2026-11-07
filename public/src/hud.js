@@ -8,8 +8,8 @@ import { SHAPE_TINT } from './render.js';
 
 const $ = id => document.getElementById(id);
 const hex = n => '#' + n.toString(16).padStart(6, '0');
-// Slots follow the kit: 1 and 2 are its guns, 3 is a launcher picked up off the map.
-const slotKeys = a => [[a.loadout[0], '1'], [a.loadout[1], '2'], ...(a.loadout.includes('rocket') ? [] : [['rocket', '3']])];
+// Slots follow the kit: 1 and 2 are its guns, 3 is the knife, 4 is a launcher picked up off the map.
+const slotKeys = a => [[a.loadout[0], '1'], [a.loadout[1], '2'], ['knife', '3'], ...(a.loadout.includes('rocket') ? [] : [['rocket', '4']])];
 const fmt = t => { const s = Math.max(0, Math.ceil(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export class Hud {
@@ -66,7 +66,7 @@ export class Hud {
       const gd = a.gadget ? GADGETS[a.gadget] : null;
       $('gadget').textContent = !gd ? '' : gd.n === Infinity ? `[F] ${gd.name}${a.gadgetCd > 0 ? ` ${Math.ceil(a.gadgetCd)}s` : ''}` : `[F] ${gd.name} x${a.gadgetN}`;
       $('scope').hidden = !(a.scoped && a === this.game.human);
-      $('ammo').textContent = a.reloadT > 0 ? `Reloading ${Math.round(100 * (1 - a.reloadT / w.reload))}%` : `${a.weapons[a.cur]} / ${w.mag}`;
+      $('ammo').textContent = w.melee ? '' : a.reloadT > 0 ? `Reloading ${Math.round(100 * (1 - a.reloadT / w.reload))}%` : `${a.weapons[a.cur]} / ${w.mag}`;
       // Weapon slots: the ones you carry, the held one lit, a launcher with no rockets greyed.
       const slots = slotKeys(a).filter(([id]) => a.weapons[id] !== undefined)
         .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${weaponName(a.team, id).split(' ')[0]}</i>`).join('');

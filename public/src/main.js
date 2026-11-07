@@ -41,11 +41,11 @@ const touch = new TouchControls({
   toggleSteer: () => { steerOpen = !steerOpen; },
 });
 
-// Next or previous weapon you can use right now: the kit's two guns, and a picked-up launcher that has rockets.
+// Next or previous weapon you can use right now: the kit's two guns, the knife, and a picked-up launcher that has rockets.
 function cycleWeapon(dir) {
   const h = game?.human;
   if (mode !== 'play' || !h?.alive) return;
-  const ids = [...new Set([...h.loadout, 'rocket'])].filter(id => game.canSelect(h, id));
+  const ids = [...new Set([...h.loadout, 'knife', 'rocket'])].filter(id => game.canSelect(h, id));
   if (ids.length < 2) return;
   h.input.weapon = ids[(ids.indexOf(h.cur) + dir + ids.length) % ids.length];
 }
@@ -210,7 +210,8 @@ addEventListener('keydown', e => {
   if (h?.alive) {
     if (e.code === 'Digit1') h.input.weapon = h.loadout[0];
     if (e.code === 'Digit2') h.input.weapon = h.loadout[1];
-    if (e.code === 'Digit3') h.input.weapon = 'rocket';
+    if (e.code === 'Digit3') h.input.weapon = 'knife';
+    if (e.code === 'Digit4') h.input.weapon = 'rocket';
   } else {
     if (deathCam && ['KeyF', 'Space', 'KeyE', 'KeyQ'].includes(e.code)) endDeathCam();
     if (e.code === 'KeyF') {

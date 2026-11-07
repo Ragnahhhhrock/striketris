@@ -322,8 +322,13 @@ export class Renderer {
       bolt: { muzzle: -0.82, parts: [[0.06, 0.09, 0.42, 0, 0, 0], [0.03, 0.035, 0.34, 0, 0.012, -0.34], [0.05, 0.14, 0.06, 0, -0.1, -0.06], [0.045, 0.1, 0.14, 0, -0.03, 0.26, wood], [0.06, 0.08, 0.3, 0, 0.0, -0.2, wood]] },
       sniper: { muzzle: -0.82, parts: [[0.06, 0.09, 0.42, 0, 0, 0], [0.03, 0.035, 0.34, 0, 0.012, -0.34], [0.05, 0.1, 0.06, 0, -0.08, -0.06], [0.045, 0.1, 0.14, 0, -0.03, 0.26, wood], [0.06, 0.08, 0.3, 0, 0.0, -0.2, wood], [0.04, 0.04, 0.3, 0, 0.09, -0.1], [0.06, 0.06, 0.05, 0, 0.09, -0.26], [0.055, 0.055, 0.05, 0, 0.09, 0.06]] },
     };
-    this.vmModels = { rifle: this.vmRifle, pistol: this.vmPistol, rocket: this.vmRocket };
-    this.vmFlashAt = { rifle: this.rifleFlashAt, pistol: this.pistolFlashAt.clone().add(this.vmPistol.position), rocket: this.rocketFlashAt };
+    const blade = new THREE.Group(), steelM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
+    for (const [w, h, d, x, y, z, m] of [[0.03, 0.04, 0.14, 0, 0, 0.05, vmMat], [0.07, 0.014, 0.014, 0, 0, -0.03, vmMat], [0.014, 0.05, 0.3, 0, 0.005, -0.2, steelM], [0.014, 0.018, 0.08, 0, 0.032, -0.38, steelM]]) {
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); bx.position.set(x, y, z); blade.add(bx);
+    }
+    blade.rotation.set(0.5, 0, 0.35); blade.visible = false; this.vm.add(blade);
+    this.vmModels = { rifle: this.vmRifle, pistol: this.vmPistol, rocket: this.vmRocket, knife: blade };
+    this.vmFlashAt = { knife: new THREE.Vector3(0, 0, -0.4), rifle: this.rifleFlashAt, pistol: this.pistolFlashAt.clone().add(this.vmPistol.position), rocket: this.rocketFlashAt };
     for (const [k, def] of Object.entries(VM)) {
       const g = new THREE.Group();
       for (const [w, h, d, x, y, z, m] of def.parts) { const bx = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m ?? vmMat); bx.position.set(x, y, z); g.add(bx); }
@@ -696,6 +701,9 @@ export class Renderer {
 
   handleEvent(e, viewer) {
     switch (e.type) {
+      case 'stab':
+        if (e.actor === viewer) this.vmKick = Math.min(1.5, this.vmKick + 1.2);
+        break;
       case 'shot': {
         const w = WEAPONS[e.weapon] ?? WEAPONS.rifle;
         const first = e.path[0], next = e.path[1];

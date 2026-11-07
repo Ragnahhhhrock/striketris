@@ -175,7 +175,7 @@ test('every class carries its own weapons and wears its own kit', () => {
   for (const c of CLASS_ORDER) {
     const a = fighter('Ash', TEAM.ATT, 0, c); const rig = makeRig(a); settle(rig, 5);
     const k = CLASSES[c];
-    assert.deepEqual(Object.keys(rig.guns).sort(), [k.primary, k.secondary].sort(), `${c} guns`);
+    assert.deepEqual(Object.keys(rig.guns).sort(), [k.primary, k.secondary, 'knife'].sort(), `${c} guns`);
     assert.equal(rig.guns[k.primary].group.visible, true, `${c} draws its primary`);
     sizes.add(rig.kit.children[0].geometry.attributes.position.count);
   }

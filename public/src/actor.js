@@ -21,6 +21,7 @@ export function resetActor(a) {
   a.loadout = [k.primary, k.secondary];
   a.weapons = {};
   for (const id of a.loadout) a.weapons[id] = id === 'rocket' ? (k.rockets ?? WEAPONS.rocket.start) : WEAPONS[id].mag;
+  a.weapons.knife = Infinity;
   a.gadget = k.gadget; a.gadgetN = k.gadget ? GADGETS[k.gadget].n : 0; a.gadgetCd = 0; a.lastGadget = false;
   a.spottedUntil = 0; a.scoped = false;
   a.cur = k.primary; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
