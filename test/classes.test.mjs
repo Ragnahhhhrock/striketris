@@ -6,7 +6,7 @@ import { cellCentre } from '../public/src/grid.js';
 
 // A quiet 1v1 arena with no blocks, no bots, and a fixed spot to stand on.
 function arena(humanClass = 'assault', opts = {}) {
-  const g = new Game({ seed: 3, human: true, humanClass, teamSize: 2, pieces: false, ...opts });
+  const g = new Game({ seed: 3, human: true, humanClass, teamSize: 2, pieces: false, items: false, classes: true, ...opts });
   while (g.state === 'freeze') g.step();
   for (const a of g.actors) { a.brain = null; a.input.f = a.input.r = 0; }
   return g;
@@ -26,14 +26,14 @@ test('the five Battlefield 1942 kits exist with the right weapons', () => {
   assert.equal(CLASSES.scout.primary, 'sniper'); assert.equal(CLASSES.scout.gadget, 'binoculars');
   assert.equal(CLASSES.medic.gadget, 'medkit');
   assert.equal(CLASSES.engineer.gadget, 'mine');
-  assert.equal(CLASSES.antitank.primary, 'launcher');
+  assert.equal(CLASSES.antitank.primary, 'rocket'); assert.equal(CLASSES.engineer.primary, 'bolt');
   for (const c of Object.values(CLASSES)) { assert.equal(c.secondary, 'pistol'); assert.ok(WEAPONS[c.primary]); }
 });
 
 test('each side names the same weapon differently', () => {
   assert.notEqual(weaponName(TEAM.ATT, 'smg'), weaponName(TEAM.DEF, 'smg'));
-  assert.equal(weaponName(TEAM.ATT, 'launcher'), 'Panzerschreck');
-  assert.equal(weaponName(TEAM.DEF, 'launcher'), 'Bazooka');
+  assert.equal(weaponName(TEAM.ATT, 'rocket'), 'Panzerschreck');
+  assert.equal(weaponName(TEAM.DEF, 'rocket'), 'Bazooka');
 });
 
 test('actors spawn with their class loadout, and both teams field a mix', () => {
@@ -43,16 +43,16 @@ test('actors spawn with their class loadout, and both teams field a mix', () => 
     assert.equal(h.cls, c);
     assert.deepEqual(h.loadout, [CLASSES[c].primary, 'pistol']);
     assert.equal(h.cur, CLASSES[c].primary);
-    assert.equal(h.weapons[h.cur], WEAPONS[h.cur].mag);
+    assert.equal(h.weapons[h.cur], c === 'antitank' ? CLASSES.antitank.rockets : WEAPONS[h.cur].mag);
   }
-  const g = new Game({ seed: 1, teamSize: 5, humanClass: 'medic' });
+  const g = new Game({ seed: 1, teamSize: 5, humanClass: 'medic', classes: true });
   for (const t of [TEAM.ATT, TEAM.DEF]) assert.equal(new Set(g.actors.filter(a => a.team === t).map(a => a.cls)).size, 5, `${t} has all five kits`);
 });
 
 test('weapons switch only between the two in the loadout', () => {
   const g = arena('scout'); const h = me(g);
   h.input.weapon = 'pistol'; run(g, 2); assert.equal(h.cur, 'pistol');
-  h.input.weapon = 'launcher'; run(g, 2); assert.equal(h.cur, 'pistol', 'cannot pick up a weapon outside the kit');
+  h.input.weapon = 'rocket'; run(g, 2); assert.equal(h.cur, 'pistol', 'cannot select a weapon outside the kit');
   h.input.weapon = 'sniper'; run(g, 2); assert.equal(h.cur, 'sniper');
 });
 
@@ -61,7 +61,7 @@ test('class can be changed for the next round', () => {
   g.setClass(h, 'engineer');
   assert.equal(h.cls, 'assault');
   g.startRound();
-  assert.equal(h.cls, 'engineer'); assert.equal(h.cur, 'rifle'); assert.equal(h.gadget, 'mine');
+  assert.equal(h.cls, 'engineer'); assert.equal(h.cur, 'bolt'); assert.equal(h.gadget, 'mine');
 });
 
 test('a scoped sniper headshot kills in one hit and the body takes two', () => {
@@ -87,30 +87,25 @@ test('scoping slows movement and is cancelled by reloading', () => {
   h.weapons.sniper = 3; h.input.reload = true; run(g, 3); assert.equal(h.scoped, false);
 });
 
-test('a rocket flies, explodes on the wall and splashes nearby enemies', () => {
+test('anti-tank fires the map rocket launcher: it flies, bursts, and hurts what it hits', () => {
   const g = arena('antitank'); const h = me(g), t = foe(g);
   face(g, h, t, 20);
-  const others = g.actors.filter(a => a !== h && a !== t); for (const o of others) o.pos = { x: 5, y: 0, z: 5 };
+  for (const o of g.actors.filter(a => a !== h && a !== t)) o.pos = { x: 5, y: 0, z: 5 };
+  assert.equal(h.cur, 'rocket');
   h.input.fire = true; run(g, 1); h.input.fire = false;
   assert.equal(g.projectiles.length, 1);
-  assert.equal(g.projectiles[0].kind, 'rocket');
-  assert.equal(h.weapons.launcher, 0);
-  const ev = []; for (let i = 0; i < 120 && g.projectiles.length; i++) { g.step(); ev.push(...g.drainEvents()); }
+  assert.equal(h.weapons.rocket, CLASSES.antitank.rockets - 1);
+  const ev = []; for (let i = 0; i < 180 && g.projectiles.length; i++) { g.step(); ev.push(...g.drainEvents()); }
   assert.equal(g.projectiles.length, 0);
-  assert.ok(ev.some(e => e.type === 'boom' && e.cause === 'rocket'));
-  assert.ok(t.hp <= 100 - WEAPONS.launcher.proj.direct + 1 || !t.alive, `direct hit took ${100 - t.hp}`);
+  assert.ok(ev.some(e => e.type === 'rocketExplode'));
+  assert.ok(t.hp < 100 || !t.alive, 'target hurt');
 });
 
-test('a rocket fired at point blank also hurts the shooter, but friends are spared', () => {
+test('anti-tank falls back to the pistol when the rockets run out', () => {
   const g = arena('antitank'); const h = me(g);
-  const mate = g.actors.find(a => a.team === h.team && a !== h);
-  const t = foe(g);
-  face(g, h, t, 2.5);
-  mate.pos = { x: h.pos.x + 1, y: 0, z: h.pos.z - 1.2 };
-  const hp = mate.hp;
-  h.input.fire = true; run(g, 1); h.input.fire = false; run(g, 30);
-  assert.ok(h.hp < 100, 'self splash');
-  assert.equal(mate.hp, hp, 'no friendly fire');
+  h.weapons.rocket = 1; h.input.fire = true; run(g, 3); h.input.fire = false; run(g, 60);
+  assert.equal(h.weapons.rocket, 0);
+  assert.equal(h.cur, 'pistol');
 });
 
 test('grenades arc, bounce and blow up after the fuse; the count runs down', () => {
@@ -119,16 +114,16 @@ test('grenades arc, bounce and blow up after the fuse; the count runs down', () 
   h.pitch = 0.3;
   h.input.gadget = true; run(g, 1); h.input.gadget = false; run(g, 1);
   assert.equal(h.gadgetN, GADGETS.grenade.n - 1);
-  assert.equal(g.projectiles.length, 1);
-  const y0 = g.projectiles[0].pos.y;
-  run(g, 20); assert.notEqual(g.projectiles[0].pos.y, y0, 'gravity acts');
+  assert.equal(g.thrown.length, 1);
+  const y0 = g.thrown[0].pos.y;
+  run(g, 20); assert.notEqual(g.thrown[0].pos.y, y0, 'gravity acts');
   let boom = false;
   for (let i = 0; i < 200 && !boom; i++) { g.step(); boom = g.drainEvents().some(e => e.type === 'boom' && e.cause === 'grenade'); }
   assert.ok(boom, 'detonates at the end of the fuse');
-  assert.equal(g.projectiles.length, 0);
+  assert.equal(g.thrown.length, 0);
   // Out of grenades means nothing more is thrown.
   h.gadgetN = 0; h.gadgetCd = 0; h.input.gadget = true; run(g, 2);
-  assert.equal(g.projectiles.length, 0);
+  assert.equal(g.thrown.length, 0);
 });
 
 test('engineer mines arm, then kill enemies who walk over them; friends walk past', () => {
@@ -154,7 +149,7 @@ test('engineer mines arm, then kill enemies who walk over them; friends walk pas
 test('the engineer plants and defuses faster than anyone else', () => {
   assert.ok(CLASSES.engineer.plant < 1 && CLASSES.engineer.defuse < 1);
   const time = cls => {
-    const g = new Game({ seed: 9, human: true, humanClass: cls, teamSize: 2, pieces: false, humanTeam: TEAM.ATT });
+    const g = new Game({ seed: 9, human: true, humanClass: cls, classes: true, items: false, teamSize: 2, pieces: false, humanTeam: TEAM.ATT });
     while (g.state === 'freeze') g.step();
     for (const a of g.actors) a.brain = null;
     const h = g.human;
@@ -210,10 +205,10 @@ test('kill feed names the national weapon variant', () => {
 });
 
 test('bot-only matches with every class still finish, and every kit gets used', () => {
-  const seen = { launch: 0, mine: 0, spot: 0, heal: 0, boom: 0 };
+  const seen = { rocket: 0, mine: 0, spot: 0, heal: 0, boom: 0 };
   const kills = {};
   for (const seed of [11, 12]) {
-    const g = new Game({ seed, human: false, teamSize: 5 });
+    const g = new Game({ seed, human: false, teamSize: 5, classes: true });
     for (let i = 0; i < 60 * 60 * 25 && !g.matchOver; i++) {
       g.step();
       for (const e of g.drainEvents()) if (e.type in seen) seen[e.type]++;
@@ -228,7 +223,7 @@ test('bot-only matches with every class still finish, and every kit gets used', 
 
 test('the player can wear any roster look, and the bot who had it gets the default one', async () => {
   const { lookFor } = await import('../public/src/looks.js');
-  const g = new Game({ seed: 2, human: true, humanTeam: TEAM.ATT, teamSize: 3, humanLook: 'Cole' });
+  const g = new Game({ seed: 2, human: true, humanTeam: TEAM.ATT, teamSize: 3, humanLook: 'Cole', classes: true });
   assert.equal(g.human.name, 'You');
   assert.equal(lookFor(g.human).hat[0], 'cowboy');
   const cole = g.actors.find(a => a.name === 'Cole');

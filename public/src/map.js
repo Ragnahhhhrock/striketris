@@ -1,5 +1,8 @@
 import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WALL_H } from './config.js';
 import { Grid, STATIC, EMPTY } from './grid.js';
+import { LIFT_SPOTS, makeLifts } from './lifts.js';
+import { makeWalls } from './walls.js';
+import { PICKUP_SPOTS } from './pickups.js';
 
 // Original three-lane layout. Attackers start south, defenders north, sites flank the defenders.
 // Rects are inclusive [x0, x1, z0, z1] cell ranges.
@@ -38,7 +41,7 @@ export const SPAWNS = {
   defenders: { rect: [13, 18, 2, 4], cells: [[13, 3], [15, 3], [17, 3], [14, 2], [16, 2], [18, 3]] },
 };
 // Pieces may never land on these columns, so spawns and plant spots stay usable.
-export const KEEPOUT = [SITES.A.core, SITES.B.core, SPAWNS.attackers.rect, SPAWNS.defenders.rect];
+export const KEEPOUT = [SITES.A.core, SITES.B.core, SPAWNS.attackers.rect, SPAWNS.defenders.rect, ...LIFT_SPOTS.map(l => l.rect), ...PICKUP_SPOTS.map(p => [p.x, p.x, p.z, p.z])];
 export const inRect = (r, x, z) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
 
 // Hold points give defenders and escorts somewhere sensible to stand.
@@ -63,6 +66,8 @@ export function buildMap() {
     const mx = (cx + 0.5) * CELL, mz = (cz + 0.5) * CELL;
     g.crates.push({ cx, cy: 0, cz, x0: mx - size / 2, x1: mx + size / 2, y0: 0, y1: tall, z0: mz - size / 2, z1: mz + size / 2 });
   }
+  g.lifts = makeLifts();
+  g.walls = makeWalls();
   g.freeze();
   return g;
 }

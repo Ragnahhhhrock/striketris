@@ -448,7 +448,7 @@ function buildLauncher() {
   return { body, mag, right: [0, -0.06, 0.0], left: [0, -0.06, -0.4], magWell: [0, 0.1, -0.7], muzzle: [0, 0.1, -0.9] };
 }
 
-const BUILDERS = { rifle: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, launcher: buildLauncher };
+const BUILDERS = { rifle: buildRifle, bolt: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, rocket: buildLauncher };
 
 // Gear worn by each kit, in spine space (waist origin, front is -Z). Silhouettes read at a glance.
 function buildKit(cls, look, bw) {
@@ -494,7 +494,8 @@ const HOLD = {
   smg: { pos: [0.04, 0.42, -0.24] },
   lmg: { pos: [0.04, 0.4, -0.22] },
   sniper: { pos: [0.04, 0.4, -0.26] },
-  launcher: { pos: [0.1, 0.46, -0.12] },
+  rocket: { pos: [0.1, 0.46, -0.12] },
+  bolt: { pos: [0.04, 0.4, -0.26] },
 };
 
 // ---------------------------------------------------------------------------

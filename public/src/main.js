@@ -35,13 +35,23 @@ const touch = new TouchControls({
   key: (code, down) => dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true, cancelable: true })),
   look: (dx, dy) => look(dx, dy),
   pause: () => pause(),
-  swap: () => { const h = game?.human; if (mode === 'play' && h?.alive) h.input.weapon = h.cur === h.loadout[0] ? h.loadout[1] : h.loadout[0]; },
+  swap: () => cycleWeapon(1),
   toggleSteer: () => { steerOpen = !steerOpen; },
 });
+
+// Next or previous weapon you can use right now: the kit's two guns, and a picked-up launcher that has rockets.
+function cycleWeapon(dir) {
+  const h = game?.human;
+  if (mode !== 'play' || !h?.alive) return;
+  const ids = [...new Set([...h.loadout, 'rocket'])].filter(id => game.canSelect(h, id));
+  if (ids.length < 2) return;
+  h.input.weapon = ids[(ids.indexOf(h.cur) + dir + ids.length) % ids.length];
+}
 
 function resetFree() { Object.assign(free, { x: W * CELL / 2, y: 78, z: D * CELL / 2 + 46, yaw: 0, pitch: -0.85 }); }
 resetFree();
 
+window.__renderer = renderer;
 function load(g) { game = g; renderer.setGame(g); hud.setGame(g); window.__game = g; }
 
 const sideEl = () => $('optSide').value;
@@ -64,7 +74,7 @@ $('changeChar').onclick = () => { $('menu').hidden = true; showSelect(); };
 $('optSide').addEventListener('change', () => { pick.side = $('optSide').value; });
 $('optClass').addEventListener('change', () => { pick.cls = $('optClass').value; });
 
-function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
+function menuGame() { load(new Game({ human: false, classes: true, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
 
 function start(keep) {
   audio.unlock();
@@ -76,6 +86,7 @@ function start(keep) {
     humanTeam: $('optSide').value,
     humanClass: $('optClass').value,
     humanLook: pick.look,
+    classes: true,
     teamSize: Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
@@ -178,6 +189,7 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 2) { dragging = false; keys.delete('Mouse2'); } else keys.delete('Mouse0'); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('wheel', e => { if (mode === 'play') { cycleWeapon(e.deltaY > 0 ? 1 : -1); e.preventDefault(); } }, { passive: false });
 
 addEventListener('keydown', e => {
   if (mode === 'play' && !['F5', 'F12'].includes(e.code)) e.preventDefault();
@@ -196,6 +208,7 @@ addEventListener('keydown', e => {
   if (h?.alive) {
     if (e.code === 'Digit1') h.input.weapon = h.loadout[0];
     if (e.code === 'Digit2') h.input.weapon = h.loadout[1];
+    if (e.code === 'Digit3') h.input.weapon = 'rocket';
   } else {
     if (e.code === 'KeyF') {
       if (!camFree && lastView) Object.assign(free, { x: lastView.x, y: lastView.y, z: lastView.z, yaw: lastView.yaw, pitch: lastView.pitch });
@@ -258,7 +271,7 @@ function chooseView(now) {
   }
   if (h?.alive) {
     const e = eyePos(h);
-    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
+    return { mode: 'first', x: e.x, y: e.y, z: e.z, yaw: h.yaw + h.recoilYaw, pitch: h.pitch + h.recoil, actor: h, reloading: h.reloadT > 0, weapon: h.cur, scoped: h.scoped, zoom: WEAPONS[h.cur].scope ?? 1 };
   }
   if (!camFree) {
     const mates = h ? game.alive(h.team) : [];

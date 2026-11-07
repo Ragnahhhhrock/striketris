@@ -12,7 +12,7 @@ const { makeRig, BODY } = await import('../public/src/characters.js');
 const ATT = ['Ash', 'Brick', 'Cole', 'Dune', 'Echo', 'Flint'];
 const DEF = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
 
-function fighter(name = 'Ash', team = TEAM.ATT, id = 0, cls = 'engineer') {
+function fighter(name = 'Ash', team = TEAM.ATT, id = 0, cls = 'rifleman') {
   const a = makeActor(id, team, name, false, cls);
   resetActor(a);
   return a;
@@ -108,7 +108,7 @@ test('legs actually swing while running and stay still when idle', () => {
 });
 
 test('both hands reach the weapon in every stance and while looking up or down', () => {
-  for (const [cls, cur] of [['assault', 'smg'], ['medic', 'lmg'], ['engineer', 'rifle'], ['scout', 'sniper'], ['antitank', 'launcher'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
+  for (const [cls, cur] of [['assault', 'smg'], ['medic', 'lmg'], ['engineer', 'bolt'], ['scout', 'sniper'], ['antitank', 'rocket'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
     for (const stance of ['stand', 'crouch', 'run', 'fire']) {
       const a = fighter(n, TEAM.ATT, 0, cls); a.cur = cur; a.pitch = pitch;
       if (stance === 'crouch') a.crouching = true;
@@ -183,6 +183,6 @@ test('a rig re-dresses when the actor changes class between rounds', () => {
   const a = fighter('Ash', TEAM.ATT, 0, 'assault'); const rig = makeRig(a); settle(rig, 5);
   assert.ok(rig.guns.smg);
   a.nextCls = 'antitank'; resetActor(a); settle(rig, 5);
-  assert.ok(rig.guns.launcher && !rig.guns.smg);
+  assert.ok(rig.guns.rocket && !rig.guns.smg);
   assert.equal(rig.kitCls, 'antitank');
 });

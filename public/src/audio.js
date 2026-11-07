@@ -11,7 +11,29 @@ export class Audio {
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     }
+    // iOS (Safari and Chrome) mutes Web Audio when the ringer switch is on silent.
+    // Declaring a playback session, plus a looping silent <audio> element, routes it as media.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    if (!this.keep) {
+      try {
+        const el = document.createElement('audio');
+        el.src = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+        el.loop = true; el.setAttribute('playsinline', ''); el.preload = 'auto';
+        this.keep = el;
+      } catch {}
+    }
+    if (this.keep) this.keep.play().catch(() => {});
     this.ctx.resume();
+    // Play one silent sample inside the gesture so iOS fully unlocks the context.
+    const b = this.ctx.createBufferSource();
+    b.buffer = this.ctx.createBuffer(1, 1, 22050); b.connect(this.ctx.destination); b.start(0);
+    if (!this.hooked) {
+      this.hooked = true;
+      // iOS suspends or 'interrupts' the context on tab switch, calls and lock; re-wake on next input.
+      const wake = () => { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); if (this.keep && this.keep.paused) this.keep.play().catch(() => {}); };
+      for (const t of ['touchend', 'pointerup', 'click', 'keydown']) addEventListener(t, wake, true);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    }
   }
   burst(vol, freq, len, type = 'lowpass') {
     if (!this.ctx || vol < 0.01) return;
@@ -33,8 +55,63 @@ export class Audio {
   event(e, viewer) {
     const at = p => (viewer && p ? Math.max(0, 1 - Math.hypot(viewer.pos.x - p.x, viewer.pos.z - p.z) / 70) : 0.4);
     switch (e.type) {
-      case 'shot': { const v = e.actor === viewer ? 0.32 : at(e.from) * 0.22; const W = { pistol: [3400, 0.1], smg: [3000, 0.09], lmg: [1800, 0.14], rifle: [2200, 0.18], sniper: [1300, 0.32], launcher: [700, 0.4] }[e.weapon] ?? [2400, 0.13];
-        this.burst(v * (e.weapon === 'sniper' || e.weapon === 'launcher' ? 1.6 : 1), W[0], W[1]); if (e.weapon === 'launcher') this.tone(v, 140, 50, 0.35, 'sawtooth'); break; }
+      case 'shot': {
+        const v = e.actor === viewer ? 1 : at(e.from) * 0.65;
+        if (e.weapon === 'pistol') {
+          // Hand cannon: a deep boom, a sharp crack, a chest thump and a room tail.
+          this.burst(0.5 * v, 1500, 0.28);
+          this.burst(0.3 * v, 4200, 0.05, 'highpass');
+          this.tone(0.55 * v, 230, 42, 0.2);
+          this.burst(0.12 * v, 480, 0.75);
+        } else if (e.weapon === 'sniper' || e.weapon === 'bolt') {
+          // Bolt actions: one big crack and a long rolling echo.
+          const big = e.weapon === 'sniper' ? 1.25 : 0.9;
+          this.burst(0.42 * v * big, 2400, 0.14);
+          this.tone(0.5 * v * big, 120, 40, 0.22);
+          this.burst(0.16 * v * big, 700, 0.9);
+        } else if (e.weapon === 'lmg') {
+          this.burst(0.3 * v, 1700, 0.1);
+          this.tone(0.4 * v, 110 + Math.random() * 15, 45, 0.1);
+        } else if (e.weapon === 'smg') {
+          this.burst(0.22 * v, 3600, 0.05, 'highpass');
+          this.burst(0.16 * v, 2300, 0.07);
+        } else {
+          // Rifle: a tight, bright crack with a light thud so a long burst stays readable.
+          this.burst(0.3 * v, 3200, 0.07, 'highpass');
+          this.burst(0.22 * v, 1900, 0.11);
+          this.tone(0.3 * v, 160 + Math.random() * 20, 55, 0.08);
+        }
+        break;
+      }
+      case 'rocket': {
+        // Launch: a hollow thump with a hiss of exhaust.
+        const v = e.actor === viewer ? 1 : at(e.from) * 0.7;
+        this.tone(0.5 * v, 150, 38, 0.3, 'sawtooth');
+        this.burst(0.34 * v, 900, 0.36);
+        this.burst(0.18 * v, 2600, 0.2, 'highpass');
+        break;
+      }
+      case 'rocketExplode': {
+        const v = Math.max(0.2, at(e.pos));
+        this.burst(0.85 * v, 420, 1.1);
+        this.tone(0.8 * v, 90, 22, 0.9);
+        this.burst(0.3 * v, 3200, 0.12, 'highpass');
+        break;
+      }
+      case 'pickup':
+        if (e.actor !== viewer) break;
+        if (e.what === 'health') { this.tone(0.16, 520, 780, 0.12); setTimeout(() => this.tone(0.16, 780, 1040, 0.16), 90); }
+        else if (e.what === 'ammo') { this.burst(0.14, 4200, 0.05, 'highpass'); this.tone(0.14, 300, 220, 0.09, 'square'); setTimeout(() => this.tone(0.14, 300, 220, 0.09, 'square'), 80); }
+        else { this.tone(0.2, 220, 440, 0.25, 'sawtooth'); this.tone(0.14, 330, 660, 0.3); }
+        break;
+      case 'blocksBroken': { const v = Math.max(0.2, at(e.pos)); this.burst(0.5 * v, 1400, 0.35); this.tone(0.25 * v, 220, 80, 0.3, 'square'); break; }
+      case 'pickupSpawn': this.tone(0.05 * at(e.pickup), 900, 1300, 0.12); break;
+      case 'ricochet': {
+        const v = Math.max(at(e.pos), e.actor === viewer ? 0.5 : 0);
+        this.tone(0.11 * v, 3000 + Math.random() * 900, 800, 0.24, 'sawtooth');
+        this.burst(0.14 * v, 5200, 0.06, 'highpass');
+        break;
+      }
       case 'boom': this.burst(at(e.pos) * 1.1, 600, 0.9); this.tone(at(e.pos) * 0.7, 90, 25, 0.8); break;
       case 'mine': if (e.actor === viewer) this.tone(0.1, 400, 300, 0.1, 'square'); break;
       case 'heal': this.tone(0.14, 500, 900, 0.3); break;

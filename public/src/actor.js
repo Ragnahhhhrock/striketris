@@ -1,12 +1,12 @@
 import { MOVE, WEAPONS, CLASSES, GADGETS } from './config.js';
 
-export function makeActor(id, team, name, isHuman, cls = 'assault') {
+export function makeActor(id, team, name, isHuman, cls = 'rifleman') {
   return {
-    id, team, name, isHuman, cls, nextCls: cls, loadout: ['smg', 'pistol'], gadget: null, gadgetN: 0, gadgetCd: 0, lastGadget: false, spottedUntil: 0, scoped: false,
+    id, team, name, isHuman, cls, nextCls: cls, loadout: ['rifle', 'pistol'], gadget: null, gadgetN: 0, gadgetCd: 0, lastGadget: false, spottedUntil: 0, scoped: false,
     pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 },
-    yaw: 0, pitch: 0, recoil: 0,
+    yaw: 0, pitch: 0, recoil: 0, recoilYaw: 0,
     hp: 100, alive: true, onGround: true, crouching: false, mantle: null,
-    weapons: {}, cur: 'smg', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
+    weapons: {}, cur: 'rifle', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
     hasBomb: false, kills: 0, deaths: 0,
     input: { f: 0, r: 0, jump: false, crouch: false, walk: false, fire: false, use: false, reload: false, weapon: null, gadget: false, scope: false },
     brain: null,
@@ -15,11 +15,12 @@ export function makeActor(id, team, name, isHuman, cls = 'assault') {
 
 export function resetActor(a) {
   a.hp = 100; a.alive = true; a.vel = { x: 0, y: 0, z: 0 }; a.mantle = null;
-  a.hasBomb = false; a.recoil = 0; a.crouching = false; a.onGround = true;
+  a.hasBomb = false; a.recoil = 0; a.recoilYaw = 0; a.crouching = false; a.onGround = true;
   a.cls = a.nextCls || a.cls;
   const k = CLASSES[a.cls];
   a.loadout = [k.primary, k.secondary];
-  a.weapons = { [k.primary]: WEAPONS[k.primary].mag, [k.secondary]: WEAPONS[k.secondary].mag };
+  a.weapons = {};
+  for (const id of a.loadout) a.weapons[id] = id === 'rocket' ? (k.rockets ?? WEAPONS.rocket.start) : WEAPONS[id].mag;
   a.gadget = k.gadget; a.gadgetN = k.gadget ? GADGETS[k.gadget].n : 0; a.gadgetCd = 0; a.lastGadget = false;
   a.spottedUntil = 0; a.scoped = false;
   a.cur = k.primary; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
@@ -30,9 +31,9 @@ export const actorHeight = a => (a.crouching ? MOVE.crouchHeight : MOVE.height);
 export const eyePos = a => ({ x: a.pos.x, y: a.pos.y + (a.crouching ? MOVE.crouchEye : MOVE.eye), z: a.pos.z });
 
 export function aimDir(a) {
-  const p = a.pitch + a.recoil;
+  const p = a.pitch + a.recoil, yaw = a.yaw + a.recoilYaw;
   const c = Math.cos(p);
-  return { x: -Math.sin(a.yaw) * c, y: Math.sin(p), z: -Math.cos(a.yaw) * c };
+  return { x: -Math.sin(yaw) * c, y: Math.sin(p), z: -Math.cos(yaw) * c };
 }
 
 const R = MOVE.radius;

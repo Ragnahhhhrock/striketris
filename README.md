@@ -17,7 +17,7 @@ Connect this repo in Workers & Pages, leave the build command empty, set the out
 
 ## Mobile
 
-Touch devices get on-screen controls automatically (add `?touch=1` to force them on a desktop). Left thumb is a floating move stick, right thumb drags to look, and the buttons are Fire (drag on it to aim while shooting), Jump, Use, Reload, Crouch and Swap. The Steer button appears when you can steer the falling block and swaps the buttons for arrows, rotate, flip, tumble and drop. Landscape works best. Code is in `public/src/touch.js`.
+Touch devices get on-screen controls automatically (add `?touch=1` to force them on a desktop). Left thumb is a floating move stick, right thumb drags to look, and the buttons are Fire (drag on it to aim while shooting), Jump, Use, Reload, Crouch and Swap (cycles weapons, including the launcher once you have one). The Steer button appears when you can steer the falling block and swaps the buttons for arrows, rotate, flip, tumble and drop. Landscape works best. Code is in `public/src/touch.js`.
 
 ## The rules being tested
 
@@ -28,6 +28,13 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 - **Steering:** a block takes about 4.5 seconds to fall and can be moved, rotated, flipped over and tumbled upright the whole way down, until the last 1.5 cells. Arrow keys move (relative to your camera), Z and X rotate, V flips, B tumbles, Enter hard drops. Rotations pivot around the centre and try small wall kicks. Anyone spectating, dead or invulnerable can steer. If nobody does, an AI director nudges the block once to help finish a line. A steered block can never seal off a site or trap a player.
 - **Arena:** a dark Tetris well with a neon rim and corner towers, glass walls up to the sky and neon blocks drifting around it. Walls and floor are bright base colours in bands that sweep across the room. About one wall cube in six is a glowing neon block.
 - **Shifting arena:** every wall cube and floor tile rotates, flips, slides or drops out and returns in a travelling wave, changing colour as it goes. This is visual only: collision stays on the voxel grid, so the room is always where the simulation says it is. Code is in `public/src/arenaFx.js`. Reduced-motion users get the colours without the movement.
+- **Elevators:** five floor sections (mid, both sites, both long lanes) rest flush with the floor, rise 4.5 m, hold, then lower. Raised, they are solid: they block movement and shots and give a high vantage. They carry anyone standing on them, shove up anyone over them as they rise, and squash anyone left with no headroom. The cap turns orange while moving. Blocks cannot land on them. Mirrored lifts share a timer. Tunables are `LIFT` in `config.js`; spots and timing are in `public/src/lifts.js`.
+- **Closing walls:** 40 seconds into a live round four slabs start sliding in from the edges, shaded red on the minimap, with a countdown on the HUD beforehand. They meet in the middle at 100 seconds, leaving a gap narrower than a player, so anyone still alive is squashed. Walls shove players inward and squash anyone pinned against something solid. They block movement, shots and sight. A planted bomb the walls reach goes off at once, a dropped bomb is nudged ahead of them, and blocks no longer land near them. Bots drift toward the shrinking floor. If both teams are crushed with no bomb down, defenders win the round. Tunables are `CLOSE` in `config.js`; code is in `public/src/walls.js`.
+- **Pickups:** health packs (+35, up to 100), ammo boxes and rocket launchers sit on the map and come back after 20 to 25 seconds. Spots are in `public/src/pickups.js`: two launchers in mid, one toward each team, and health and ammo near the sites and lanes. Blocks never land on a pickup column. Everything resets each round. The minimap shows items that are up. Tunables are `PICKUP` in `config.js`.
+- **Rocket launcher:** nobody spawns with it. Walking over one gives it to you with 5 rockets and puts it in your hands. Keys 1, 2 and 3 pick weapons and the mouse wheel cycles them. Rockets fly at 24 m/s and burst on the first wall, crate, lift or body. The blast does up to 100 damage, fading to nothing at 5 m, plus 30 for a direct hit. Walls shield from it. It shoves everyone nearby, so firing at your feet is a rocket jump that costs about half the blast in health. Teammates are shoved but never hurt. Blasts also damage settled blocks: one rocket destroys the block it hits, and cubes the blast can see nearby darken as they crack and break after 120 damage, so a second rocket opens up a thick wall. Map walls, crates and lifts are untouched, and a bomb resting on a broken block drops to the floor below. Out of rockets it drops back to the rifle. Tunables are `WEAPONS.rocket` in `config.js`.
+- **Destructible blocks:** settled blocks have 120 HP. A rocket breaks the block it hits in one go. Bullets only chip them (`blockDmg` in `config.js`): about 24 rifle hits or 9 pistol hits per block, less on a ricochet. Damaged blocks darken toward charred. Falling blocks can be shot too: each cube has the same 120 HP, so you can shoot cubes out of an incoming block (rockets break the one they hit) and it lands with only what is left, still damaged. Destroy every cube and the block is gone. Blocks reset each round; map walls, crates and lifts cannot be destroyed.
+- **Ammo boxes:** refill the rifle and pistol magazines instantly and add 4 rockets if you carry the launcher.
+- **Bots and items:** a hurt bot detours for health, and the nearest bot without a launcher goes for one. They fire rockets at mid range when the path is clear and switch back to the rifle up close.
 - **Block lighting:** the falling block glows and lights the map in its own colour.
 - **Stacks are terrain:** blocks stay for the round as cover, walls and high ground. Hold Space at a ledge to climb up to one cube.
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
@@ -55,8 +62,8 @@ Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is 
 | Assault | SMG (MP 40 / Thompson) | Pistol | 3 hand grenades | Best up close |
 | Scout | Scoped bolt rifle (Kar 98k / Springfield) | Pistol | Binoculars | `Right mouse` (or `T`) zooms 3.2x; spots enemies onto the minimap and shows a marker for the team |
 | Medic | LMG (MG 34 / BAR) | Pistol | Medic kit, 4 charges | Heals the most hurt teammate in reach, else yourself |
-| Engineer | Rifle (Kar 98k / M1 Garand) | Pistol | 3 mines | The wrench: plants in 0.6x and defuses in 0.55x the time |
-| Anti-Tank | Rocket launcher (Panzerschreck / Bazooka) | Pistol | none | Splash damage, slow reload, hurts you at point blank |
+| Engineer | Bolt rifle (Kar 98k / M1 Garand) | Pistol | 3 mines | The wrench: plants in 0.6x and defuses in 0.55x the time |
+| Anti-Tank | Rocket launcher (Panzerschreck / Bazooka) | Pistol | none | The map's rocket launcher: 8 rockets to start, splash damage, rocket jumps and it breaks blocks. Ammo pickups add rockets |
 
 Adaptations: there are no vehicles here, so mines and rockets are used against infantry; there is no kit pickup mid-round. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, red-cross pack, mines, spare rockets).
 
@@ -72,8 +79,10 @@ Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live r
 | `public/src/map.js` | Level layout, sites, spawns |
 | `public/src/grid.js` | Voxel world, collision, raycasts |
 | `public/src/pieces.js` | Shapes, landing spots, line clears |
+| `public/src/walls.js` | Closing walls: timing, pushing, squashing |
+| `public/src/pickups.js` | Item spots, collecting, respawning |
 | `public/src/nav.js` | Bot pathfinding on the changing grid |
-| `public/src/game.js` | Rounds, bomb, weapons, blocks. Runs headless |
+| `public/src/game.js` | Rounds, bomb, weapons, rockets, blocks. Runs headless |
 | `public/src/bots.js` | Bot behaviour |
 | `public/src/looks.js` | Who each fighter is: hats, hair, facial hair, kit |
 | `public/src/characters.js` | Character rigs, weapons, kit gear and animation |

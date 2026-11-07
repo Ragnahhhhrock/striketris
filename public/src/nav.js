@@ -72,6 +72,7 @@ export class Nav {
         let step = diag ? 1.41 : 1;
         if (p.y > c.y) step += 2;
         if (danger && danger.has(p.x + p.z * W)) step += 25;
+        if (this.g.cellClosed(p.x, p.z, CELL)) step += 40;
         const g = this.cost[cur] + step;
         if (this.stamp[n] !== run || g < this.cost[n]) {
           this.stamp[n] = run; this.cost[n] = g; this.from[n] = cur;

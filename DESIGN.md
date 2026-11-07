@@ -66,7 +66,7 @@ Body line height `--leading-body` (1.45). Keep copy lines under 80 characters. S
 
 ## Motion
 
-Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s), block warning pulse. The arena is the one decorative exception: walls and floor tiles rotate, flip and slide in waves, visual only. Respect `prefers-reduced-motion` for the warning pulse and the arena movement.
+Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s), block warning pulse. The arena is the one decorative exception: walls and floor tiles rotate, flip and slide in waves, visual only. Elevators are gameplay, not decoration: their caps are neon yellow at rest and neon orange while moving, and they keep moving under `prefers-reduced-motion`. Respect `prefers-reduced-motion` for the warning pulse and the decorative arena movement.
 
 ## Copy
 
