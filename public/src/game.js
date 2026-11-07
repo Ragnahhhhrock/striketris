@@ -472,7 +472,7 @@ export class Game {
     if (t.isHuman && this.opts.god) return;
     t.hp = 0; t.alive = false; t.deaths++; t.mantle = null;
     const teamKill = !!by && by !== t && by.team === t.team;
-    if (by && by !== t) by.kills += teamKill ? -1 : 1;
+    if (by && by !== t && !teamKill) by.kills++;
     if (t.hasBomb) {
       t.hasBomb = false;
       const y = t.pos.y;
