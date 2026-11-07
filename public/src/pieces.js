@@ -1,6 +1,7 @@
 import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MAX_STACK, MIN_LINE, CLOSE, PIT } from './config.js';
 import { EMPTY, STATIC } from './grid.js';
 import { KEEPOUT, inRect, SITES, SPAWNS } from './map.js';
+import { STAIRWELLS, MEZZANINES } from './levels.js';
 
 // The seven one-sided tetrominoes in 2D (a, b).
 export const SHAPES = [
@@ -91,6 +92,12 @@ export function choosePlacement(game, shapeId) {
       const c = recent[Math.floor(rng() * recent.length)];
       x = c.x - 3 + Math.floor(rng() * 7);
       z = c.z - 3 + Math.floor(rng() * 7);
+    } else if (rng() < 0.25) {
+      // Drop into a stairwell (down to the lower level) or onto a mezzanine deck.
+      const spots = [...STAIRWELLS.map(w => w.rect), ...MEZZANINES.map(m => m.deck)];
+      const r = spots[Math.floor(rng() * spots.length)];
+      x = r[0] - 1 + Math.floor(rng() * (r[1] - r[0] + 2));
+      z = r[2] - 1 + Math.floor(rng() * (r[3] - r[2] + 2));
     } else if (living.length && rng() < 0.4) {
       const a = living[Math.floor(rng() * living.length)];
       x = Math.floor(a.pos.x / 3) - 2 + Math.floor(rng() * 4);

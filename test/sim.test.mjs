@@ -1157,3 +1157,15 @@ test('levels: stairwells, lower cover and mezzanines are built and keep clear of
   const p = nav.path(from, { x: deck[0], y: 3, z: deck[2] });
   assert.ok(p && p.length > 2, 'bots can climb the stairs to the mezzanine');
 });
+
+test('falling pieces can land in a stairwell and on a mezzanine deck', async () => {
+  const { STAIRWELLS, MEZZANINES } = await import('../public/src/levels.js');
+  const g = buildMap();
+  const cells = orient(1, 0, 0);   // flat O piece, 2x2
+  const w = STAIRWELLS[0].rect;
+  const yw = validPlacement(g, cells, w[0], w[2], null);
+  assert.ok(yw !== null && yw < 0, 'a piece over a stairwell falls to the lower level');
+  const d = MEZZANINES[0].deck;
+  const yd = validPlacement(g, cells, d[0], d[2], null);
+  assert.equal(yd, 3, 'a piece over a mezzanine deck rests on the deck');
+});
