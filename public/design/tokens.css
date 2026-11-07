@@ -21,9 +21,9 @@
   --ink-faint: rgba(241, 242, 243, .55);
 
   /* Signals: each colour means one thing */
-  --bomb: #ff4a3d;            /* primary action, bomb timer, incoming block warning */
-  --bomb-hover: #ff6459;
-  --bomb-deep: #7a1f1a;       /* site labels on the map */
+  --strike: #ff4a3d;            /* primary action, round timer alert, incoming block warning */
+  --strike-hover: #ff6459;
+  --strike-deep: #7a1f1a;       /* objective labels on the map */
   --gold: #ffd76a;            /* selection, freeze timer, you, progress */
   --go: #5dff7d;              /* health, crosshair */
   --steer: #00e5ff;           /* block steering mode */

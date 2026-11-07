@@ -4,9 +4,10 @@ html { background: var(--well-900); color: var(--ink); font-family: var(--font);
 body { margin: 0; }
 code { background: var(--well-600); padding: 1px 5px; border: var(--rule) solid var(--line); font-size: var(--text-sm); }
 .top, main { width: min(960px, 100% - 2 * var(--space-4)); margin-inline: auto; }
-.top { padding: var(--space-7) 0 var(--space-5); border-top: var(--accent-bar) solid var(--bomb); margin-top: 0; }
+.top { padding: var(--space-7) 0 var(--space-5); border-top: var(--accent-bar) solid var(--strike); margin-top: 0; }
 .top h1 { margin: var(--space-5) 0 var(--space-2); font-size: var(--text-display); letter-spacing: -1px; line-height: var(--leading-tight); }
 .top p { margin: 0 0 var(--space-5); color: var(--ink-dim); max-width: 64ch; }
+.top p.tag { color: var(--ink); font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-3); }
 .strip { display: flex; }
 .strip i { width: 36px; height: 12px; }
 section { padding: var(--space-6) 0; border-top: var(--rule) solid var(--line); }
@@ -28,15 +29,15 @@ h2 { margin: 0 0 var(--space-3); font-size: var(--text-xl); }
 .rules li { margin-bottom: var(--space-2); }
 
 /* Component samples reuse the game's recipes */
-.card { width: min(560px, 100%); background: var(--panel-solid); padding: var(--space-5); border-top: var(--accent-bar) solid var(--bomb); }
+.card { width: min(560px, 100%); background: var(--panel-solid); padding: var(--space-5); border-top: var(--accent-bar) solid var(--strike); }
 .card h3 { margin: 0; font-size: var(--text-display); letter-spacing: -1px; line-height: var(--leading-tight); }
 .sub { margin: var(--space-1) 0 var(--space-5); color: var(--ink-dim); }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
 .opts label { display: flex; flex-direction: column; gap: 5px; font-size: var(--text-sm); }
 select { font: inherit; padding: var(--space-2); background: var(--well-700); color: var(--ink); border: var(--rule) solid var(--line); border-radius: var(--radius); width: 100%; }
 .row { display: flex; gap: 10px; margin-bottom: var(--space-4); }
-button { font: inherit; font-weight: 700; font-size: var(--text-lg); padding: var(--space-3) 28px; background: var(--bomb); color: #fff; border: 0; border-radius: var(--radius); cursor: pointer; }
-button:hover { background: var(--bomb-hover); }
+button { font: inherit; font-weight: 700; font-size: var(--text-lg); padding: var(--space-3) 28px; background: var(--strike); color: #fff; border: 0; border-radius: var(--radius); cursor: pointer; }
+button:hover { background: var(--strike-hover); }
 button.alt { background: var(--well-500); }
 button.alt:hover { background: var(--well-400); }
 button:focus-visible, select:focus-visible { outline: var(--focus); outline-offset: 2px; }
@@ -48,7 +49,7 @@ kbd { font: inherit; background: var(--well-600); padding: 1px 5px; border: var(
 .small { font-size: var(--text-sm); opacity: .85; }
 .timer { font-size: var(--text-3xl); font-weight: 700; line-height: var(--leading-tight); }
 .tiny { font-size: var(--text-xs); opacity: .65; }
-.warn { background: var(--bomb); color: #fff; font-size: var(--text-xl); font-weight: 700; text-shadow: none; }
+.warn { background: var(--strike); color: #fff; font-size: var(--text-xl); font-weight: 700; text-shadow: none; }
 .ctrl { display: flex; gap: var(--space-3); align-items: baseline; border-bottom: 3px solid var(--steer); font-size: var(--text-sm); }
 .ctrl b { color: var(--steer); }
 .feed { font-size: 13px; }

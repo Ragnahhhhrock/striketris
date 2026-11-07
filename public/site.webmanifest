@@ -1,7 +1,7 @@
 {
   "name": "StrikeTris",
   "short_name": "StrikeTris",
-  "description": "A bomb-defusal shooter where giant falling blocks rebuild the map mid-round.",
+  "description": "A Tetris meets Counter-Strike arena shooter where giant falling blocks crush enemies and rebuild the map mid-round.",
   "start_url": "/",
   "display": "fullscreen",
   "background_color": "#14161a",
