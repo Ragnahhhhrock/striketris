@@ -1,3 +1,4 @@
+import { chaseCam } from './vehicles.js';
 import { TICK, PIECE, CELL, GRID_W as W, GRID_D as D, WEAPONS, CLASSES, CLASS_ORDER, GADGETS, weaponName } from './config.js';
 import { Game } from './game.js';
 import { Renderer } from './render.js';
@@ -74,7 +75,7 @@ $('changeChar').onclick = () => { $('menu').hidden = true; showSelect(); };
 $('optSide').addEventListener('change', () => { pick.side = $('optSide').value; });
 $('optClass').addEventListener('change', () => { pick.cls = $('optClass').value; });
 
-function menuGame() { load(new Game({ human: false, classes: true, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
+function menuGame() { load(new Game({ human: false, classes: true, vehicles: true, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
 
 function start(keep) {
   audio.unlock();
@@ -87,6 +88,7 @@ function start(keep) {
     humanClass: $('optClass').value,
     humanLook: pick.look,
     classes: true,
+    vehicles: true,
     teamSize: Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
@@ -209,6 +211,7 @@ addEventListener('keydown', e => {
     if (e.code === 'Digit1') h.input.weapon = h.loadout[0];
     if (e.code === 'Digit2') h.input.weapon = h.loadout[1];
     if (e.code === 'Digit3') h.input.weapon = 'rocket';
+    if (e.code === 'KeyE') h.input.mount = true;   // a tap is enough: the sim takes it on the next tick
   } else {
     if (e.code === 'KeyF') {
       if (!camFree && lastView) Object.assign(free, { x: lastView.x, y: lastView.y, z: lastView.z, yaw: lastView.yaw, pitch: lastView.pitch });
@@ -268,6 +271,10 @@ function chooseView(now) {
     const cx = W * CELL / 2, cz = D * CELL / 2;
     const x = cx + Math.sin(t) * 62, z = cz + Math.cos(t) * 62, y = 92;
     return { mode: 'orbit', x, y, z, yaw: Math.atan2(x - cx, z - cz), pitch: -0.95, actor: null };
+  }
+  if (h?.alive && h.vehicle) {
+    const c = chaseCam(game, h);
+    return { mode: 'third', x: c.x, y: c.y, z: c.z, yaw: h.yaw, pitch: h.pitch, actor: h, weapon: h.cur, scoped: false, zoom: 1 };
   }
   if (h?.alive) {
     const e = eyePos(h);

@@ -67,6 +67,12 @@ Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is 
 
 Adaptations: there are no vehicles here, so mines and rockets are used against infantry; there is no kit pickup mid-round. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, red-cross pack, mines, spare rockets).
 
+## Vehicles and jetpack
+- **Jetpack**, worn by everyone. Jump, then press and hold `Space` in the air to climb (about 4.5 s of fuel, shown under the health bar). Hold `Ctrl` while burning to ease down. Fuel refills on the ground.
+- **Motorbike** (20 m/s, three times running speed). `E` beside one to ride. `W`/`S` throttle, and it steers toward where you look. Running into enemies at speed hurts badly.
+- **Tank** (650 hp, shrugs off bullets, rockets and shells hurt). `A`/`D` turn the hull on the spot, the turret follows the mouse, click fires the cannon (1.7 s reload, big blast that breaks blocks). The driver is shielded inside.
+- Each team gets one tank and two bikes on the row in front of its spawn, restored every round. Wrecks explode. Bots do not drive yet. Code: `vehicles.js` (sim), `vehicleView.js` (models), tests in `test/vehicles.test.mjs`. Enabled with the `vehicles` game option.
+
 ## Design
 
 Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live reference at `/style-guide.html`. Share images (`og-image.png`, `twitter-card.png`) and app icons are built from `tools/share/share.html` with `npm run share` (needs Chrome and rsvg-convert).

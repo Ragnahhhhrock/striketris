@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, weaponName } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, SHELL, weaponName } from './config.js';
 import { rayBox, rayBoxHit, cellCentre, EMPTY, STATIC } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -8,6 +8,7 @@ import { updateBot, initBrains } from './bots.js';
 import { stepLifts, resetLifts } from './lifts.js';
 import { stepWalls, resetWalls } from './walls.js';
 import { makePickups, resetPickups, stepPickups } from './pickups.js';
+import { makeVehicles, resetVehicles, stepVehicles, exitVehicle, rayVehicle, damageVehicle, shielded } from './vehicles.js';
 
 export function mulberry(seed) {
   let s = seed >>> 0;
@@ -44,6 +45,7 @@ export class Game {
     this.projectiles = [];
     this.nextProj = 1;
     this.thrown = []; this.mines = []; this.time = 0;
+    this.vehicles = this.opts.vehicles ? makeVehicles() : [];
 
     for (const team of [TEAM.ATT, TEAM.DEF]) {
       const names = team === TEAM.ATT ? ATT_NAMES : DEF_NAMES;
@@ -111,6 +113,7 @@ export class Game {
       a.yaw = a.team === TEAM.ATT ? 0 : Math.PI;
       a.pitch = 0;
     }
+    resetVehicles(this);
     const atts = this.actors.filter(a => a.team === TEAM.ATT);
     const carrier = atts[Math.floor(this.rng() * atts.length)];
     carrier.hasBomb = true;
@@ -137,6 +140,7 @@ export class Game {
     this.stepThrown(dt);
     if (this.state === 'post') {
       this.timer -= dt;
+      stepVehicles(this, dt);
       this.stepActors(dt, false);
       this.stepPiece(dt);
       if (this.timer <= 0) {
@@ -152,6 +156,7 @@ export class Game {
     }
     this.timer -= dt;
     stepWalls(this, dt);
+    stepVehicles(this, dt);
     this.stepActors(dt, false);
     this.stepPiece(dt);
     this.stepBomb(dt);
@@ -164,6 +169,7 @@ export class Game {
       if (!a.isHuman) updateBot(this, a, dt, frozen);
       if (frozen) { a.input.f = a.input.r = 0; a.input.jump = false; a.input.fire = false; }
       if (this.isChannelling(a)) { a.input.f = a.input.r = 0; a.input.jump = false; }
+      if (a.vehicle) { a.recoil = a.recoilYaw = 0; continue; }   // the vehicle carries the driver (vehicles.js)
       const fall = stepMovement(this.grid, a, dt);
       if (fall) this.damage(a, fall, null, 'fall');
       if (!a.alive) continue;
@@ -237,24 +243,27 @@ export class Game {
   // Flies every rocket one tick. A rocket bursts on the first wall, crate, lift or body (other than its owner) in its path.
   stepProjectiles(dt) {
     if (!this.projectiles.length) return;
-    const w = WEAPONS.rocket, keep = [];
+    const keep = [];
     for (const p of this.projectiles) {
+      const w = p.spec || WEAPONS.rocket;
       const step = p.speed * dt, d = p.dir, o = p.pos;
       p.age += dt;
       let dist = this.grid.raycast(o.x, o.y, o.z, d.x, d.y, d.z, step);
-      let hit = dist < step - 1e-9, victim = null;
+      let hit = dist < step - 1e-9, victim = null, vehVictim = null;
       for (const t of this.actors) {
-        if (!t.alive || t === p.owner) continue;
+        if (!t.alive || t === p.owner || shielded(t)) continue;
         const h = actorHeight(t), r = MOVE.radius + 0.1;
         const bd = rayBox(o.x, o.y, o.z, d.x, d.y, d.z, t.pos.x - r, t.pos.y, t.pos.z - r, t.pos.x + r, t.pos.y + h, t.pos.z + r);
         if (bd !== null && bd < dist) { dist = bd; hit = true; victim = t; }
       }
+      const vh = rayVehicle(this, o, d, dist, p.owner.team, p.owner.vehicle);
+      if (vh) { dist = vh.t; hit = true; victim = null; vehVictim = vh.v; }
       const cube = this.rayPiece(o, d, dist);
-      if (cube) { dist = cube.t; hit = true; victim = null; }
+      if (cube) { dist = cube.t; hit = true; victim = null; vehVictim = null; }
       if (hit) {
         // Burst just short of the surface so the blast origin is in open air.
         const back = Math.max(0, dist - 0.06);
-        this.explodeRocket(p, { x: o.x + d.x * back, y: o.y + d.y * back, z: o.z + d.z * back }, victim);
+        this.explodeRocket(p, { x: o.x + d.x * back, y: o.y + d.y * back, z: o.z + d.z * back }, victim, vehVictim);
         continue;
       }
       o.x += d.x * step; o.y += d.y * step; o.z += d.z * step;
@@ -317,13 +326,23 @@ export class Game {
 
   // Blast damage falls off linearly with distance from the nearest point of each body, walls shield, and
   // everyone in range gets shoved away, friends included. Teammates take no damage; you take half of yours.
-  explodeRocket(p, at, victim) {
-    const w = WEAPONS.rocket, by = p.owner;
+  explodeRocket(p, at, victim, vehVictim = null) {
+    const w = p.spec || WEAPONS.rocket, by = p.owner;
     this.emit('rocketExplode', { pos: at, proj: p, radius: w.radius, by });
     this.damageBlocks(at, w);
     this.damagePiece(at, w);
+    for (const v of this.vehicles) {
+      if (v.dead) continue;
+      const r = v.spec.r;
+      const nx = Math.max(v.pos.x - r, Math.min(at.x, v.pos.x + r)), ny = Math.max(v.pos.y, Math.min(at.y, v.pos.y + v.spec.h)), nz = Math.max(v.pos.z - r, Math.min(at.z, v.pos.z + r));
+      const dist = Math.hypot(at.x - nx, at.y - ny, at.z - nz);
+      if (dist >= w.radius) continue;
+      let dmg = w.splash * (1 - dist / w.radius) + (v === vehVictim ? w.direct : 0);
+      if (v.driver === by) dmg *= w.selfScale;
+      damageVehicle(this, v, dmg, by, 'blast');
+    }
     for (const t of this.actors) {
-      if (!t.alive) continue;
+      if (!t.alive || shielded(t)) continue;
       const h = actorHeight(t), r = MOVE.radius;
       const nx = Math.max(t.pos.x - r, Math.min(at.x, t.pos.x + r)), ny = Math.max(t.pos.y, Math.min(at.y, t.pos.y + h)), nz = Math.max(t.pos.z - r, Math.min(at.z, t.pos.z + r));
       const dist = Math.hypot(at.x - nx, at.y - ny, at.z - nz);
@@ -341,7 +360,7 @@ export class Game {
       if (t.team === by.team && t !== by) continue;
       let dmg = w.splash * fall + (t === victim ? w.direct : 0);
       if (t === by) dmg *= w.selfScale;
-      this.damage(t, dmg, by, 'rocket');
+      this.damage(t, dmg, by, p.weapon === 'shell' ? 'shell' : 'rocket');
     }
   }
 
@@ -360,13 +379,13 @@ export class Game {
     // bounces left, turns it into a new segment that keeps part of its damage.
     const path = [eye];
     let origin = eye, left = BULLET_RANGE, keep = 1, bounces = 0;
-    let victim = null, head = false, impact = null;
+    let victim = null, head = false, impact = null, vehHit = null;
     for (;;) {
       const hit = this.grid.raycastHit(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, left);
       let dist = hit.dist;
-      victim = null; head = false;
+      victim = null; head = false; vehHit = null;
       for (const t of this.actors) {
-        if (!t.alive || t.team === a.team) continue;
+        if (!t.alive || t.team === a.team || shielded(t)) continue;
         const h = actorHeight(t), r = MOVE.radius;
         const headH = 0.3;
         const hd = rayBox(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, t.pos.x - 0.14, t.pos.y + h - headH, t.pos.z - 0.14, t.pos.x + 0.14, t.pos.y + h, t.pos.z + 0.14);
@@ -374,11 +393,14 @@ export class Game {
         if (hd !== null && hd < dist) { dist = hd; victim = t; head = true; }
         if (bd !== null && bd < dist) { dist = bd; victim = t; head = false; }
       }
+      const vh = rayVehicle(this, origin, dir, dist, a.team);
+      if (vh) { dist = vh.t; victim = null; head = false; vehHit = vh.v; }
       const cube = this.rayPiece(origin, dir, dist);
-      if (cube) { dist = cube.t; victim = null; head = false; }
+      if (cube) { dist = cube.t; victim = null; head = false; vehHit = null; }
       const end = { x: origin.x + dir.x * dist, y: origin.y + dir.y * dist, z: origin.z + dir.z * dist };
       path.push(end);
       if (cube) { impact = { pos: end, normal: { x: cube.nx, y: cube.ny, z: cube.nz } }; this.hitPieceCube(cube.k, (w.blockDmg || 0) * keep, end); break; }
+      if (vehHit) { impact = { pos: end, normal: { x: -dir.x, y: -dir.y, z: -dir.z } }; break; }
       if (victim) break;
       const surface = hit.nx || hit.ny || hit.nz;
       if (!surface) break;
@@ -403,6 +425,7 @@ export class Game {
     a.recoilYaw = Math.max(-w.kickYawMax, Math.min(w.kickYawMax, a.recoilYaw + (this.rng() - 0.5) * 2 * w.kickYaw * steady));
     this.emit('shot', { actor: a, from: eye, to: path[path.length - 1], path, hit: !!victim, weapon: a.cur, bounces, impact });
     for (const t of this.actors) if (t.alive && t.brain && t.team !== a.team && dist2d(t.pos, a.pos) < 45) t.brain.heard = { ...a.pos };
+    if (vehHit) damageVehicle(this, vehHit, w.damage * keep, a, 'bullet');
     // A round that has bounced no longer finds the head: the one-tap belongs to straight shots.
     if (victim) this.damage(victim, w.damage * keep * (head && !bounces ? w.headMult : 1), a, a.cur, head && !bounces, bounces);
   }
@@ -419,6 +442,7 @@ export class Game {
   kill(t, by, cause, head, bounces = 0) {
     if (!t.alive) return;
     if (t.isHuman && this.opts.god) return;
+    if (t.vehicle) exitVehicle(this, t);
     t.hp = 0; t.alive = false; t.deaths++; t.mantle = null;
     if (by && by !== t) by.kills++;
     if (t.hasBomb) {
@@ -431,7 +455,7 @@ export class Game {
     if (this.planter === t) this.plantProgress = 0;
     if (this.defuser === t) this.defuseProgress = 0;
     const how = { piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause] ?? (cause === 'rocket' && by === t ? 'blew themselves up' : undefined);
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? { shell: SHELL.name, ram: 'Roadkill', wreck: 'Explosion' }[cause] ?? cause}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}] ${t.name}`, crush: cause === 'piece' });
     this.emit('death', { actor: t, cause });
   }
 
@@ -482,8 +506,13 @@ export class Game {
 
   explode(pos, radius, damage, owner, cause) {
     this.emit('boom', { pos: { ...pos }, radius, cause });
+    if (cause !== 'wreck') for (const v of this.vehicles) {
+      if (v.dead) continue;
+      const d = Math.hypot(v.pos.x - pos.x, v.pos.y + v.spec.h / 2 - pos.y, v.pos.z - pos.z) - v.spec.r;
+      if (d < radius) damageVehicle(this, v, damage * (1 - Math.max(0, d) / radius), owner, 'blast');
+    }
     for (const t of this.actors) {
-      if (!t.alive) continue;
+      if (!t.alive || shielded(t)) continue;
       if (t.team === owner.team && t !== owner) continue;
       const c = { x: t.pos.x, y: t.pos.y + 0.9, z: t.pos.z };
       const d = Math.hypot(c.x - pos.x, c.y - pos.y, c.z - pos.z);
@@ -701,7 +730,7 @@ export class Game {
     if (b.state === 'carried' && b.carrier) {
       const a = b.carrier;
       const site = this.siteAt(a.pos);
-      if (a.alive && a.input.use && site && a.onGround) {
+      if (a.alive && a.input.use && site && a.onGround && !a.vehicle) {
         this.planter = a;
         this.plantProgress += dt / (ROUND.plantTime * CLASSES[a.cls].plant);
         if (this.plantProgress >= 1) {
@@ -715,7 +744,7 @@ export class Game {
     }
     if (b.state === 'planted') {
       b.fuse -= dt;
-      const d = this.actors.find(a => a.alive && a.team === TEAM.DEF && a.input.use && a.onGround && Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z) < ROUND.defuseRange);
+      const d = this.actors.find(a => a.alive && a.team === TEAM.DEF && a.input.use && a.onGround && !a.vehicle && Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y, a.pos.z - b.pos.z) < ROUND.defuseRange);
       if (d) {
         if (this.defuser !== d) this.defuseProgress = 0;
         this.defuser = d;

@@ -180,3 +180,33 @@ export const LIFT = {
   down: 5,       // seconds resting at floor level
   up: 4,         // seconds held at the top
 };
+
+// Jetpack, worn by everyone. Tap jump on the ground, then press and hold jump in the air to burn fuel and climb.
+// Hold crouch while burning to ease down at a safe speed. Fuel refills on the ground.
+//   rise / sink   target climb and descent speed in m/s     thrust   how hard it chases that speed
+//   drain         fuel per second while burning (sinking burns a third as fast)     regen   fuel per second on the ground
+export const JET = { fuel: 100, drain: 24, regen: 30, thrust: 34, rise: 7, sink: -3.5, airAccel: 6, minFuel: 4 };
+
+// Tank cannon shell. It flies like a rocket (same projectile system) but is faster and far bigger.
+export const SHELL = {
+  name: 'Tank Cannon', speed: 58, life: 4, direct: 140, splash: 170, radius: 7, knock: 16, selfScale: 0.4, blockCrush: 2,
+  interval: 1.7, kick: 0.07,
+  tracer: { colour: 0xffc04a, ricochet: 0xffe9a0, width: 0.08, life: 0.12 },
+  flash: { colour: 0xffb04a, size: 4.5, life: 0.12, light: 14 },
+};
+
+// Rideable vehicles. They appear on the spawn rows of both teams each round (see vehicles.js).
+//   hp        hit points. armour scales bullet damage (a tank shrugs off rifles), blasts hurt in full
+//   speed     top speed in m/s forward, back is a fraction     accel   how fast it gets there     turn   rad/s of steering
+//   r / h     collision half-width and height in metres
+//   ram       crushes enemies it hits above this speed for ram damage at full speed
+export const VEHICLES = {
+  bike: { name: 'Motorbike', hp: 90, armour: 1, speed: 20, back: 0.35, accel: 16, turn: 3.2, r: 0.55, h: 1.15, ram: 8, ramDmg: 90 },
+  tank: { name: 'Tank', hp: 650, armour: 0.12, speed: 6.5, back: 0.6, accel: 5, turn: 1.15, r: 1.4, h: 1.6, ram: 2.5, ramDmg: 200, turret: 2.4 },
+};
+// [type, cell x, cell z, team]: each team gets a tank and two bikes on the free row just in front of its spawn cells.
+export const VEHICLE_SPOTS = [
+  ['tank', 16, 27, 'attackers'], ['bike', 13, 27, 'attackers'], ['bike', 18, 27, 'attackers'],
+  ['tank', 16, 4, 'defenders'], ['bike', 13, 4, 'defenders'], ['bike', 18, 4, 'defenders'],
+];
+export const MOUNT_REACH = 3.6;

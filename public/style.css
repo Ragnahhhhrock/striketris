@@ -50,6 +50,9 @@ body.touch #countdown { top: 22%; font-size: 72px; }
 #vitals b { font-size: 34px; line-height: 1; display: block; }
 #vitals .bar { width: 170px; height: 6px; background: rgba(0, 0, 0, .5); margin-top: 5px; }
 #hpbar { height: 100%; background: var(--go); width: 100%; }
+#fuel { height: 4px; margin-top: 4px; }
+#fuelbar { height: 100%; background: #ff9a2a; width: 100%; }
+#fuel.low #fuelbar { background: var(--bad, #ff3b30); }
 #vitals .right { text-align: right; }
 #weapon { font-size: 13px; opacity: .85; }
 #cls { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }

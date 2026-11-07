@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM, CLASSES, GADGETS, weaponName } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM, CLASSES, GADGETS, JET, SHELL, MOUNT_REACH, weaponName } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SHAPES, orient } from './pieces.js';
 import { SITES } from './map.js';
@@ -59,6 +59,8 @@ export class Hud {
     if (a) {
       $('hp').textContent = Math.ceil(a.hp);
       $('hpbar').style.width = `${Math.max(0, a.hp)}%`;
+      $('fuelbar').style.width = `${Math.max(0, a.fuel / JET.fuel * 100)}%`;
+      $('fuel').classList.toggle('low', a.fuel < JET.fuel * 0.2);
       const w = WEAPONS[a.cur];
       $('weapon').textContent = weaponName(a.team, a.cur) + (a.hasBomb ? '  +  Bomb' : '');
       $('cls').textContent = CLASSES[a.cls].name;
@@ -66,6 +68,12 @@ export class Hud {
       $('gadget').textContent = !gd ? '' : gd.n === Infinity ? `[F] ${gd.name}${a.gadgetCd > 0 ? ` ${Math.ceil(a.gadgetCd)}s` : ''}` : `[F] ${gd.name} x${a.gadgetN}`;
       $('scope').hidden = !(a.scoped && a === this.game.human);
       $('ammo').textContent = a.reloadT > 0 ? 'Reloading' : `${a.weapons[a.cur]} / ${w.mag}`;
+      const rv = a.vehicle;
+      if (rv) {
+        $('weapon').textContent = `${rv.spec.name}  ${Math.max(0, Math.ceil(rv.hp))} hp`;
+        $('ammo').textContent = rv.type === 'tank' ? (rv.cd > 0 ? 'Reloading' : 'Cannon ready') : `${Math.round(Math.abs(rv.speed) * 3.6)} km/h`;
+        $('gadget').textContent = '[E] Get out';
+      }
       // Weapon slots: the ones you carry, the held one lit, a launcher with no rockets greyed.
       const slots = slotKeys(a).filter(([id]) => a.weapons[id] !== undefined)
         .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${weaponName(a.team, id).split(' ')[0]}</i>`).join('');
@@ -76,7 +84,9 @@ export class Hud {
     const human = g.human;
     let prompt = '';
     if (human?.alive) {
-      if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
+      const near = !human.vehicle && g.vehicles.find(v => !v.dead && !v.driver && Math.hypot(human.pos.x - v.pos.x, human.pos.z - v.pos.z) < v.spec.r + MOUNT_REACH - 1 && Math.abs(human.pos.y - v.pos.y) < 2.5);
+      if (near) prompt = `Press E to ride the ${near.spec.name}`;
+      else if (human.hasBomb && g.siteAt(human.pos)) prompt = 'Hold E to plant';
       else if (human.team === TEAM.DEF && b.state === 'planted' && Math.hypot(human.pos.x - b.pos.x, human.pos.y - b.pos.y, human.pos.z - b.pos.z) < 2.2) prompt = 'Hold E to defuse';
     } else if (human) prompt = 'Spectating. Space next player, F free camera';
     if (g.state === 'freeze' && human?.alive) prompt = human.hasBomb ? `You carry the bomb. Sites are marked on the map` : 'Round starts soon';

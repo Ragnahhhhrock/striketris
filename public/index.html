@@ -88,7 +88,7 @@
   <div id="prompt"></div>
   <div id="progress" hidden><div id="progressbar"></div></div>
   <div id="vitals">
-    <div><b id="hp">100</b><div class="bar"><div id="hpbar"></div></div></div>
+    <div><b id="hp">100</b><div class="bar"><div id="hpbar"></div></div><div class="bar" id="fuel" title="Jetpack fuel"><div id="fuelbar"></div></div></div>
     <div class="right"><div id="slots"></div><span id="cls"></span><span id="weapon"></span><b id="ammo"></b><span id="gadget"></span></div>
   </div>
   <div id="banner" hidden><h2 id="bannerA"></h2><p id="bannerB"></p></div>
@@ -140,6 +140,8 @@
     <div class="keys">
       <div><kbd>WASD</kbd> Move</div><div><kbd>Mouse</kbd> Aim and fire</div>
       <div><kbd>Space</kbd> Jump. Hold at a ledge to climb</div><div><kbd>E</kbd> Hold to interact</div>
+      <div>Jetpack: jump, then press and hold <kbd>Space</kbd> in the air. <kbd>Ctrl</kbd> eases down</div><div><kbd>E</kbd> near a bike or tank to get in or out</div>
+      <div>Bike: <kbd>W</kbd> <kbd>S</kbd> throttle, it steers where you look. Tank: <kbd>A</kbd> <kbd>D</kbd> turn, mouse aims, click fires</div>
       <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Weapons <kbd>Wheel</kbd> Cycle <kbd>R</kbd> Reload</div>
       <div><kbd>F</kbd> Use kit gadget</div><div><kbd>Right mouse</kbd> Scope (Scout)</div>
       <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Call a new block <kbd>`</kbd> Debug</div>
@@ -157,6 +159,6 @@
   </div>
 </div>
 
-<script type="module" src="src/main.js?v=8"></script>
+<script type="module" src="src/main.js?v=9"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { MOVE, WEAPONS, CLASSES, GADGETS } from './config.js';
+import { MOVE, WEAPONS, CLASSES, GADGETS, JET } from './config.js';
 
 export function makeActor(id, team, name, isHuman, cls = 'rifleman') {
   return {
@@ -8,7 +8,8 @@ export function makeActor(id, team, name, isHuman, cls = 'rifleman') {
     hp: 100, alive: true, onGround: true, crouching: false, mantle: null,
     weapons: {}, cur: 'rifle', fireCd: 0, reloadT: 0, shotStreak: 0, lastFireHeld: false,
     hasBomb: false, kills: 0, deaths: 0,
-    input: { f: 0, r: 0, jump: false, crouch: false, walk: false, fire: false, use: false, reload: false, weapon: null, gadget: false, scope: false },
+    fuel: JET.fuel, jetting: false, lastJump: false, vehicle: null,
+    input: { f: 0, r: 0, jump: false, crouch: false, walk: false, fire: false, use: false, reload: false, weapon: null, gadget: false, scope: false, mount: false },
     brain: null,
   };
 }
@@ -25,6 +26,7 @@ export function resetActor(a) {
   a.spottedUntil = 0; a.scoped = false;
   a.cur = k.primary; a.fireCd = 0; a.reloadT = 0; a.shotStreak = 0;
   a.brain = null;
+  a.fuel = JET.fuel; a.jetting = false; a.lastJump = false; a.vehicle = null;
 }
 
 export const actorHeight = a => (a.crouching ? MOVE.crouchHeight : MOVE.height);
@@ -81,8 +83,13 @@ export function stepMovement(grid, a, dt) {
     return null;
   }
   const inp = a.input;
-  // Crouch only releases when there is headroom.
-  if (inp.crouch) a.crouching = true;
+  // Jetpack: a fresh jump press in mid-air lights it, and it burns for as long as jump is held.
+  const pressed = inp.jump && !a.lastJump;
+  a.lastJump = inp.jump;
+  if (pressed && !a.onGround && a.fuel > JET.minFuel) a.jetting = true;
+  if (!inp.jump || a.fuel <= 0 || a.onGround) a.jetting = false;
+  // Crouch only releases when there is headroom. While burning, crouch means ease down.
+  if (inp.crouch && !a.jetting) a.crouching = true;
   else if (a.crouching && !hitsWorld(grid, a.pos.x, a.pos.y, a.pos.z, MOVE.height)) a.crouching = false;
 
   const h = actorHeight(a);
@@ -91,17 +98,26 @@ export function stepMovement(grid, a, dt) {
   const len = Math.hypot(wx, wz);
   if (len > 1) { wx /= len; wz /= len; }
   const speed = (a.crouching ? MOVE.crouch : inp.walk ? MOVE.walk : MOVE.run) * (WEAPONS[a.cur]?.slow ?? 1) * (a.scoped ? 0.55 : 1);
-  const k = 1 - Math.exp(-(a.onGround ? MOVE.groundAccel : MOVE.airAccel) * dt);
+  const k = 1 - Math.exp(-(a.onGround ? MOVE.groundAccel : a.jetting ? JET.airAccel : MOVE.airAccel) * dt);
   a.vel.x += (wx * speed - a.vel.x) * k;
   a.vel.z += (wz * speed - a.vel.z) * k;
 
-  if (inp.jump && len > 0.1 && !a.crouching) {
+  if (inp.jump && len > 0.1 && !a.crouching && !a.jetting) {
     const n = Math.hypot(wx, wz);
     if (tryMantle(grid, a, wx / n, wz / n)) return null;
   }
   if (inp.jump && a.onGround && !a.crouching) { a.vel.y = MOVE.jump; a.onGround = false; }
 
-  a.vel.y -= MOVE.gravity * dt;
+  if (a.jetting) {
+    const sink = inp.crouch;
+    const target = sink ? JET.sink : JET.rise;
+    // Thrust chases the target speed, so it fights gravity exactly and the climb levels off.
+    a.vel.y += Math.max(-JET.thrust * dt, Math.min(JET.thrust * dt, target - a.vel.y));
+    a.fuel = Math.max(0, a.fuel - JET.drain * (sink ? 0.33 : 1) * dt);
+  } else {
+    a.vel.y -= MOVE.gravity * dt;
+    if (a.onGround) a.fuel = Math.min(JET.fuel, a.fuel + JET.regen * dt);
+  }
   if (!tryMove(grid, a, 'x', a.vel.x * dt, h)) a.vel.x = 0;
   if (!tryMove(grid, a, 'z', a.vel.z * dt, h)) a.vel.z = 0;
 

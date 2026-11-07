@@ -621,7 +621,7 @@ export class Rig {
 
     const bw = this.bw;
     // Gait: legs follow velocity, torso keeps facing where the actor aims.
-    const vx = a.vel.x, vz = a.vel.z;
+    const vx = a.vehicle ? 0 : a.vel.x, vz = a.vehicle ? 0 : a.vel.z;
     const sin = Math.sin(a.yaw), cos = Math.cos(a.yaw);
     const fwd = -vx * sin - vz * cos, right = vx * cos - vz * sin;
     const speed = Math.hypot(vx, vz);
@@ -636,9 +636,9 @@ export class Rig {
       targetYaw = -clamp(this.backpedal ? ang - Math.sign(ang) * Math.PI : ang, -1.1, 1.1);
     }
     this.legYaw += (targetYaw - this.legYaw) * (1 - Math.exp(-10 * dt));
-    if (a.onGround && !a.mantle) this.phase += dt * this.sp * 2.2 * (this.backpedal ? -1 : 1);
+    if (a.onGround && !a.mantle && !a.vehicle) this.phase += dt * this.sp * 2.2 * (this.backpedal ? -1 : 1);
 
-    this.crouchW += ((a.crouching ? 1 : 0) - this.crouchW) * (1 - Math.exp(-14 * dt));
+    this.crouchW += ((a.crouching || a.vehicle ? 1 : 0) - this.crouchW) * (1 - Math.exp(-14 * dt));
     this.airW += ((a.onGround || a.mantle ? 0 : 1) - this.airW) * (1 - Math.exp(-12 * dt));
     const cw = this.crouchW, aw = this.airW;
 

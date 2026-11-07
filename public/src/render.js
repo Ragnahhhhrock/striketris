@@ -1,11 +1,13 @@
 import * as THREE from 'three';
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS, BLOCK_HP } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, MOVE, TEAM, PIECE, WEAPONS, BLOCK_HP, SHELL } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SITES } from './map.js';
 import { eyePos } from './actor.js';
 import { SHAPES } from './pieces.js';
 import { ArenaFx, NEON_COLOURS, neonTexture } from './arenaFx.js';
 import { makeRig } from './characters.js';
+import { makeVehicleView, updateVehicleView, makeJetpack } from './vehicleView.js';
+import { shielded } from './vehicles.js';
 
 // Classic Tetris colours, order matches SHAPES: I cyan, O yellow, T purple, S green, Z red, J blue, L orange.
 export const SHAPE_TINT = [0x00e5ff, 0xffe600, 0xb44dff, 0x2ee62e, 0xff2d2d, 0x3a63ff, 0xff9a1a];
@@ -395,6 +397,9 @@ export class Renderer {
     this.rocketGroup && this.scene.remove(this.rocketGroup);
     this.rocketGroup = new THREE.Group(); this.scene.add(this.rocketGroup);
     this.rocketViews = new Map();
+    this.vehicleGroup && this.scene.remove(this.vehicleGroup);
+    this.vehicleGroup = new THREE.Group(); this.scene.add(this.vehicleGroup);
+    this.vehicleViews = game.vehicles.map(v => { const m = makeVehicleView(v); this.vehicleGroup.add(m.group); return m; });
   }
 
   // A spinning item over a glowing ring and a faint beam. Taken items leave only a dim ring.
@@ -458,11 +463,12 @@ export class Renderer {
         v = { mesh: this.rocketGeo.clone(), glow: new THREE.Sprite(this.flashMats.rocket), trail: 0 };
         v.glow.scale.set(1.1, 1.1, 1);
         v.mesh.add(v.glow);
+        if (p.weapon === 'shell') v.mesh.scale.setScalar(1.9);
         this.rocketGroup.add(v.mesh);
         this.rocketViews.set(p.id, v);
       }
       // For its first moments a rocket is drawn at the barrel instead of the eye, so it appears to leave the gun.
-      const k = Math.max(0, 1 - p.age / 0.25), yaw = p.owner.yaw;
+      const k = p.weapon === 'shell' ? 0 : Math.max(0, 1 - p.age / 0.25), yaw = p.owner.yaw;
       const x = p.pos.x + Math.cos(yaw) * 0.22 * k, y = p.pos.y - 0.2 * k, z = p.pos.z - Math.sin(yaw) * 0.22 * k;
       v.mesh.position.set(x, y, z);
       v.mesh.lookAt(x + p.dir.x, y + p.dir.y, z + p.dir.z);
@@ -487,7 +493,11 @@ export class Renderer {
     const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), new THREE.MeshBasicMaterial({ color: 0xff3b30, depthTest: false, transparent: true }));
     marker.position.y = 2.35; marker.renderOrder = 20; marker.visible = false;
     rig.group.add(marker);
-    return { actor: a, rig, group: rig.group, marker };
+    // Everyone wears a jetpack on their back.
+    const jet = makeJetpack();
+    jet.group.position.set(0, 0.34, 0.36 * (rig.bw ?? 1));
+    rig.parts.spine.add(jet.group);
+    return { actor: a, rig, group: rig.group, marker, jet, puffT: 0 };
   }
 
   clearEffects() { for (const e of this.effects) { this.fx.remove(e.obj); e.dispose?.(); } this.effects = []; }
@@ -779,11 +789,17 @@ export class Renderer {
         break;
       }
       case 'rocket': {
-        const w = WEAPONS.rocket, mine = e.actor === viewer;
+        const shell = e.weapon === 'shell';
+        const w = shell ? SHELL : WEAPONS.rocket, mine = e.actor === viewer && !shell;
         const yaw = e.actor.yaw;
-        const muzzle = new THREE.Vector3(e.from.x + e.proj.dir.x * 0.8 + Math.cos(yaw) * 0.2, e.from.y + e.proj.dir.y * 0.8 - 0.16, e.from.z + e.proj.dir.z * 0.8 - Math.sin(yaw) * 0.2);
+        const muzzle = shell ? new THREE.Vector3(e.from.x, e.from.y, e.from.z) : new THREE.Vector3(e.from.x + e.proj.dir.x * 0.8 + Math.cos(yaw) * 0.2, e.from.y + e.proj.dir.y * 0.8 - 0.16, e.from.z + e.proj.dir.z * 0.8 - Math.sin(yaw) * 0.2);
+        if (shell) {
+          const tv = this.vehicleViews.find(m => m.v === e.vehicle); if (tv) tv.kick = 1;
+          if (e.actor === viewer) this.shotShake = Math.max(this.shotShake, 1.1);
+          else { const d = viewer ? Math.hypot(viewer.pos.x - e.from.x, viewer.pos.z - e.from.z) : 40; this.shake = Math.max(this.shake, 0.5 * Math.max(0, 1 - d / 50)); }
+        }
         const flash = new THREE.Sprite(this.flashMats.rocket);
-        const size = w.flash.size * (mine ? 0 : 0.6);
+        const size = w.flash.size * (mine ? 0 : shell ? 1 : 0.6);
         flash.position.copy(muzzle);
         if (size > 0) this.addEffect(flash, w.flash.life, (o, u) => { const k = size * (1 - u * u); o.scale.set(k, k, 1); });
         this.muzzleLight.color.setHex(w.flash.colour); this.muzzleLight.position.copy(muzzle); this.muzzleLight.intensity = w.flash.light * 25 * (mine ? 1 : 0.7);
@@ -893,13 +909,24 @@ export class Renderer {
 
     for (const v of this.actorViews) {
       const self = view.actor === v.actor && view.mode === 'first';
-      v.group.visible = !self;
+      v.group.visible = !self && !shielded(v.actor);
       if (!self) v.rig.update(dt);
+      const burn = v.actor.alive && v.actor.jetting;
+      for (const f of v.jet.flames) { f.visible = burn; if (burn) f.scale.set(0.8 + Math.random() * 0.5, 0.7 + Math.random() * 0.8, 0.8 + Math.random() * 0.5); }
+      v.puffT -= dt;
+      if (burn && v.puffT <= 0 && !self) {
+        v.puffT = 0.035;
+        const a = v.actor, hot = Math.random() < 0.5, puff = new THREE.Mesh(this.puffGeo, hot ? this.fireMat : this.smokeMat);
+        puff.position.set(a.pos.x + Math.sin(a.yaw) * 0.35 + (Math.random() - 0.5) * 0.25, a.pos.y + 0.75, a.pos.z + Math.cos(a.yaw) * 0.35 + (Math.random() - 0.5) * 0.25);
+        const size = hot ? 3 : 4.5;
+        this.addEffect(puff, hot ? 0.2 : 0.55, (o, u) => { o.position.y -= 0.03; o.scale.setScalar(Math.max(0.01, size * (1 - u))); });
+      }
       const myTeam = view.actor?.team ?? game.human?.team;
       v.marker.visible = !self && v.actor.alive && v.actor.team !== myTeam && v.actor.spottedUntil > game.time;
       if (v.marker.visible) v.marker.rotation.y += dt * 3;
     }
 
+    for (const m of this.vehicleViews) updateVehicleView(m, dt);
     // Rockets, grenades and mines.
     this.stepThrown(dt, game);
 
@@ -941,7 +968,7 @@ export class Renderer {
     this.vm.position.set(0.2 + (Math.random() - 0.5) * k * 0.004, -0.17 - (view.reloading ? 0.16 : 0) - k * 0.012, -0.42 + k * wp.vmBack);
     this.vm.rotation.set(k * wp.vmPitch, 0, (view.reloading ? 0.25 : 0) + k * 0.03 * (cur === 'pistol' ? 1 : 0.5));
     this.pistolSlide.position.z = k * 0.08;
-    const fov = (78 + (view.mode === 'first' ? this.vmKick * wp.fov : 0)) / this.zoom;
+    const fov = (78 + (view.mode === 'first' ? this.vmKick * wp.fov : view.mode === 'third' ? Math.min(14, Math.abs(view.actor?.vehicle?.speed ?? 0) * 0.55) : 0)) / this.zoom;
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     if (this.flashFresh) this.flashFresh = false;
     else if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.vmFlash.visible = this.vmCore.visible = false; }
