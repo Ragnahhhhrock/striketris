@@ -801,4 +801,12 @@ export class Rig {
   }
 }
 
+// A standalone weapon model (body and magazine), for icons and previews. Barrel points to -Z.
+export function makeWeaponModel(key) {
+  const spec = BUILDERS[key]();
+  const g = new THREE.Group();
+  g.add(bone(spec.body, key), bone(spec.mag, key + 'Mag'));
+  return g;
+}
+
 export function makeRig(actor, look) { return new Rig(actor, look); }

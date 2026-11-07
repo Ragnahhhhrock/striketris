@@ -134,6 +134,12 @@ body.touch p.touch { display: block; }
 .classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-bottom: 16px; }
 .classes button { text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .classes small { font-weight: 400; opacity: .8; font-size: 11px; }
+#selGuns { display: flex; gap: 8px; justify-content: center; margin: 10px 0 4px; }
+#selGuns figure { margin: 0; flex: 1; background: var(--well-700); padding: 6px 4px 4px; }
+#selGuns img { width: 100%; height: auto; display: block; }
+#selGuns figcaption { font-size: 11px; opacity: .85; margin-top: 2px; }
+#selGuns figcaption b { color: var(--gold); }
+.classes button img { width: 100%; height: auto; display: block; margin-bottom: 4px; }
 @media (max-width: 680px) { .selGrid { grid-template-columns: 1fr; } #selView { height: 240px; } }
 
 /* ---- Touch ---- */

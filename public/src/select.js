@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TEAM, CLASSES, CLASS_ORDER, GADGETS, weaponName } from './config.js';
 import { makeActor, resetActor } from './actor.js';
-import { makeRig } from './characters.js';
+import { makeRig, makeWeaponModel } from './characters.js';
 import { ROSTER, PLAYABLE, describeLook, displayName } from './looks.js';
 
 // Character selection screen: a turntable preview with the roster, kits and side on offer.
@@ -13,6 +13,28 @@ try { Object.assign(pick, JSON.parse(localStorage.getItem(KEY) || '{}')); } catc
 if (!ROSTER[pick.look]) pick.look = 'You';
 if (!CLASSES[pick.cls]) pick.cls = 'assault';
 if (pick.side !== 'attackers' && pick.side !== 'defenders') pick.side = 'attackers';
+
+// Weapon icons: each model rendered once from the side on a transparent background.
+const icons = {};
+function icon(key) {
+  if (icons[key]) return icons[key];
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setSize(240, 110, false); r.setClearColor(0, 0);
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.5));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(2, 3, 4); sc.add(sun);
+  const m = makeWeaponModel(key);
+  const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  m.position.sub(c); m.rotation.y = -Math.PI / 2 + 0.25; // barrel to the left, a little three-quarter
+  sc.add(m);
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20); cam.position.set(0, 0.35, 5); cam.lookAt(0, 0, 0);
+  const half = Math.max(sz.z * 0.58, sz.y * 0.58 * (240 / 110), 0.2);
+  cam.left = -half; cam.right = half; cam.top = half * 110 / 240; cam.bottom = -half * 110 / 240; cam.updateProjectionMatrix();
+  r.render(sc, cam);
+  icons[key] = r.domElement.toDataURL('image/png');
+  m.traverse(o => o.geometry?.dispose()); r.dispose(); r.forceContextLoss();
+  return icons[key];
+}
 
 let onChange = () => {}, renderer, scene, camera, actor, rig, visible = false, raf = 0, last = 0, sidearm = false;
 
@@ -61,6 +83,7 @@ function labels() {
   $('selName').textContent = displayName(pick.look);
   $('selDesc').textContent = describeLook(ROSTER[pick.look]);
   $('selKit').textContent = `${k.name}: ${weaponName(pick.side, k.primary)} + ${weaponName(pick.side, k.secondary)}${k.gadget ? ' + ' + GADGETS[k.gadget].name : ''}`;
+  $('selGuns').innerHTML = [k.primary, k.secondary].map((id, i) => `<figure><img alt="${weaponName(pick.side, id)}" src="${icon(id)}"><figcaption><b>${i + 1}</b> ${weaponName(pick.side, id)}</figcaption></figure>`).join('');
   for (const b of document.querySelectorAll('#selRoster button')) b.classList.toggle('on', b.dataset.look === pick.look);
   for (const b of document.querySelectorAll('#selClasses button')) b.classList.toggle('on', b.dataset.cls === pick.cls);
   for (const b of document.querySelectorAll('#selSide button')) b.classList.toggle('on', b.dataset.side === pick.side);
@@ -76,7 +99,7 @@ function changed(rebuild) {
 export function initSelect(cb) {
   onChange = cb;
   $('selRoster').innerHTML = PLAYABLE.map(n => `<button data-look="${n}">${displayName(n)}</button>`).join('');
-  $('selClasses').innerHTML = CLASS_ORDER.map(c => `<button data-cls="${c}"><b>${CLASSES[c].name}</b><small></small></button>`).join('');
+  $('selClasses').innerHTML = CLASS_ORDER.map(c => `<button data-cls="${c}"><img alt="" src="${icon(CLASSES[c].primary)}"><b>${CLASSES[c].name}</b><small></small></button>`).join('');
   $('selRoster').onclick = e => { const b = e.target.closest('button'); if (b) { pick.look = b.dataset.look; changed(true); } };
   $('selClasses').onclick = e => { const b = e.target.closest('button'); if (b) { pick.cls = b.dataset.cls; changed(false); } };
   $('selSide').onclick = e => { const b = e.target.closest('button'); if (b) { pick.side = b.dataset.side; changed(true); } };
