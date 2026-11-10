@@ -52,7 +52,7 @@ Two modes, chosen on a mode-select screen before the loadout screen.
 - Rockets: a well-placed rocket can ricochet a player off the edge of the map to their death.
 
 ## Rules
-- Friendly fire is on: you can kill your teammates.
+- Friendly fire is on: you can injure and kill your teammates.
 - The map has open edges: you can fall off the edge to your death.
 - Falling off the edge: the primary weapon falls with the player and is lost (not recoverable). (Proposed default, to confirm.)
 - Falling off the edge on your own counts as a self-inflicted death with no kill credit. (Proposed default, to confirm.)
@@ -66,6 +66,44 @@ Two modes, chosen on a mode-select screen before the loadout screen.
 - Stairways: made of Tetris blocks, connecting the lower level, main floor and upper level. Several routes between levels so no single chokepoint.
 - All levels contain moving blocks and walls (sliding, rotating, shifting routes and cover) and falling blocks.
 - Falling pieces drop onto every level, not only the main floor, so no level is a safe zone.
+
+## Drop terminals (player-controlled piece drops)
+Soldiers can take control of the falling pieces from two terminals and use them as a weapon. This is the in-match version of the Architect idea: the power is there, but you have to climb for it, and you are exposed while using it.
+
+### Placement
+- Two terminals, at opposite ends of the map.
+- Each sits in a high, difficult-to-reach position (top of the upper level). Reaching one takes real traversal through block stairways and walkways, and there is no easy single route.
+- Because stairways and bridges are made of blocks, falling pieces and shooting can cut the routes up to a terminal.
+
+### Piece ownership
+- The falling pieces are split between the two terminals: each terminal controls half of them.
+- Only one piece falls at a time. When a piece has landed on the arena, the next piece starts falling.
+- Each piece is assigned to whoever is operating the terminal it belongs to. Whoever is at that terminal when the piece spawns controls it.
+- Proposed default: pieces alternate between terminal A and terminal B (A, B, A, B...), so each gets half and the pacing is predictable. Alternative: random 50/50.
+- If nobody is operating the terminal when its piece spawns, the piece falls on its own (using the normal automatic targeting) after a short delay.
+
+### Operating a terminal
+- Interact with the terminal to take it over. Only one operator per terminal at a time.
+- The operator can position the falling piece (move left/right/forward/back, rotate) and drop it onto the arena, crushing opponents underneath.
+- Proposed default: a time limit per piece (about 8-10s). If it runs out, the piece drops where it is.
+- Proposed default: the piece's target area is shown to everyone as a ghost outline plus a warning sound, so dodging is still a skill.
+- Kill credit for a crush goes to the operator.
+- Friendly fire is on, so the operator can crush their own teammates (and themselves, if they stand under the drop).
+
+### Vulnerability and the weapon lock
+- While operating, the player is vulnerable to attack: their character stays in the world at the terminal and can be shot or stabbed.
+- The player cannot operate the terminal and use their weapons at the same time. Entering the terminal holsters the weapons, and leaving it returns them (proposed: a short draw delay after exit).
+- Proposed default: taking damage while operating interrupts the control. A hit above a damage threshold ejects the operator and the piece continues on its own, so being shot has a cost.
+- If the operator is killed, the terminal is free for anyone else to take over, and the dead player drops their primary weapon as usual.
+
+### Balance and open questions
+- Camping: a high, hard-to-reach spot could favour snipers and make the terminal holder a sitting duck. Proposed mitigations: some cover around the terminal, and a visible beam or light showing which terminal is occupied and by whom.
+- Is there a cooldown after you operate (stops one player holding a terminal for the whole match)?
+- Can the operator see the whole arena from the terminal, or only a limited view?
+- How does this relate to Architect mode? Either Architect replaces the terminals (mode 2 only), or the terminals are the Soldier-mode version and Architect is a separate role.
+- It overlaps with the existing "piece-control pickups" and the automatic anti-camp targeting. Do the pickups stay, and does the auto-targeting only run on pieces nobody controls?
+- Do pieces still lock in place and trigger line clears when player-controlled? (Assumed yes.)
+- Teams: with 7 teams there is no team-owned terminal in this version. Is that intended, or should a team be able to hold or defend one?
 
 ## Making the Tetris pieces a core mechanic (not a gimmick)
 Problem: the game felt like an arena shooter with falling pieces as decoration. Goal: pieces are a system players compete over. Core idea: **dynamic map + line clears + anti-camp targeting**.
@@ -99,3 +137,4 @@ Problem: the game felt like an arena shooter with falling pieces as decoration. 
 - Players can stand on, ride, or hide under locked blocks; a piece landing on someone is a kill or heavy injury, so terrain is a weapon.
 - Structure-linked objectives: hold the highest block, complete a line in your territory.
 - Pieces can knock out stairways or push players off edges (more edge kills).
+- Drop terminals (see above): two high-up terminals let a player steer a falling piece onto opponents.
