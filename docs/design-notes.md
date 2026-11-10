@@ -76,6 +76,14 @@ Problem: the game felt like an arena shooter with falling pieces as decoration. 
 - Players can shoot blocks to destroy or shift them (open sightlines, collapse enemy cover).
 - Pieces gradually fill the lower level and build new upper-level bridges.
 
+### Block hit points (destructible blocks)
+- Every block has hit points and takes damage from bullets and knife stabs. Enough hits break the block and it is removed from the map.
+- Built in the current build: settled blocks and falling cubes have 120 HP each, a rocket breaks the block it hits, bullets chip (`blockDmg` in `config.js`), and damaged blocks darken toward charred. See the README for the full rules.
+- Still open:
+  - Knife damage against blocks (the stab is currently tuned for players only).
+  - Whether blocks stacked above a broken one should fall like a line clear.
+  - Whether a destroyed block should deny a line clear (a gap stops the row completing).
+
 ### Anti-camping targeting
 - Spawn targeting is weighted by dwell time: staying in one spot ~10s+ draws pieces aimed near you.
 - Aim at the space around players, not directly at them, to push campers out rather than instakill.
