@@ -31,9 +31,9 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 - **Elevators:** nine floor sections (mid, both sites, both long lanes and more) rest flush with the floor, rise 3 to 6 m, hold, then lower. Raised, they are solid: they block movement and shots and give a high vantage. They carry anyone standing on them, shove up anyone over them as they rise, and squash anyone left with no headroom. The cap turns orange while moving. Blocks cannot land on them. Mirrored lifts share a timer. **Pistons:** five more (cyan caps) run from the bedrock up through a hole in the floor. They start the round standing up, then sink out of sight, leaving an open shaft you can fall down, and rise through the floor again. Tunables are `LIFT` in `config.js`; spots and timing are in `public/src/lifts.js`.
 - **Closing walls:** 40 seconds into a live round four slabs start sliding in from the edges, shaded red on the minimap, with a countdown on the HUD beforehand. They meet in the middle at 100 seconds, leaving a gap narrower than a player, so anyone still alive is squashed. Walls shove players inward and squash anyone pinned against something solid. They block movement, shots and sight. A planted bomb the walls reach goes off at once, a dropped bomb is nudged ahead of them, and blocks no longer land near them. Bots drift toward the shrinking floor. If both teams are crushed with no bomb down, defenders win the round. Tunables are `CLOSE` in `config.js`; code is in `public/src/walls.js`.
 - **Pickups:** health packs (+35, up to 100), ammo boxes and rocket launchers sit on the map and come back after 20 to 25 seconds. Spots are in `public/src/pickups.js`: two launchers in mid, one toward each team, and health and ammo near the sites and lanes. Blocks never land on a pickup column. Everything resets each round. The minimap shows items that are up. Tunables are `PICKUP` in `config.js`.
-- **Knife:** every kit carries one (key 3). A stab reaches 2.2 m along the crosshair, never through walls, blocks or pieces, and only injures: 34 damage, so it takes three stabs to kill. No headshots. Tunables are `WEAPONS.knife` in `config.js`.
+- **Knife:** every loadout carries one (key 3). A stab reaches 2.2 m along the crosshair, never through walls, blocks or pieces, and only injures: 34 damage, so it takes three stabs to kill. No headshots. Tunables are `WEAPONS.knife` in `config.js`.
 - **Friendly fire:** on by default. Bullets, stabs, rockets, grenades and mines hurt teammates as well as enemies, and a teamkill does not count as a kill. Pass `friendlyFire: false` to `new Game(...)` to turn it off. Bots do not yet hold fire for a teammate in the way.
-- **Rocket launcher:** nobody spawns with it. Walking over one gives it to you with 5 rockets and puts it in your hands. Keys 1 and 2 pick the kit's guns, 3 the knife and 4 the launcher, and the mouse wheel cycles them. Rockets fly at 24 m/s and burst on the first wall, crate, lift or body. The blast does up to 100 damage, fading to nothing at 5 m, plus 30 for a direct hit. Walls shield from it. It shoves everyone nearby, so firing at your feet is a rocket jump that costs about half the blast in health. Teammates are shoved and, with friendly fire on, hurt too. Blasts also damage settled blocks: one rocket destroys the block it hits, and cubes the blast can see nearby darken as they crack and break after 120 damage, so a second rocket opens up a thick wall. It breaks map walls, crates and the floor as well, and a bomb resting on a broken block drops to whatever is below it. Out of rockets it drops back to the rifle. Tunables are `WEAPONS.rocket` in `config.js`.
+- **Rocket launcher:** nobody spawns with it. Walking over one gives it to you with 5 rockets and puts it in your hands. Keys 1 and 2 pick the loadout's guns, 3 the knife and 4 the launcher, and the mouse wheel cycles them. Rockets fly at 24 m/s and burst on the first wall, crate, lift or body. The blast does up to 100 damage, fading to nothing at 5 m, plus 30 for a direct hit. Walls shield from it. It shoves everyone nearby, so firing at your feet is a rocket jump that costs about half the blast in health. Teammates are shoved and, with friendly fire on, hurt too. Blasts also damage settled blocks: one rocket destroys the block it hits, and cubes the blast can see nearby darken as they crack and break after 120 damage, so a second rocket opens up a thick wall. It breaks map walls, crates and the floor as well, and a bomb resting on a broken block drops to whatever is below it. Out of rockets it drops back to the rifle. Tunables are `WEAPONS.rocket` in `config.js`.
 - **Destructible blocks:** settled blocks have 120 HP. A rocket breaks the block it hits in one go. Bullets only chip them (`blockDmg` in `config.js`): about 24 rifle hits or 9 pistol hits per block, less on a ricochet. Damaged blocks darken toward charred. Falling blocks can be shot too: each cube has the same 120 HP, so you can shoot cubes out of an incoming block (rockets break the one they hit) and it lands with only what is left, still damaged. Destroy every cube and the block is gone. Everything in the arena can be destroyed: map walls (the same 120 HP), the floor, and crates (half that). Grenades and mines break blocks too. Only the bedrock at the bottom of the world is permanent, along with the lifts and pistons, which are machinery. Everything resets each round.
 - **Holes and the pit:** the floor is one layer of blocks over an open pit 15 m deep with a bedrock bottom. Shoot a hole in the floor and anything that steps in falls, takes fall damage on landing (about 38 from the full drop) and stays down there until it rides a piston back up; bots do this on their own. Falling blocks drop into holes and rest on the bedrock. Broken blocks throw chips that fall into holes as well. The minimap shows holes in black and shafts in violet.
 - **Ammo boxes:** refill the rifle and pistol magazines instantly and add 4 rockets if you carry the launcher.
@@ -48,32 +48,34 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
 - **No softlocks:** a block never lands on a spawn or plant spot, and is rejected if it would cut off a site or trap a player.
 
+## Teams
+
+There is one team per Tetris shape: I (cyan), O (yellow), T (purple), S (green), Z (red), J (blue) and L (orange). Every fighter belongs to a team and is that team's colour from head to toe. A match pits two of the seven against each other: your pick against a random rival (`humanPiece` and `rivalPiece` options on `new Game(...)`). Attackers and defenders are still the round roles for the plant-and-defuse objective, so you pick a team and a side separately. Team data is in `config.js` (`TEAM_PIECES`, `PIECE_COLOURS`).
+
 ## Characters
 
-Every fighter is a procedural rig of merged box meshes with a real skeleton: head, torso, two-bone arms and legs. Nothing is loaded from disk.
+Everyone is the same standard blocky figure, Minecraft style: a cube head, a box torso and box arms and legs, with a real skeleton. The whole figure is one Tetris colour, the team colour, with bevelled block plates. Only the face (eyes and mouth) is a different colour. Nothing is loaded from disk, and there is no character selection.
 
-- **Looks:** every fighter is a Tetris piece standing upright with a face, arms and legs. `public/src/looks.js` holds a hand-made look for each bot name plus a seeded generator for anyone else: piece (I, O, T, S, Z, J or L, in the block colours), eyewear (5), build, backpack and gloves. Teammates never share a piece. Arms always take the team colour so allies and enemies read at range. Body geometry is in `public/src/characters.js`; `/characters.html` shows the whole roster.
 - **Animation:** `public/src/characters.js` drives the rig from live actor state. Gait follows velocity (strafe and backpedal turn the legs while the torso keeps aiming), crouch is a real squat, jumps tuck the legs, ledge climbs reach up, weapons follow your pitch and recoil, reloads swap the magazine, and the dead fall and drop their gun. Arms use two-bone IK, so hands stay on the weapon at any aim angle.
 - **Bomb:** the carrier wears it on their back.
-- **Viewer:** open `/characters.html` for the full lineup. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `focus`, `team=def`, `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
+- **Viewer:** open `/characters.html` for one fighter per team. Pick any animation, weapon or look angle, click a name to focus. Query options: `anim`, `gun`, `loadout`, `focus` (a team letter), `yaw`, `pitch`, `dist`, `solo`, `fixed`, `bomb`.
 
-## Character select
+## Loadouts
 
-The game opens on a selection screen: a rotating 3D preview, a side (sets your shirt colour and weapon names), one of the five classes, and any of the 13 hand-made fighters or the default Rookie. If a bot already wears your pick it takes the Rookie look. Choices are remembered; "Change fighter" in the menu reopens the screen. Add `?skipselect=1` to go straight to the menu.
+There are no classes. The game opens on the loadout screen: pick a team, one primary weapon, one pistol and a side. Every loadout also carries the block knife, so there are 6 loadouts. Your pick is remembered, and "Loadout" in the menu reopens the screen. Add `?skipselect=1` to go straight to the menu. A new pick applies from the next round. Bots take a mix of primaries and pistols.
 
-## Classes
+All guns are block-shaped, fully automatic, and fire blocks. Stats are in `WEAPONS` in `config.js`.
 
-Five kits modelled on Battlefield 1942. Health and speed are shared; the kit is the difference. Pick one in the menu (it applies from the next round; bots fill the other kits on both teams). Weapon stats are identical across sides, only the names differ (Axis/Allies, attackers/defenders).
+| Slot | Weapon | Role |
+| --- | --- | --- |
+| Primary | Assault Rifle | The balance: 28 damage, 11 shots a second, 30 rounds, 170 m range |
+| Primary | Machine Gun | Full auto, belt fed, 100 rounds. 15 damage and 85 m range, so less range and impact than the rifle or sniper |
+| Primary | Sniper Rifle | `Right mouse` (or `T`) zooms 3.2x. 92 damage, 320 m range, but 5 rounds and a slow 3.6 s reload |
+| Pistol | Heavy Pistol | Slow and hard hitting: 46 damage, 8 rounds |
+| Pistol | Machine Pistol | Rapid fire, 20 rounds, 15 damage |
+| Melee | Block Knife | 34 damage a stab, never kills in one hit |
 
-| Class | Primary | Secondary | Gadget (`F`) | Trait |
-| --- | --- | --- | --- | --- |
-| Assault | SMG (MP 40 / Thompson) | Pistol | 3 hand grenades | Best up close |
-| Scout | Scoped bolt rifle (Kar 98k / Springfield) | Pistol | Binoculars | `Right mouse` (or `T`) zooms 3.2x; spots enemies onto the minimap and shows a marker for the team |
-| Medic | LMG (MG 34 / BAR) | Pistol | Medic kit, 4 charges | Heals the most hurt teammate in reach, else yourself |
-| Engineer | Bolt rifle (Kar 98k / M1 Garand) | Pistol | 3 mines | The wrench: plants in 0.6x and defuses in 0.55x the time |
-| Anti-Tank | Rocket launcher (Panzerschreck / Bazooka) | Pistol | none | The map's rocket launcher: 8 rockets to start, splash damage, rocket jumps and it breaks blocks. Ammo pickups add rockets |
-
-Adaptations: there are no vehicles here, so mines and rockets are used against infantry; there is no kit pickup mid-round. Class data lives in `config.js` (`WEAPONS`, `GADGETS`, `CLASSES`) and the sim in `game.js` handles projectiles, mines and gadgets, so it all runs headless. Rigs show each kit: its weapons, plus gear on the body (grenade belt, binoculars, red-cross pack, mines, spare rockets).
+Weapon slots are 1 (primary), 2 (pistol), 3 (knife) and 4 (the rocket launcher, once you pick one up off the map). Code for the screen is in `public/src/loadout.js`; picking and applying loadouts is `cleanLoadout`, `resetActor` and `Game.setLoadout`.
 
 ## Design
 
@@ -92,8 +94,9 @@ Tokens are in `public/design/tokens.css`, the rules in `DESIGN.md`, and a live r
 | `public/src/nav.js` | Bot pathfinding on the changing grid |
 | `public/src/game.js` | Rounds, bomb, weapons, rockets, blocks. Runs headless |
 | `public/src/bots.js` | Bot behaviour |
-| `public/src/looks.js` | Who each fighter is: which Tetris piece, eyewear, build, gear |
-| `public/src/characters.js` | Character rigs, weapons, kit gear and animation |
+| `public/src/looks.js` | A fighter's team and block colour, and the face colours |
+| `public/src/characters.js` | The block figure rig, weapon models and animation |
+| `public/src/loadout.js` | The loadout screen: team, weapons and side |
 | `public/src/render.js`, `hud.js`, `audio.js`, `main.js` | Browser layer |
 
 The simulation has no rendering dependency, which keeps a later move to a multiplayer server open.

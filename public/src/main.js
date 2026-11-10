@@ -1,11 +1,11 @@
-import { TICK, PIECE, CELL, GRID_W as W, GRID_D as D, WEAPONS, CLASSES, CLASS_ORDER, GADGETS, weaponName } from './config.js';
+import { TICK, PIECE, CELL, GRID_W as W, GRID_D as D, WEAPONS, teamLabel } from './config.js';
 import { Game } from './game.js';
 import { Renderer } from './render.js';
 import { Hud } from './hud.js';
 import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
 import { DEATH_CAM, deathView } from './deathcam.js';
-import { TouchControls } from './touch.js?v=5';
+import { TouchControls } from './touch.js?v=6';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -56,27 +56,16 @@ resetFree();
 window.__renderer = renderer;
 function load(g) { game = g; renderer.setGame(g); hud.setGame(g); window.__game = g; }
 
-const sideEl = () => $('optSide').value;
-function fillClasses() {
-  const side = sideEl(), keep = $('optClass').value || 'assault';
-  $('optClass').innerHTML = CLASS_ORDER.map(c => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
-  $('optClass').value = keep;
-  const k = CLASSES[keep], g = k.gadget ? GADGETS[k.gadget].name : 'none';
-  $('classBlurb').textContent = `${weaponName(side, k.primary)} + ${weaponName(side, k.secondary)} · ${g}. ${k.blurb}`;
-}
-$('optClass').onchange = $('optSide').onchange = fillClasses;
-fillClasses();
-
-import { initSelect, showSelect, hideSelect, pick } from './select.js';
-// The selection screen drives the menu's side and class, and remembers the look.
-function applyPick(p) { $('optSide').value = p.side; $('optClass').value = p.cls; fillClasses(); }
-initSelect(applyPick);
-$('selGo').onclick = () => { hideSelect(); showMenu(false); };
-$('changeChar').onclick = () => { $('menu').hidden = true; showSelect(); };
+import { initLoadout, showLoadout, hideLoadout, pick } from './loadout.js';
+const loadoutText = p => `${teamLabel(p.piece)} team · ${WEAPONS[p.primary].name} + ${WEAPONS[p.secondary].name} + Block Knife`;
+// The loadout screen drives the menu's side and remembers the team and weapons.
+function applyPick(p) { $('optSide').value = p.side; $('loadoutBlurb').textContent = loadoutText(p); }
+initLoadout(applyPick);
+$('selGo').onclick = () => { hideLoadout(); showMenu(false); };
+$('changeChar').onclick = () => { $('menu').hidden = true; showLoadout(); };
 $('optSide').addEventListener('change', () => { pick.side = $('optSide').value; });
-$('optClass').addEventListener('change', () => { pick.cls = $('optClass').value; });
 
-function menuGame() { load(new Game({ human: false, classes: true, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
+function menuGame() { load(new Game({ human: false, teamSize: 3, seed: Number(params.get('seed')) || undefined, skill: 'normal' })); }
 
 function start(keep) {
   audio.unlock();
@@ -86,9 +75,8 @@ function start(keep) {
     human: m !== 'spectate',
     god: m === 'god',
     humanTeam: $('optSide').value,
-    humanClass: $('optClass').value,
-    humanLook: pick.look,
-    classes: true,
+    humanPiece: pick.piece,
+    humanLoadout: { primary: pick.primary, secondary: pick.secondary },
     teamSize: Number($('optSize').value),
     skill: $('optSkill').value,
     pieceInterval: interval || PIECE.interval,
@@ -382,6 +370,6 @@ function frame(now) {
 
 menuGame();
 showMenu(false);
-if (!params.get('skipselect')) { $('menu').hidden = true; showSelect(); }
+if (!params.get('skipselect')) { $('menu').hidden = true; showLoadout(); }
 window.__start = start;
 requestAnimationFrame(frame);

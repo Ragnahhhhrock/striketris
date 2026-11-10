@@ -90,7 +90,7 @@
   <div id="progress" hidden><div id="progressbar"></div></div>
   <div id="vitals">
     <div><b id="hp">100</b><div class="bar"><div id="hpbar"></div></div></div>
-    <div class="right"><div id="slots"></div><span id="cls"></span><span id="weapon"></span><b id="ammo"></b><span id="gadget"></span></div>
+    <div class="right"><div id="slots"></div><span id="cls"></span><span id="weapon"></span><b id="ammo"></b></div>
   </div>
   <div id="banner" hidden><h2 id="bannerA"></h2><p id="bannerB"></p></div>
   <div id="board" hidden></div>
@@ -102,18 +102,19 @@
 
 <div id="select" hidden>
   <div class="card wide">
-    <h1>Choose your fighter</h1>
-    <p class="sub">Pick a look, a kit and a side. You can change them from the menu any time.</p>
+    <h1>Loadout</h1>
+    <p class="sub">Pick your team, a primary weapon and a pistol. Everyone carries a block knife. You can change it from the menu any time.</p>
     <div class="selGrid">
       <div class="selStage">
         <canvas id="selView"></canvas>
-        <div id="selName"></div><div id="selDesc" class="sub"></div><div id="selKit" class="sub"></div>
-        <div class="hint">Click the fighter to swap weapon</div>
+        <div id="selName"></div><div id="selKit" class="sub"></div>
+        <div id="selHint" class="hint"></div>
       </div>
       <div class="selPick">
+        <h3>Team</h3><div id="selTeams" class="chips teams"></div>
+        <h3>Primary weapon</h3><div id="selPrimary" class="classes"></div>
+        <h3>Pistol</h3><div id="selSecondary" class="classes"></div>
         <h3>Side</h3><div id="selSide" class="chips"><button data-side="attackers">Attackers</button><button data-side="defenders">Defenders</button></div>
-        <h3>Class</h3><div id="selClasses" class="classes"></div>
-        <h3>Character</h3><div id="selRoster" class="chips roster"></div>
       </div>
     </div>
     <div class="row"><button id="selGo">Continue</button></div>
@@ -127,29 +128,28 @@
     <div class="opts">
       <label>Mode <select id="optMode"><option value="play">Play</option><option value="god">Play, invulnerable</option><option value="spectate">Spectate and steer blocks</option></select></label>
       <label>Side <select id="optSide"><option value="attackers">Attackers</option><option value="defenders">Defenders</option></select></label>
-      <label>Class <select id="optClass"></select></label>
       <label>Team size <select id="optSize"><option value="2">2 v 2</option><option value="3">3 v 3</option><option value="5" selected>5 v 5</option></select></label>
       <label>Bots <select id="optSkill"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
       <label>Blocks <select id="optPieces"><option value="8">Slow</option><option value="5" selected>Normal</option><option value="3.4">Frantic</option><option value="0">Off</option></select></label>
     </div>
-    <p id="classBlurb" class="blurb"></p>
+    <p id="loadoutBlurb" class="blurb"></p>
     <div class="row">
       <button id="startBtn">Play</button>
-      <button id="changeChar" class="alt">Change fighter</button>
+      <button id="changeChar" class="alt">Loadout</button>
       <button id="resume" class="alt" hidden>Resume</button>
     </div>
     <div class="keys">
       <div><kbd>WASD</kbd> Move</div><div><kbd>Mouse</kbd> Aim and fire</div>
       <div><kbd>Space</kbd> Jump. Hold at a ledge to climb</div><div><kbd>E</kbd> Hold to interact</div>
       <div><kbd>Shift</kbd> Walk <kbd>Ctrl</kbd> Crouch</div><div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Weapons <kbd>Wheel</kbd> Cycle <kbd>R</kbd> Reload</div>
-      <div><kbd>F</kbd> Use kit gadget</div><div><kbd>Right mouse</kbd> Scope (Scout)</div>
+      <div><kbd>Right mouse</kbd> Scope (sniper rifle)</div><div><kbd>E</kbd> Swap for a dropped weapon</div>
       <div><kbd>Tab</kbd> Scores <kbd>Esc</kbd> Menu</div><div><kbd>G</kbd> Call a new block <kbd>`</kbd> Debug</div>
       <div>Walk over items for the rocket launcher, ammo and health. Rocket jumps work</div>
     </div>
     <p class="sub spec">Spectating (or after you die, press F): <kbd>WASD</kbd> fly, <kbd>Space</kbd> up, <kbd>C</kbd> down, <kbd>Shift</kbd> fast, <kbd>1</kbd>-<kbd>4</kbd> speed, <kbd>P</kbd> pause, <kbd>Q</kbd> <kbd>E</kbd> switch player.<br>Steering the falling block (spectating, after you die, or invulnerable): <kbd>Arrows</kbd> move, <kbd>Z</kbd> <kbd>X</kbd> rotate, <kbd>V</kbd> flip, <kbd>B</kbd> tumble, <kbd>Enter</kbd> hard drop.</p>
     <div class="touchkeys">
       <div><b>Left thumb</b> Move stick</div><div><b>Right thumb</b> Drag to look</div>
-      <div><b>Fire</b> Hold to shoot, drag on it to aim</div><div><b>Kit</b> Grenade, mine, medkit or binoculars</div><div><b>Scope</b> Hold to zoom with the sniper rifle</div><div><b>Use</b> Hold to interact</div>
+      <div><b>Fire</b> Hold to shoot, drag on it to aim</div><div><b>Scope</b> Hold to zoom with the sniper rifle</div><div><b>Use</b> Hold to interact</div>
       <div><b>Steer</b> Opens the falling block pad when you can steer</div><div><b>II</b> Pause and menu</div>
     </div>
     <p class="sub tip"><a href="https://buy.stripe.com/fZu00b521d4p4gU0UcaAw05" target="_blank" rel="noopener">☕ Buy me a coffee ($5)</a></p>
@@ -158,6 +158,6 @@
   </div>
 </div>
 
-<script type="module" src="src/main.js?v=7"></script>
+<script type="module" src="src/main.js?v=8"></script>
 </body>
 </html>

@@ -1,73 +1,79 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
-import { TEAM, MOVE, CLASSES, CLASS_ORDER } from '../public/src/config.js';
+import { TEAM, MOVE, TEAM_PIECES, PIECE_COLOURS, PRIMARIES, SECONDARIES, WEAPONS } from '../public/src/config.js';
 import { makeActor, resetActor } from '../public/src/actor.js';
-import { ROSTER, generateLook, lookFor, silhouette, PIECES, PIECE_CELLS, PIECE_COLOURS } from '../public/src/looks.js';
+import { lookFor, PIECES } from '../public/src/looks.js';
 
 register('./three-loader.mjs', import.meta.url);
 const THREE = await import('three');
 const { makeRig, BODY } = await import('../public/src/characters.js');
 
-const ATT = ['Ash', 'Brick', 'Cole', 'Dune', 'Echo', 'Flint'];
-const DEF = ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark'];
-
-function fighter(name = 'Ash', team = TEAM.ATT, id = 0, cls = 'rifleman') {
-  const a = makeActor(id, team, name, false, cls);
+function fighter(piece = 'Z', team = TEAM.ATT, id = 0, loadout) {
+  const a = makeActor(id, team, `Bot${id}`, false, piece, loadout);
   resetActor(a);
   return a;
 }
 const settle = (rig, frames = 90, dt = 1 / 60) => { for (let i = 0; i < frames; i++) rig.update(dt); rig.group.updateMatrixWorld(true); };
 const bounds = rig => new THREE.Box3().setFromObject(rig.group, true);
-const bodyBounds = rig => { const b = new THREE.Box3(); rig.parts.fall.traverse(o => { if (o.isMesh && o.parent !== rig.parts.weapon && !o.parent.parent?.isGroup === false) b.expandByObject(o, true); }); return b; };
 
-test('every bot has a hand-made look, and teammates are different Tetris pieces', () => {
-  for (const names of [ATT, DEF]) {
-    for (const n of names) assert.ok(ROSTER[n], `${n} has a look`);
-    const pieces = names.map(n => ROSTER[n].piece);
-    assert.equal(new Set(pieces).size, names.length, `teammates share a piece: ${pieces.join(' ')}`);
-    const sils = names.map(n => silhouette(ROSTER[n]));
-    assert.equal(new Set(sils).size, names.length, `silhouettes differ: ${sils.join(' | ')}`);
-  }
-  assert.ok(ROSTER.You);
-  // Orange attackers never wear the orange L, blue defenders never wear the blue J.
-  assert.ok(!ATT.some(n => ROSTER[n].piece === 'L') && !DEF.some(n => ROSTER[n].piece === 'J'));
-});
-
-test('all seven pieces exist as four-cell shapes and the roster uses every one', () => {
+test('there is one team per Tetris shape, each with its own block colour', () => {
   assert.deepEqual([...PIECES].sort(), ['I', 'J', 'L', 'O', 'S', 'T', 'Z']);
-  for (const p of PIECES) {
-    const cells = PIECE_CELLS[p];
-    assert.equal(cells.length, 4, `${p} has four cells`);
-    assert.equal(new Set(cells.map(c => c.join())).size, 4, `${p} has no repeated cell`);
-    assert.ok(Math.max(...cells.map(c => c[0])) <= 1, `${p} is at most two cells wide`);
-    // Connected: every cell touches another by an edge.
-    for (const c of cells) assert.ok(cells.some(k => Math.abs(k[0] - c[0]) + Math.abs(k[1] - c[1]) === 1), `${p} is connected`);
-    assert.ok(PIECE_COLOURS[p] != null);
+  assert.deepEqual([...TEAM_PIECES].sort(), [...PIECES].sort());
+  assert.equal(new Set(TEAM_PIECES.map(p => PIECE_COLOURS[p])).size, 7, 'seven different colours');
+  // The standard Tetris colours.
+  assert.deepEqual(PIECE_COLOURS, { I: 0x00e5ff, O: 0xffe600, T: 0xb44dff, S: 0x2ee62e, Z: 0xff2d2d, J: 0x3a63ff, L: 0xff9a1a });
+  for (const p of TEAM_PIECES) assert.equal(lookFor({ piece: p }).colour, PIECE_COLOURS[p]);
+  assert.equal(lookFor({ piece: 'nope' }).piece, 'T', 'unknown teams fall back to T');
+});
+
+// Direction of a colour, ignoring brightness (the rig shades faces darker and lighter).
+const dir = ([r, g, b]) => { const n = Math.hypot(r, g, b) || 1; return [r / n, g / n, b / n]; };
+const cos = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+
+test('a fighter is one block colour, their team colour, apart from the face', () => {
+  for (const piece of TEAM_PIECES) {
+    const rig = makeRig(fighter(piece));
+    const names = new Set();
+    rig.group.traverse(o => {
+      if (!o.isMesh || o.name === 'face' || o.parent === rig.parts.weapon || o.parent?.parent === rig.parts.weapon) return;
+      if (rig.parts.weapon.getObjectById(o.id) || o.name === 'bomb') return;
+      names.add(o.name);
+      const c = o.geometry.attributes.color;
+      for (let i = 0; i < c.count; i++) {
+        // Plates are the team colour, shaded darker or lightened a little toward white. Nothing else.
+        const d = dir([c.getX(i), c.getY(i), c.getZ(i)]), team = new THREE.Color(PIECE_COLOURS[piece]);
+        let ok = false;
+        for (let t = 0; t <= 0.3 && !ok; t += 0.02) { const m = team.clone().lerp(new THREE.Color(0xffffff), t); ok = cos(d, dir([m.r, m.g, m.b])) > 0.9995; }
+        assert.ok(ok, `${piece} fighter: ${o.name} vertex ${d.map(x => x.toFixed(2))} is not the team colour`);
+      }
+    });
+    for (const n of ['block', 'head', 'upper', 'fore', 'thigh', 'shin', 'foot', 'pelvis']) assert.ok(names.has(n), `${piece} has a ${n}`);
   }
-  const used = new Set([...ATT, ...DEF, 'You'].map(n => ROSTER[n].piece));
-  assert.equal(used.size, 7, `pieces in use: ${[...used]}`);
-  assert.equal(new Set([...ATT, ...DEF].map(n => ROSTER[n].build)).size, 3);
 });
 
-test('generated looks are stable per seed and cover unnamed fighters', () => {
-  assert.deepEqual(generateLook(9), generateLook(9));
-  assert.notDeepEqual(generateLook(9), generateLook(10));
-  assert.ok(PIECES.includes(lookFor({ name: 'Nobody', id: 3 }).piece));
-});
-
-test('every look builds a rig with a sane mesh count and finite geometry', () => {
-  const names = [...ATT, ...DEF, 'You'];
-  for (const n of names) for (const team of [TEAM.ATT, TEAM.DEF]) {
-    const rig = makeRig(fighter(n, team));
-    assert.ok(rig.meshCount <= 24, `${n}: ${rig.meshCount} meshes`);
+test('every team builds a rig with a sane mesh count and finite geometry', () => {
+  for (const piece of TEAM_PIECES) for (const team of [TEAM.ATT, TEAM.DEF]) {
+    const rig = makeRig(fighter(piece, team));
+    assert.ok(rig.meshCount <= 24, `${piece}: ${rig.meshCount} meshes`);
     rig.group.traverse(o => { if (o.isMesh) for (const v of o.geometry.attributes.position.array) assert.ok(Number.isFinite(v)); });
   }
-  for (let i = 0; i < 40; i++) assert.ok(makeRig(fighter('Gen', TEAM.DEF, 100 + i)).meshCount <= 24);
+});
+
+test('the figure is a cube head on a box torso, the same for every team', () => {
+  const sizes = new Set();
+  for (const piece of TEAM_PIECES) {
+    const rig = makeRig(fighter(piece)); settle(rig, 5);
+    const head = rig.parts.head.children.find(c => c.name === 'head');
+    const box = new THREE.Box3().setFromObject(head, true), s = box.getSize(new THREE.Vector3());
+    assert.ok(Math.abs(s.x - s.y) < 0.02 && Math.abs(s.y - s.z) < 0.02, `${piece} head is a cube: ${s.toArray()}`);
+    sizes.add(s.x.toFixed(2));
+  }
+  assert.equal(sizes.size, 1, 'one standard figure');
 });
 
 test('standing fighters match the 1.8 m hitbox and stand on the floor', () => {
-  for (const n of ['Brick', 'Knox', 'Echo', 'Jett', 'Dune', 'Ash']) { // O, L, S, I and T pieces
+  for (const n of TEAM_PIECES) {
     const rig = makeRig(fighter(n)); settle(rig);
     const b = bounds(rig);
     assert.ok(Math.abs(b.min.y) < 0.02, `${n} feet at ${b.min.y}`);
@@ -77,7 +83,7 @@ test('standing fighters match the 1.8 m hitbox and stand on the floor', () => {
 });
 
 test('crouching drops the head to about the crouch hitbox', () => {
-  const a = fighter('Brick'); const rig = makeRig(a);
+  const a = fighter('O'); const rig = makeRig(a);
   settle(rig); const standing = bounds(rig).max.y;
   a.crouching = true; settle(rig, 120);
   const b = bounds(rig);
@@ -88,7 +94,7 @@ test('crouching drops the head to about the crouch hitbox', () => {
 
 test('feet never sink through the floor while running, strafing or backpedalling', () => {
   for (const dir of [[0, 1], [1, 0], [-1, 0], [0, -1], [0.7, 0.7]]) {
-    const a = fighter('Cole'); const rig = makeRig(a);
+    const a = fighter('J'); const rig = makeRig(a);
     a.vel.x = -Math.sin(a.yaw) * dir[1] * 6.5 + Math.cos(a.yaw) * dir[0] * 6.5;
     a.vel.z = -Math.cos(a.yaw) * dir[1] * 6.5 - Math.sin(a.yaw) * dir[0] * 6.5;
     let min = Infinity;
@@ -98,7 +104,7 @@ test('feet never sink through the floor while running, strafing or backpedalling
 });
 
 test('legs actually swing while running and stay still when idle', () => {
-  const a = fighter('Ash'); const rig = makeRig(a);
+  const a = fighter('Z'); const rig = makeRig(a);
   settle(rig);
   const idle = rig.legs.map(l => l.hip.rotation.x);
   assert.ok(idle.every(x => Math.abs(x) < 0.1));
@@ -111,31 +117,31 @@ test('legs actually swing while running and stay still when idle', () => {
 });
 
 test('both hands reach the weapon in every stance and while looking up or down', () => {
-  for (const [cls, cur] of [['assault', 'smg'], ['medic', 'lmg'], ['engineer', 'bolt'], ['scout', 'sniper'], ['antitank', 'rocket'], ['assault', 'pistol']]) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const n of ['Ash', 'Brick', 'Jett']) {
+  for (const cur of [...PRIMARIES, ...SECONDARIES, 'knife', 'rocket']) for (const pitch of [-1, -0.4, 0, 0.5, 1]) for (const piece of ['Z', 'O', 'I']) {
     for (const stance of ['stand', 'crouch', 'run', 'fire']) {
-      const a = fighter(n, TEAM.ATT, 0, cls); a.cur = cur; a.pitch = pitch;
+      const a = fighter(piece); a.cur = cur; a.pitch = pitch;
       if (stance === 'crouch') a.crouching = true;
       if (stance === 'run') a.vel.z = -6.5;
       if (stance === 'fire') a.recoil = 0.1;
       const rig = makeRig(a); settle(rig, 100);
-      assert.ok(rig.gap[0] < 0.045 && rig.gap[1] < 0.045, `${n} ${cur} pitch ${pitch} ${stance}: gaps ${rig.gap.map(g => g.toFixed(3))}`);
+      assert.ok(rig.gap[0] < 0.045 && rig.gap[1] < 0.045, `${piece} ${cur} pitch ${pitch} ${stance}: gaps ${rig.gap.map(g => g.toFixed(3))}`);
     }
   }
 });
 
 test('reloading takes the magazine out and puts it back', () => {
-  const a = fighter('Ash'); const rig = makeRig(a);
+  const a = fighter('Z'); const rig = makeRig(a);
   settle(rig);
-  const mag = rig.guns.rifle.mag; // engineer kit
+  const mag = rig.guns.rifle.mag;
   assert.equal(mag.visible, true);
-  a.reloadT = 1.2; rig.update(1 / 60); // halfway through a 2.4 s reload
+  a.reloadT = WEAPONS.rifle.reload / 2; rig.update(1 / 60);
   assert.equal(mag.visible, false);
   a.reloadT = 0; rig.update(1 / 60);
   assert.equal(mag.visible, true);
 });
 
 test('only the active weapon is shown, and the bomb shows on the carrier', () => {
-  const a = fighter('Ash'); const rig = makeRig(a); settle(rig, 5);
+  const a = fighter('Z'); const rig = makeRig(a); settle(rig, 5);
   assert.equal(rig.guns.rifle.group.visible, true); assert.equal(rig.guns.pistol.group.visible, false);
   a.cur = 'pistol'; a.hasBomb = true; settle(rig, 5);
   assert.equal(rig.guns.rifle.group.visible, false); assert.equal(rig.guns.pistol.group.visible, true);
@@ -146,7 +152,7 @@ test('only the active weapon is shown, and the bomb shows on the carrier', () =>
 
 test('the dead lie on the floor, drop the weapon, and get up next round', () => {
   for (const id of [0, 1]) {
-    const a = fighter('Hale', TEAM.DEF, id); const rig = makeRig(a);
+    const a = fighter('S', TEAM.DEF, id); const rig = makeRig(a);
     settle(rig);
     a.alive = false; settle(rig, 120);
     const b = bounds(rig);
@@ -161,7 +167,7 @@ test('the dead lie on the floor, drop the weapon, and get up next round', () => 
 });
 
 test('climbing a ledge raises both hands above the head', () => {
-  const a = fighter('Ash'); const rig = makeRig(a);
+  const a = fighter('Z'); const rig = makeRig(a);
   a.mantle = { t: 0.6 }; a.onGround = false; settle(rig, 30);
   rig.group.updateMatrixWorld(true);
   const hand = new THREE.Vector3();
@@ -170,22 +176,17 @@ test('climbing a ledge raises both hands above the head', () => {
   assert.ok(ys.every(y => y > 1.4), `hands at ${ys}`);
 });
 
-test('every class carries its own weapons and wears its own kit', () => {
-  const sizes = new Set();
-  for (const c of CLASS_ORDER) {
-    const a = fighter('Ash', TEAM.ATT, 0, c); const rig = makeRig(a); settle(rig, 5);
-    const k = CLASSES[c];
-    assert.deepEqual(Object.keys(rig.guns).sort(), [k.primary, k.secondary, 'knife'].sort(), `${c} guns`);
-    assert.equal(rig.guns[k.primary].group.visible, true, `${c} draws its primary`);
-    sizes.add(rig.kit.children[0].geometry.attributes.position.count);
+test('every loadout carries its primary, its pistol and the knife', () => {
+  for (const primary of PRIMARIES) for (const secondary of SECONDARIES) {
+    const a = fighter('Z', TEAM.ATT, 0, { primary, secondary }); const rig = makeRig(a); settle(rig, 5);
+    assert.deepEqual(Object.keys(rig.guns).sort(), [primary, secondary, 'knife'].sort(), `${primary}+${secondary} guns`);
+    assert.equal(rig.guns[primary].group.visible, true, `${primary} is drawn first`);
   }
-  assert.equal(sizes.size, CLASS_ORDER.length, 'each class has different gear');
 });
 
-test('a rig re-dresses when the actor changes class between rounds', () => {
-  const a = fighter('Ash', TEAM.ATT, 0, 'assault'); const rig = makeRig(a); settle(rig, 5);
-  assert.ok(rig.guns.smg);
-  a.nextCls = 'antitank'; resetActor(a); settle(rig, 5);
-  assert.ok(rig.guns.rocket && !rig.guns.smg);
-  assert.equal(rig.kitCls, 'antitank');
+test('a rig re-dresses when the actor picks a new loadout between rounds', () => {
+  const a = fighter('Z', TEAM.ATT, 0, { primary: 'rifle', secondary: 'pistol' }); const rig = makeRig(a); settle(rig, 5);
+  assert.ok(rig.guns.rifle && rig.guns.pistol);
+  a.nextLoadout = { primary: 'sniper', secondary: 'pistol2' }; resetActor(a); settle(rig, 5);
+  assert.ok(rig.guns.sniper && rig.guns.pistol2 && !rig.guns.rifle && !rig.guns.pistol);
 });

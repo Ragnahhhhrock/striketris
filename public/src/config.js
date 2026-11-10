@@ -32,30 +32,52 @@ export const RIM = { z0: 16, z1: 19, killY: 5, credit: 8 };
 export const BULLET_RANGE = 200;   // total metres a round can travel, bounces included
 export const BLOCK_HP = 120;       // damage a settled block takes before it is destroyed, from bullets and rockets alike
 
-// Two guns, two jobs. The rifle is a fast climbing spray that pings once off a wall.
-// The pistol is a slow hand cannon: heavy kick, one-tap headshots, and it skips off two walls.
+// The loadout guns. Every gun is block-shaped, fully automatic and fires blocks. Three primaries, two pistols.
 //   kick / kickYaw   view punch per shot in radians; kickMax / kickYawMax cap the build-up
 //   recover          how fast the punch settles per second
 //   bounces          walls a round can glance off; bounceKeep is the damage kept after each
+//   range            metres a round can travel before it drops out (BULLET_RANGE when absent)
+//   scope            zoom factor while scoped (right mouse)
 //   blockDmg         damage each hit does to a settled block (BLOCK_HP to break it), scaled by bounceKeep on a ricochet
 //   shake / fov      camera shudder and FOV punch for the shooter; vm* drive the gun model
 //   tracer / flash   colours and sizes of the visible round and muzzle flash
+const fx = (colour, size, light = 6) => ({ colour, size, life: 0.06, light });
+const tr = (colour, width, life = 0.08) => ({ colour, ricochet: 0xfff2b0, width, life });
 export const WEAPONS = {
+  // Assault rifle: the balanced one. Good range, good rate of fire, one glance off a wall.
   rifle: {
-    name: 'Rifle', mag: 30, reload: 2.4, interval: 0.09, damage: 28, headMult: 3.6, spread: 0.002, moveSpread: 0.035, auto: true, blockDmg: 5,
+    name: 'Assault Rifle', blurb: 'Balanced range and rate of fire.', mag: 30, reload: 2.4, interval: 0.09, damage: 28, headMult: 3.6, spread: 0.002, moveSpread: 0.035, auto: true, blockDmg: 5, range: 170,
     kick: 0.017, kickMax: 0.16, kickYaw: 0.006, kickYawMax: 0.05, recover: 4.2,
     bounces: 1, bounceKeep: 0.55,
     shake: 0.1, fov: 0.5, vmBack: 0.085, vmPitch: 0.1, vmRecover: 16,
     tracer: { colour: 0xffb347, ricochet: 0xfff2b0, width: 0.026, life: 0.07 },
     flash: { colour: 0xffa63d, size: 1.5, life: 0.05, light: 5 },
   },
+  // Machine gun: belt fed, full auto, the biggest magazine. Short on range and punch next to the rifle and sniper.
+  lmg: {
+    name: 'Machine Gun', blurb: 'Full auto, belt fed, big magazine. Less range and impact.', mag: 100, reload: 4.6, interval: 0.07, damage: 15, headMult: 2.6, spread: 0.007, moveSpread: 0.06, auto: true, blockDmg: 3, range: 85, slow: 0.9,
+    kick: 0.008, kickMax: 0.13, kickYaw: 0.006, kickYawMax: 0.05, recover: 3.5, bounces: 0, bounceKeep: 1,
+    shake: 0.14, fov: 0.6, vmBack: 0.09, vmPitch: 0.1, vmRecover: 14, tracer: tr(0xffa63d, 0.03, 0.08), flash: fx(0xff9a2a, 1.8, 6),
+  },
+  // Sniper rifle: slow reload, tiny magazine, scope zoom, and every round hits hard.
+  sniper: {
+    name: 'Sniper Rifle', blurb: 'Scope zoom and huge damage. Slow reload, small magazine.', mag: 5, reload: 3.6, interval: 0.9, damage: 92, headMult: 2.6, spread: 0.0006, moveSpread: 0.09, auto: true, blockDmg: 22, scope: 3.2, slow: 0.9, range: 320,
+    kick: 0.05, kickMax: 0.08, kickYaw: 0.008, kickYawMax: 0.03, recover: 4, bounces: 0, bounceKeep: 1,
+    shake: 0.5, fov: 1.5, vmBack: 0.16, vmPitch: 0.3, vmRecover: 8, tracer: tr(0xffffff, 0.04, 0.14), flash: fx(0xfff0c0, 2.4, 9),
+  },
+  // Two pistols. The heavy one is slow and hits hard; the machine pistol is fast and light.
   pistol: {
-    name: 'Pistol', mag: 8, reload: 1.7, interval: 0.28, damage: 46, headMult: 2.6, spread: 0.0015, moveSpread: 0.02, auto: false, blockDmg: 14,
+    name: 'Heavy Pistol', blurb: 'Slow, hard-hitting hand cannon.', mag: 8, reload: 1.7, interval: 0.28, damage: 46, headMult: 2.6, spread: 0.0015, moveSpread: 0.02, auto: true, blockDmg: 14, range: 200,
     kick: 0.05, kickMax: 0.14, kickYaw: 0.01, kickYawMax: 0.04, recover: 7,
     bounces: 2, bounceKeep: 0.7,
     shake: 0.5, fov: 1.8, vmBack: 0.15, vmPitch: 0.28, vmRecover: 10,
     tracer: { colour: 0x7fe9ff, ricochet: 0xffffff, width: 0.045, life: 0.11 },
     flash: { colour: 0x9fe8ff, size: 2.4, life: 0.07, light: 9 },
+  },
+  pistol2: {
+    name: 'Machine Pistol', blurb: 'Rapid fire, light hits.', mag: 20, reload: 1.5, interval: 0.1, damage: 15, headMult: 2.4, spread: 0.008, moveSpread: 0.03, auto: true, blockDmg: 3, range: 60,
+    kick: 0.012, kickMax: 0.1, kickYaw: 0.006, kickYawMax: 0.04, recover: 7, bounces: 0, bounceKeep: 1,
+    shake: 0.1, fov: 0.4, vmBack: 0.07, vmPitch: 0.12, vmRecover: 16, tracer: tr(0xc8a8ff, 0.022, 0.06), flash: fx(0xc8a8ff, 1.2, 4),
   },
 };
 
@@ -82,7 +104,7 @@ WEAPONS.rocket = {
 // to kill (three at 34). It reaches `range` metres along the crosshair, never goes through walls or blocks, never
 // headshots, and hits teammates like any other weapon while friendly fire is on.
 WEAPONS.knife = {
-  name: 'Knife', melee: true, noReload: true, mag: Infinity, reload: 0, interval: 0.45, auto: true, damage: 34, headMult: 1, range: 2.2,
+  name: 'Block Knife', melee: true, noReload: true, mag: Infinity, reload: 0, interval: 0.45, auto: true, damage: 34, headMult: 1, range: 2.2,
   spread: 0, moveSpread: 0, blockDmg: 0, bounces: 0, bounceKeep: 1,
   kick: 0, kickMax: 0, kickYaw: 0, kickYawMax: 0, recover: 6,
   shake: 0.2, fov: 0, vmBack: 0.12, vmPitch: 0.25, vmRecover: 12,
@@ -102,59 +124,34 @@ export const PICKUP = {
   rocket: { respawn: 25 },
 };
 
-// ---- Classes (Battlefield 1942 kits) -------------------------------------------------------------------------
-// More guns in the same schema as the rifle and pistol above. Weapon stats are shared by both sides, as in
-// Battlefield 1942; WEAPON_NAMES gives each side its own models. `slow` scales walking speed, `scope` is the
-// zoom factor while scoped.
-const fx = (colour, size, light = 6) => ({ colour, size, life: 0.06, light });
-const tr = (colour, width, life = 0.08) => ({ colour, ricochet: 0xfff2b0, width, life });
-Object.assign(WEAPONS, {
-  smg: {
-    name: 'SMG', mag: 32, reload: 2.2, interval: 0.075, damage: 17, headMult: 3, spread: 0.006, moveSpread: 0.03, auto: true, blockDmg: 3,
-    kick: 0.007, kickMax: 0.1, kickYaw: 0.005, kickYawMax: 0.04, recover: 5, bounces: 1, bounceKeep: 0.5,
-    shake: 0.08, fov: 0.35, vmBack: 0.06, vmPitch: 0.08, vmRecover: 18, tracer: tr(0xffc65a, 0.022, 0.06), flash: fx(0xffb347, 1.2, 4),
-  },
-  lmg: {
-    name: 'LMG', mag: 60, reload: 4.2, interval: 0.1, damage: 22, headMult: 2.8, spread: 0.005, moveSpread: 0.06, auto: true, blockDmg: 6, slow: 0.88,
-    kick: 0.008, kickMax: 0.13, kickYaw: 0.006, kickYawMax: 0.05, recover: 3.5, bounces: 1, bounceKeep: 0.55,
-    shake: 0.14, fov: 0.6, vmBack: 0.09, vmPitch: 0.1, vmRecover: 14, tracer: tr(0xffa63d, 0.03, 0.08), flash: fx(0xff9a2a, 1.8, 6),
-  },
-  bolt: {
-    name: 'Bolt Rifle', mag: 8, reload: 2.6, interval: 0.55, damage: 62, headMult: 2.4, spread: 0.0012, moveSpread: 0.03, auto: false, blockDmg: 12,
-    kick: 0.04, kickMax: 0.09, kickYaw: 0.008, kickYawMax: 0.03, recover: 6, bounces: 1, bounceKeep: 0.6,
-    shake: 0.35, fov: 1.2, vmBack: 0.13, vmPitch: 0.22, vmRecover: 10, tracer: tr(0xffe08a, 0.035, 0.09), flash: fx(0xffd27a, 2.0, 7),
-  },
-  sniper: {
-    name: 'Sniper Rifle', mag: 5, reload: 3.4, interval: 1.3, damage: 78, headMult: 2.6, spread: 0.0006, moveSpread: 0.09, auto: false, blockDmg: 20, scope: 3.2, slow: 0.9,
-    kick: 0.05, kickMax: 0.08, kickYaw: 0.008, kickYawMax: 0.03, recover: 4, bounces: 0, bounceKeep: 1,
-    shake: 0.5, fov: 1.5, vmBack: 0.16, vmPitch: 0.3, vmRecover: 8, tracer: tr(0xffffff, 0.04, 0.14), flash: fx(0xfff0c0, 2.4, 9),
-  },
+export const weaponName = (_team, key) => WEAPONS[key]?.name ?? key;
+
+// ---- Loadouts --------------------------------------------------------------------------------------------------
+// No classes. At the start of a game each player picks one primary and one pistol on the loadout screen, and every
+// loadout carries the block knife. Health and speed are the same for everyone.
+export const PRIMARIES = ['rifle', 'lmg', 'sniper'];
+export const SECONDARIES = ['pistol', 'pistol2'];
+export const DEFAULT_LOADOUT = { primary: 'rifle', secondary: 'pistol' };
+export const cleanLoadout = l => ({
+  primary: PRIMARIES.includes(l?.primary) ? l.primary : DEFAULT_LOADOUT.primary,
+  secondary: SECONDARIES.includes(l?.secondary) ? l.secondary : DEFAULT_LOADOUT.secondary,
 });
 
-export const WEAPON_NAMES = {
-  attackers: { pistol: 'Luger P08', smg: 'MP 40', lmg: 'MG 34', rifle: 'StG 44', bolt: 'Kar 98k', sniper: 'Kar 98k Scoped', rocket: 'Panzerschreck' },
-  defenders: { pistol: 'Colt M1911', smg: 'Thompson', lmg: 'BAR M1918', rifle: 'M1 Carbine', bolt: 'M1 Garand', sniper: 'M1903 Springfield', rocket: 'Bazooka' },
-};
-export const weaponName = (team, key) => WEAPON_NAMES[team]?.[key] ?? WEAPONS[key]?.name ?? key;
+// ---- Teams -----------------------------------------------------------------------------------------------------
+// One team per Tetris shape. A fighter is one block colour: their team's.
+export const TEAM_PIECES = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+export const PIECE_COLOURS = { I: 0x00e5ff, O: 0xffe600, T: 0xb44dff, S: 0x2ee62e, Z: 0xff2d2d, J: 0x3a63ff, L: 0xff9a1a };
+export const COLOUR_NAMES = { I: 'Cyan', O: 'Yellow', T: 'Purple', S: 'Green', Z: 'Red', J: 'Blue', L: 'Orange' };
+export const teamLabel = piece => `${COLOUR_NAMES[piece] ?? piece} ${piece}`;
+export const pieceHex = piece => '#' + (PIECE_COLOURS[piece] ?? 0x888888).toString(16).padStart(6, '0');
 
-// Gadgets come from the kit. `n` is the count carried each round, `cd` the delay between uses.
+// Gadget definitions. Nothing hands them out now that there are no classes (every actor has gadget = null), but the grenade, mine,
+// medkit and binocular code in game.js still works if a mode ever grants one. `n` is the count carried, `cd` the delay between uses.
 export const GADGETS = {
   grenade: { name: 'Hand Grenades', n: 3, cd: 0.9, fuse: 2.2, speed: 15, radius: 6, damage: 120, hint: 'Throw' },
   medkit: { name: 'Medic Kit', n: 4, cd: 1.2, heal: 55, range: 2.6, hint: 'Heal' },
   mine: { name: 'Mines', n: 3, cd: 0.8, radius: 3.6, damage: 130, trigger: 1.3, arm: 1.2, hint: 'Lay mine' },
   binoculars: { name: 'Binoculars', n: Infinity, cd: 9, range: 110, cone: 0.35, time: 7, hint: 'Spot' },
-};
-
-// The five kits. Everyone shares health and speed; the kit is the difference. `rifleman` is the classic
-// rifle-and-pistol loadout, used when a game is made without classes. `rockets` is the starting launcher ammo.
-export const CLASS_ORDER = ['assault', 'scout', 'medic', 'engineer', 'antitank'];
-export const CLASSES = {
-  assault: { name: 'Assault', primary: 'smg', secondary: 'pistol', gadget: 'grenade', plant: 1, defuse: 1, blurb: 'Close-quarters SMG and hand grenades.' },
-  scout: { name: 'Scout', primary: 'sniper', secondary: 'pistol', gadget: 'binoculars', plant: 1, defuse: 1, blurb: 'Scoped bolt-action rifle and binoculars that mark enemies.' },
-  medic: { name: 'Medic', primary: 'lmg', secondary: 'pistol', gadget: 'medkit', plant: 1, defuse: 1, blurb: 'Light machine gun and a kit that heals teammates.' },
-  engineer: { name: 'Engineer', primary: 'bolt', secondary: 'pistol', gadget: 'mine', plant: 0.6, defuse: 0.55, blurb: 'Bolt-action rifle, mines, and the wrench: plants and defuses far faster.' },
-  antitank: { name: 'Anti-Tank', primary: 'rocket', secondary: 'pistol', gadget: null, rockets: 8, plant: 1, defuse: 1, blurb: 'Rocket launcher: splash damage, rocket jumps, and it breaks blocks. Pick up more rockets.' },
-  rifleman: { name: 'Rifleman', primary: 'rifle', secondary: 'pistol', gadget: null, plant: 1, defuse: 1, blurb: 'Classic rifle and pistol.' },
 };
 
 export const ROUND = {

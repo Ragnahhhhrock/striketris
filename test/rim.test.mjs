@@ -4,7 +4,7 @@ import { Game } from '../public/src/game.js';
 import { CELL, RIM } from '../public/src/config.js';
 
 function arena() {
-  const g = new Game({ seed: 3, human: true, teamSize: 2, pieces: false, items: false, classes: true });
+  const g = new Game({ seed: 3, human: true, teamSize: 2, pieces: false, items: false });
   while (g.state === 'freeze') g.step();
   for (const a of g.actors) { a.brain = null; a.input.f = a.input.r = 0; }
   return g;

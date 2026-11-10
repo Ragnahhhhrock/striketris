@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { TEAM, WEAPONS, CLASSES, CLASS_ORDER } from './config.js';
+import { TEAM, WEAPONS, PRIMARIES, SECONDARIES, TEAM_PIECES, teamLabel } from './config.js';
 import { makeActor, resetActor } from './actor.js';
 import { makeRig } from './characters.js';
-import { ROSTER, describeLook } from './looks.js';
+import { describeLook } from './looks.js';
 
-// Dev viewer: every fighter in a lineup, driven through the same animation code the game uses.
+// Dev viewer: one fighter per team in a lineup, driven through the same animation code the game uses.
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -29,32 +29,29 @@ grid.material.transparent = true; grid.material.opacity = 0.12; grid.position.y 
 
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
 
-// Lineup: attackers in the back row, defenders in front. "You" appears on both sides.
-const rows = [
-  { team: TEAM.ATT, names: ['Ash', 'Brick', 'Cole', 'Dune', 'Echo', 'Flint', 'You'], z: -1.6 },
-  { team: TEAM.DEF, names: ['Grit', 'Hale', 'Ivo', 'Jett', 'Knox', 'Lark', 'You'], z: 1.6 },
-];
+// Lineup: one fighter per Tetris team, each with a different loadout. The 'side' (attackers or defenders) is only a
+// round role, so every fighter here stands on the attackers side.
 const SPACING = 1.5;
 const fighters = [];
-let id = 0;
-for (const row of rows) {
-  row.names.forEach((name, i) => {
-    const a = makeActor(id++, row.team, name, false, CLASS_ORDER[i % CLASS_ORDER.length]);
-    resetActor(a);
-    a.pos = { x: (i - (row.names.length - 1) / 2) * SPACING, y: 0, z: row.z };
-    a.yaw = Math.PI;      // face the default camera
-    a.home = { ...a.pos };
-    const rig = makeRig(a);
-    scene.add(rig.group);
-    const tag = document.createElement('div');
-    tag.className = `tag ${row.team === TEAM.ATT ? 'att' : 'def'}`;
-    tag.textContent = name;
-    $('tags').append(tag);
-    const f = { a, rig, tag, name, home: a.home };
-    tag.onclick = () => select(f);
-    fighters.push(f);
-  });
-}
+TEAM_PIECES.forEach((piece, i) => {
+  const loadout = { primary: PRIMARIES[i % PRIMARIES.length], secondary: SECONDARIES[i % SECONDARIES.length] };
+  const name = `${teamLabel(piece)}`;
+  const a = makeActor(i, TEAM.ATT, name, false, piece, loadout);
+  resetActor(a);
+  a.pos = { x: (i - (TEAM_PIECES.length - 1) / 2) * SPACING, y: 0, z: 0 };
+  a.yaw = Math.PI;      // face the default camera
+  a.home = { ...a.pos };
+  const rig = makeRig(a);
+  scene.add(rig.group);
+  const tag = document.createElement('div');
+  tag.className = 'tag';
+  tag.style.borderBottom = `3px solid #${(rig.look.colour).toString(16).padStart(6, '0')}`;
+  tag.textContent = name;
+  $('tags').append(tag);
+  const f = { a, rig, tag, name, home: a.home };
+  tag.onclick = () => select(f);
+  fighters.push(f);
+});
 
 // ---- animations: each sets what the game would set, per frame ----
 const ANIMS = {
@@ -140,7 +137,7 @@ canvas.addEventListener('wheel', e => { e.preventDefault(); goal.dist = Math.max
 function select(f) {
   selected = f;
   const look = f.rig.look;
-  $('info').innerHTML = `<b>${f.name}</b> (${f.a.team})<br>${describeLook(look)}`;
+  $('info').innerHTML = `<b>${f.name}</b><br>${describeLook(look)}<br>${WEAPONS[f.a.loadout[0]].name} + ${WEAPONS[f.a.loadout[1]].name}`;
   goal.target.set(f.home.x, 1.0, f.home.z); goal.dist = 4.2;
   for (const g of fighters) g.tag.classList.toggle('sel', g === f);
 }
@@ -148,7 +145,7 @@ function showAll() { selected = null; goal.target.set(0, 1.0, 0); goal.dist = 17
 $('front').onclick = () => { orbit.yaw = 0; $('spin').checked = false; };
 $('back').onclick = () => { orbit.yaw = Math.PI; $('spin').checked = false; };
 $('all').onclick = showAll;
-$('info').innerHTML = `Pick a name to see what makes that fighter stand out.`;
+$('info').innerHTML = `Pick a team to focus on its fighter.`;
 
 const params = new URLSearchParams(location.search);
 if (params.get('anim') && ANIMS[params.get('anim')]) { anim = params.get('anim'); $('anim').value = anim; }
@@ -156,18 +153,22 @@ if (params.get('gun')) $('gun').value = params.get('gun');
 if (params.get('yaw')) { orbit.yaw = Number(params.get('yaw')); $('spin').checked = false; }
 if (params.get('pitch')) $('pitch').value = params.get('pitch');
 if (params.get('bomb')) $('bomb').checked = true;
-if (params.get('focus')) { const f = fighters.find(g => g.name === params.get('focus') && g.a.team === (params.get('team') === 'def' ? TEAM.DEF : TEAM.ATT)); if (f) { select(f); orbit.dist = goal.dist; orbit.target.copy(goal.target); } }
+if (params.get('focus')) { const f = fighters.find(g => g.a.piece === params.get('focus').toUpperCase()); if (f) { select(f); orbit.dist = goal.dist; orbit.target.copy(goal.target); } }
 if (params.get('dist')) { goal.dist = orbit.dist = Number(params.get('dist')); }
 if (params.get('fixed')) $('spin').checked = false;
 const solo = !!params.get('solo');
-// Class picker: "mixed" gives each fighter a different kit, otherwise everyone wears the chosen one.
-$('cls').innerHTML = '<option value="mixed">Mixed (one of each)</option>' + CLASS_ORDER.map(c => `<option value="${c}">${CLASSES[c].name}</option>`).join('');
-function applyClass() {
+// Loadout picker: "mixed" gives each team a different loadout, otherwise everyone carries the chosen primary.
+const LOADS = ['mixed', ...PRIMARIES];
+$('cls').innerHTML = LOADS.map(c => `<option value="${c}">${c === 'mixed' ? 'Mixed (one of each)' : WEAPONS[c].name}</option>`).join('');
+function applyLoadout() {
   const v = $('cls').value;
-  fighters.forEach((f, i) => { f.a.nextCls = v === 'mixed' ? CLASS_ORDER[i % CLASS_ORDER.length] : v; resetActor(f.a); });
+  fighters.forEach((f, i) => {
+    f.a.nextLoadout = { primary: v === 'mixed' ? PRIMARIES[i % PRIMARIES.length] : v, secondary: SECONDARIES[i % SECONDARIES.length] };
+    resetActor(f.a);
+  });
 }
-$('cls').onchange = applyClass;
-if (params.get('class')) { $('cls').value = params.get('class'); applyClass(); }
+$('cls').onchange = applyLoadout;
+if (params.get('loadout')) { $('cls').value = params.get('loadout'); applyLoadout(); }
 if (params.get('gun')) $('gun').value = params.get('gun');
 window.__fighters = fighters;
 

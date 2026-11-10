@@ -1,20 +1,20 @@
 import * as THREE from 'three';
-import { TEAM, MOVE, WEAPONS } from './config.js';
-import { PIECE_COLOURS, PIECE_CELLS, BUILDS, lookFor } from './looks.js';
+import { MOVE, WEAPONS } from './config.js';
+import { FACE, lookFor } from './looks.js';
 
-// Procedural fighters: each one is a Tetris piece standing upright, with a face, arms and legs.
+// Procedural fighters: one standard blocky figure, Minecraft style: a cube head, a box torso, box arms and legs.
+// Every part is the fighter's team colour (one Tetris colour per team); only the face is a different colour.
 // Boxy like the rest of the grey box, but with a real skeleton.
 // Each bone is one merged vertex-coloured mesh, so a whole squad is a few hundred draws at most.
 // Front is -Z, up is +Y, origin is the soles of the feet, matching actor.pos and actor.yaw.
 
-export const TEAM_SHIRT = { [TEAM.ATT]: 0xd98a3d, [TEAM.DEF]: 0x4a8fd9 };
-
 // Bone lengths in metres. Standing hip height is FOOT + SHIN + THIGH = 0.86.
 export const BODY = {
   thigh: 0.40, shin: 0.38, foot: 0.08,
-  blockY: 0.02, blockH: 0.92, cellW: 0.29, depth: 0.3,   // the Tetris piece body, measured from the hips up
+  torsoY: 0.02, torsoH: 0.58, torsoW: 0.46, torsoD: 0.26, // the torso box, measured from the hips up
+  headS: 0.34,                                            // the head is a cube sitting on the torso
   upper: 0.31, fore: 0.29,
-  shoulderDrop: 0.2, shoulderGap: 0.04,                  // shoulder sits this far below the top and beside the body
+  shoulderDrop: 0.1, shoulderGap: 0.04,                   // shoulder sits this far below the top of the torso and beside it
 };
 const REACH = BODY.upper + BODY.fore;
 
@@ -71,109 +71,55 @@ function bone(mesher, name) {
 }
 
 // ---------------------------------------------------------------------------
-// Body: a Tetris piece standing upright, with a face on its top cell
+// Body: a box torso and a cube head, both in the team colour. The face sits on the front of the head.
 
-// Where the piece sits and how big its cells are. Every piece is the same height, so
-// the hitbox stays right: tall pieces get shorter cells.
-function pieceLayout(look, bw) {
-  const cells = PIECE_CELLS[look.piece] ?? PIECE_CELLS.T;
-  const cols = Math.max(...cells.map(c => c[0])) + 1, rows = Math.max(...cells.map(c => c[1])) + 1;
-  const cw = BODY.cellW * bw, ch = BODY.blockH / rows, d = BODY.depth * bw;
-  const W = cols * cw;
-  const cx = c => -W / 2 + (c + 0.5) * cw;                 // column centre
-  const cy = r => BODY.blockY + (r + 0.5) * ch;            // row centre
-  const has = (c, r) => cells.some(k => k[0] === c && k[1] === r);
-  const topRow = rows - 1;
-  const topCols = cells.filter(k => k[1] === topRow).map(k => k[0]);
-  const face = { x: topCols.reduce((s, c) => s + cx(c), 0) / topCols.length, y: cy(topRow), z: -d / 2 };
-  const shoulderY = BODY.blockY + BODY.blockH - BODY.shoulderDrop;
-  const shoulderRow = Math.min(rows - 1, Math.floor((shoulderY - BODY.blockY) / ch));
-  const shoulderX = W / 2 + BODY.shoulderGap;
-  return { cells, cols, rows, cw, ch, d, W, cx, cy, has, face, shoulderY, shoulderRow, shoulderX };
+function bodyLayout() {
+  const { torsoY, torsoH, torsoW, torsoD, headS, shoulderDrop, shoulderGap } = BODY;
+  const headY = torsoY + torsoH + headS / 2;               // head centre, measured from the hips up
+  return { torsoY, torsoH, W: torsoW, d: torsoD, headS, headY, shoulderY: torsoY + torsoH - shoulderDrop, shoulderX: torsoW / 2 + shoulderGap };
 }
 
-// Cells have a bevelled, glossy look like a Tetris block: darker body, lighter front and back plates.
-function buildBlock(look, teamC, L) {
-  const m = new Mesher();
-  const pc = col(PIECE_COLOURS[look.piece] ?? PIECE_COLOURS.T);
-  const dark = shade(pc, 0.78), light = mix(pc, 0xffffff, 0.28);
-  const g = 0.012;
-  for (const [c, r] of L.cells) {
-    const x = L.cx(c), y = L.cy(r);
-    m.box(L.cw - g, L.ch - g, L.d - g, x, y, 0, dark);
-    for (const z of [-1, 1]) m.box(L.cw - 0.07, L.ch - 0.07, 0.014, x, y, z * (L.d / 2 - 0.004), pc);
-    if (!L.has(c, r + 1)) m.box(L.cw - 0.07, 0.014, L.d - 0.07, x, y + L.ch / 2 - 0.004, 0, light);
-    for (const s of [-1, 1]) if (!L.has(c + s, r)) m.box(0.014, L.ch - 0.07, L.d - 0.07, x + s * (L.cw / 2 - 0.004), y, 0, shade(pc, 0.9));
-  }
-  // Shoulder yoke: where the piece has no cell at shoulder height, a team-coloured bar
-  // spans the gap so the arm hangs from something.
-  for (const s of [-1, 1]) {
-    const c = s < 0 ? 0 : L.cols - 1;
-    if (L.cols > 1 && !L.has(c, L.shoulderRow)) {
-      m.box(L.cw + 0.02, 0.13, 0.19 * (L.d / 0.3), s * L.cw / 2, L.shoulderY, 0, shade(teamC, 0.85));
-    }
-  }
-  if (look.backpack != null) {
-    const b = col(look.backpack);
-    m.box(Math.min(0.38 * bwOf(look), L.W * 0.85), 0.44, 0.16, L.face.x * 0, BODY.blockY + 0.4, L.d / 2 + 0.07, b);
-    m.box(Math.min(0.4 * bwOf(look), L.W * 0.9), 0.07, 0.18, 0, BODY.blockY + 0.64, L.d / 2 + 0.07, shade(b, 0.75));
-  }
+// A bevelled, glossy block like a Tetris cell: darker body, lighter front and back plates and top. One colour throughout.
+function cell(m, w, h, d, x, y, z, colour) {
+  const pc = col(colour), dark = shade(pc, 0.78), light = mix(pc, 0xffffff, 0.28), g = 0.012;
+  m.box(w - g, h - g, d - g, x, y, z, dark);
+  for (const s of [-1, 1]) m.box(w - 0.07, h - 0.07, 0.014, x, y, z + s * (d / 2 - 0.004), pc);
+  m.box(w - 0.07, 0.014, d - 0.07, x, y + h / 2 - 0.004, z, light);
+  for (const s of [-1, 1]) m.box(0.014, h - 0.07, d - 0.07, x + s * (w / 2 - 0.004), y, z, shade(pc, 0.9));
   return m;
 }
-const bwOf = look => BUILDS[look.build] ?? 1;
 
-// Face on the front of the top cell: eyes, mouth and any eyewear.
-// Built around its own origin so the head group can nod a little as the fighter looks up and down.
+function buildTorso(teamC, L) {
+  return cell(new Mesher(), L.W, L.torsoH, L.d, 0, L.torsoY + L.torsoH / 2, 0, teamC);
+}
+
+// The head is its own group so it can nod a little as the fighter looks up and down. Origin is the head centre.
+function buildHead(teamC, L) {
+  return cell(new Mesher(), L.headS, L.headS, L.headS, 0, 0, 0, teamC);
+}
+
+// Face on the front of the head: eyes and a mouth, the only parts that are not the team colour.
 function buildFace(look, L) {
   const m = new Mesher();
-  const z = -L.d / 2 - 0.004;
-  const sp = Math.min(0.075, L.cw * 0.25);
+  const z = -L.headS / 2 - 0.004;
+  const sp = 0.075;
   for (const s of [-1, 1]) {
-    m.box(0.062, 0.078, 0.012, s * sp, 0.03, z, 0xf4f4f4);
-    m.box(0.034, 0.05, 0.012, s * sp, 0.03, z - 0.005, look.eyes ?? 0x2a1a10);
-    m.box(0.017, 0.03, 0.012, s * sp, 0.03, z - 0.01, 0x0d0d0d);
+    m.box(0.062, 0.078, 0.012, s * sp, 0.03, z, FACE.eyeWhite);
+    m.box(0.034, 0.05, 0.012, s * sp, 0.03, z - 0.005, look.eyes ?? FACE.iris);
+    m.box(0.017, 0.03, 0.012, s * sp, 0.03, z - 0.01, FACE.pupil);
   }
-  m.box(0.1, 0.02, 0.012, 0, -0.07, z, 0x1d1d22);
-
-  if (look.eyewear) {
-    const [style, fc] = look.eyewear;
-    const f = col(fc), zz = z - 0.016;
-    const rim = (cx, cy, w, h, t = 0.009) => {
-      m.box(w, t, 0.014, cx, cy + h / 2, zz, f); m.box(w, t, 0.014, cx, cy - h / 2, zz, f);
-      m.box(t, h, 0.014, cx - w / 2, cy, zz, f); m.box(t, h, 0.014, cx + w / 2, cy, zz, f);
-    };
-    switch (style) {
-      case 'sunglasses':
-        for (const s of [-1, 1]) m.box(0.088, 0.058, 0.016, s * sp, 0.03, zz, 0x0d0d10);
-        m.box(0.05, 0.012, 0.016, 0, 0.045, zz, 0x0d0d10);
-        break;
-      case 'aviators':
-        for (const s of [-1, 1]) { m.box(0.088, 0.075, 0.012, s * sp, 0.02, zz, 0x233226); rim(s * sp, 0.02, 0.094, 0.08); }
-        m.box(0.04, 0.01, 0.014, 0, 0.05, zz, f);
-        break;
-      case 'round':
-        for (const s of [-1, 1]) rim(s * sp, 0.03, 0.084, 0.084);
-        m.box(0.04, 0.009, 0.014, 0, 0.04, zz, f);
-        break;
-      case 'eyepatch':
-        m.box(0.095, 0.09, 0.016, sp, 0.03, zz, f, [0, 0, 0.18]);
-        break;
-      case 'monocle':
-        rim(sp, 0.03, 0.09, 0.09, 0.01); m.box(0.01, 0.12, 0.01, sp + 0.04, -0.04, zz, f);
-        break;
-    }
-  }
+  m.box(0.1, 0.02, 0.012, 0, -0.07, z, FACE.mouth);
   return m;
 }
 
 // ---------------------------------------------------------------------------
 // Pelvis, limbs
 
-function buildPelvis(look, bw) {
-  return new Mesher().box(0.46 * bw, 0.17, 0.26 * bw, 0, 0, 0, look.pants);
+function buildPelvis(teamC) {
+  return new Mesher().box(0.46, 0.17, 0.26, 0, 0, 0, shade(teamC, 0.72));
 }
 
-// A limb segment is a straight Tetris bar: n bevelled cells stacked downward from `top`.
+// A limb segment is a straight block bar: n bevelled cells stacked downward from `top`.
 function bar(m, w, d, top, len, n, colour) {
   const c = col(colour), dark = shade(c, 0.78), g = 0.01, h = len / n;
   for (let i = 0; i < n; i++) {
@@ -186,31 +132,31 @@ function bar(m, w, d, top, len, n, colour) {
   return m;
 }
 
-function buildUpperArm(look, teamC, bw) {
-  return bar(new Mesher(), 0.15 * bw, 0.15 * bw, 0.05, BODY.upper + 0.05, 2, teamC);
+function buildUpperArm(teamC) {
+  return bar(new Mesher(), 0.15, 0.15, 0.05, BODY.upper + 0.05, 2, teamC);
 }
 
-function buildForeArm(look, teamC, bw) {
-  const m = bar(new Mesher(), 0.13 * bw, 0.13 * bw, 0, 0.22, 2, teamC);
-  const handC = look.gloves != null ? col(look.gloves) : col(0xf2f2f2);
-  m.box(0.105 * bw, 0.11, 0.115 * bw, 0, -BODY.fore + 0.02, 0, handC);
+// Hands are the same colour as the rest of the arm: the whole figure is one block colour.
+function buildForeArm(teamC) {
+  const m = bar(new Mesher(), 0.13, 0.13, 0, 0.22, 2, teamC);
+  m.box(0.105, 0.11, 0.115, 0, -BODY.fore + 0.02, 0, shade(teamC, 0.85));
   return m;
 }
 
-function buildThigh(look, bw) {
-  return bar(new Mesher(), 0.19 * bw, 0.21 * bw, 0, BODY.thigh, 2, look.pants);
+function buildThigh(teamC) {
+  return bar(new Mesher(), 0.19, 0.21, 0, BODY.thigh, 2, teamC);
 }
 
-function buildShin(look, bw) {
-  const m = bar(new Mesher(), 0.17 * bw, 0.18 * bw, 0, 0.3, 2, look.pants);
-  m.box(0.185 * bw, 0.1, 0.2 * bw, 0, -0.31, 0, look.boots);
+function buildShin(teamC) {
+  const m = bar(new Mesher(), 0.17, 0.18, 0, 0.3, 2, teamC);
+  m.box(0.185, 0.1, 0.2, 0, -0.31, 0, shade(teamC, 0.85));
   return m;
 }
 
-function buildFoot(look, bw) {
+function buildFoot(teamC) {
   const m = new Mesher();
-  m.box(0.18 * bw, 0.065, 0.3 * bw, 0, -0.0425, -0.05, look.boots);
-  m.box(0.185 * bw, 0.018, 0.305 * bw, 0, -0.071, -0.05, 0x161616);
+  m.box(0.18, 0.065, 0.3, 0, -0.0425, -0.05, shade(teamC, 0.85));
+  m.box(0.185, 0.018, 0.305, 0, -0.071, -0.05, shade(teamC, 0.55));
   return m;
 }
 
@@ -248,19 +194,6 @@ function buildPistol() {
   return { body, mag, right: [0, -0.045, 0.02], left: [-0.045, -0.06, 0.02], magWell: [0, -0.12, 0.03], muzzle: [0, 0.045, -0.22] };
 }
 
-
-// Submachine gun: short receiver, perforated jacket, long straight magazine.
-function buildSmg() {
-  const body = new Mesher();
-  body.box(0.05, 0.09, 0.28, 0, 0.04, -0.08, GUN);
-  body.box(0.045, 0.045, 0.3, 0, 0.045, -0.37, GUN_MID);
-  body.box(0.022, 0.022, 0.12, 0, 0.045, -0.58, GUN_DARK);
-  body.box(0.012, 0.035, 0.012, 0, 0.09, -0.6, GUN_DARK);
-  body.box(0.046, 0.12, 0.05, 0, -0.06, 0.03, 0x5a3a22, [-0.2, 0, 0]);
-  body.box(0.04, 0.07, 0.16, 0, 0.03, 0.2, 0x5a3a22);
-  const mag = new Mesher().box(0.032, 0.2, 0.05, 0, -0.12, -0.12, GUN_DARK);
-  return { body, mag, right: [0, -0.07, 0.03], left: [0, -0.04, -0.3], magWell: [0, -0.2, -0.12], muzzle: [0, 0.045, -0.66] };
-}
 
 // Light machine gun: heavy barrel, bipod folded under the muzzle, box magazine.
 function buildLmg() {
@@ -317,54 +250,16 @@ function buildKnife() {
   return { body, mag, right: [0, -0.02, 0.04], left: [0, -0.02, 0.04], magWell: [0, 0, 0], muzzle: [0, 0, -0.3] };
 }
 
-const BUILDERS = { knife: buildKnife, rifle: buildRifle, bolt: buildRifle, pistol: buildPistol, smg: buildSmg, lmg: buildLmg, sniper: buildSniper, rocket: buildLauncher };
-
-// Gear worn by each kit, in spine space (waist origin, front is -Z). Silhouettes read at a glance.
-function buildKit(cls, look, bw, bx) {
-  const m = new Mesher();
-  const fz = -0.15 * bw, bz = 0.15 * bw;
-  switch (cls) {
-    case 'assault': // grenades on the belt, ammo pouches across the chest
-      for (const x of [-0.2, -0.12, 0.12, 0.2]) { m.box(0.055, 0.12, 0.055, x * bx, 0.06, fz - 0.01, 0x6a6e4a); m.box(0.04, 0.03, 0.04, x * bx, 0.14, fz - 0.01, 0x333333); }
-      for (const x of [-0.12, 0, 0.12]) m.box(0.09, 0.1, 0.05, x * bx, 0.38, fz - 0.03, 0x4b3f2a);
-      break;
-    case 'scout': // binoculars on a strap, camouflage netting over the shoulders
-      m.box(0.13, 0.07, 0.07, 0, 0.36, fz - 0.05, 0x1d1d1d); m.box(0.05, 0.06, 0.05, -0.04, 0.36, fz - 0.1, 0x111111); m.box(0.05, 0.06, 0.05, 0.04, 0.36, fz - 0.1, 0x111111);
-      m.box(0.02, 0.2, 0.02, 0, 0.5, fz - 0.01, 0x3a2f20);
-      for (const s of [-1, 1]) m.box(0.2, 0.05, 0.3 * bw, s * 0.2 * bw, 0.59, 0, 0x4b5a32);
-      break;
-    case 'medic': { // white pack with a red cross front and back, red armband
-      const white = 0xf2f2f2, red = 0xc8232a;
-      m.box(0.2, 0.2, 0.025, 0, 0.38, fz - 0.025, white); m.box(0.14, 0.05, 0.03, 0, 0.38, fz - 0.03, red); m.box(0.05, 0.14, 0.03, 0, 0.38, fz - 0.03, red);
-      m.box(0.34 * bx, 0.3, 0.14, 0, 0.3, bz + 0.1, white); m.box(0.2, 0.05, 0.03, 0, 0.3, bz + 0.18, red); m.box(0.05, 0.2, 0.03, 0, 0.3, bz + 0.18, red);
-      m.box(0.1, 0.1, 0.1, 0.2 * bx, 0.04, fz, white); m.box(0.05, 0.02, 0.1, 0.2 * bx, 0.1, fz, red);
-      break;
-    }
-    case 'engineer': // wrench at the belt, mines strapped to the back, satchel
-      m.box(0.035, 0.34, 0.035, -0.22 * bx, 0.0, fz, 0x8a8f96, [0, 0, 0.25]); m.box(0.08, 0.06, 0.04, -0.27 * bx, -0.17, fz, 0x8a8f96);
-      for (const y of [0.2, 0.32, 0.44]) { m.box(0.26, 0.08, 0.26, 0, y, bz + 0.12, 0x5d6b3a); m.box(0.08, 0.02, 0.08, 0, y + 0.05, bz + 0.12, 0x222222); }
-      m.box(0.2, 0.18, 0.1, 0.24 * bx, 0.06, bz - 0.03, 0x4b3f2a);
-      break;
-    case 'antitank': // spare rocket on the back, ammo bag
-      m.box(0.1, 0.5, 0.1, 0.1 * bx, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, 0.04]);
-      m.box(0.11, 0.12, 0.11, 0.1 * bx, 0.58, bz + 0.12, 0xb04a2a);
-      m.box(0.1, 0.5, 0.1, -0.1 * bx, 0.28, bz + 0.12, 0x6b6f4a, [0, 0, -0.04]);
-      m.box(0.11, 0.12, 0.11, -0.1 * bx, 0.58, bz + 0.12, 0xb04a2a);
-      m.box(0.24, 0.14, 0.1, 0, 0.12, fz - 0.04, 0x4b3f2a);
-      break;
-  }
-  return m;
-}
+const BUILDERS = { knife: buildKnife, rifle: buildRifle, pistol: buildPistol, pistol2: buildPistol, lmg: buildLmg, sniper: buildSniper, rocket: buildLauncher };
 
 // Where each weapon is held, in spine space (origin at the waist, chest pivot at shoulderY).
 const HOLD = {
   rifle: { pos: [0.04, 0.4, -0.26] },
   pistol: { pos: [0.06, 0.47, -0.36] },
-  smg: { pos: [0.04, 0.42, -0.24] },
+  pistol2: { pos: [0.06, 0.47, -0.36] },
   lmg: { pos: [0.04, 0.4, -0.22] },
   sniper: { pos: [0.04, 0.4, -0.26] },
   rocket: { pos: [0.1, 0.46, -0.12] },
-  bolt: { pos: [0.04, 0.4, -0.26] },
 };
 
 // ---------------------------------------------------------------------------
@@ -411,43 +306,42 @@ export class Rig {
   constructor(actor, look = lookFor(actor)) {
     this.actor = actor;
     this.look = look;
-    const bw = BUILDS[look.build] ?? 1;
+    const bw = 1;
     this.bw = bw;
-    const layout = pieceLayout(look, bw);
+    const layout = bodyLayout();
     this.layout = layout;
     this.shoulderY = layout.shoulderY;
-    this.kitScale = layout.W / 0.5;
-    const teamC = col(TEAM_SHIRT[actor.team] ?? 0x888888);
+    const teamC = col(look.colour);
     const root = new THREE.Group(), fall = new THREE.Group(), body = new THREE.Group();
     const lower = new THREE.Group(), spine = new THREE.Group();
     root.add(fall); fall.add(body); body.add(lower, spine);
 
-    const pelvis = bone(buildPelvis(look, bw), 'pelvis'); lower.add(pelvis);
+    const pelvis = bone(buildPelvis(teamC), 'pelvis'); lower.add(pelvis);
 
     this.legs = [-1, 1].map(s => {
-      const hip = new THREE.Group(); hip.position.set(s * 0.115 * bw, 0, 0);
-      const thigh = bone(buildThigh(look, bw), 'thigh');
+      const hip = new THREE.Group(); hip.position.set(s * 0.115, 0, 0);
+      const thigh = bone(buildThigh(teamC), 'thigh');
       const knee = new THREE.Group(); knee.position.y = -BODY.thigh;
-      const shin = bone(buildShin(look, bw), 'shin');
+      const shin = bone(buildShin(teamC), 'shin');
       const ankle = new THREE.Group(); ankle.position.y = -BODY.shin;
-      const foot = bone(buildFoot(look, bw), 'foot');
+      const foot = bone(buildFoot(teamC), 'foot');
       ankle.add(foot); knee.add(shin, ankle); hip.add(thigh, knee); lower.add(hip);
       return { hip, knee, ankle };
     });
 
-    spine.add(bone(buildBlock(look, teamC, layout), 'block'));
+    spine.add(bone(buildTorso(teamC, layout), 'block'));
 
-    const head = new THREE.Group(); head.position.set(layout.face.x, layout.face.y, 0);
-    head.add(bone(buildFace(look, layout), 'face'));
+    const head = new THREE.Group(); head.position.set(0, layout.headY, 0);
+    head.add(bone(buildHead(teamC, layout), 'head'), bone(buildFace(look, layout), 'face'));
     spine.add(head);
 
     // Index 0 is the left arm (-x), 1 the right.
     this.arms = [-1, 1].map(s => {
       const upper = new THREE.Group();
       upper.position.set(s * layout.shoulderX, layout.shoulderY, 0);
-      upper.add(bone(buildUpperArm(look, teamC, bw), 'upper'));
+      upper.add(bone(buildUpperArm(teamC), 'upper'));
       const fore = new THREE.Group(); fore.position.y = -BODY.upper;
-      fore.add(bone(buildForeArm(look, teamC, bw), 'fore'));
+      fore.add(bone(buildForeArm(teamC), 'fore'));
       upper.add(fore); spine.add(upper);
       return { upper, fore, shoulder: upper.position.clone(), pole: new THREE.Vector3(s * 0.5, -1, 0.35) };
     });
@@ -456,17 +350,16 @@ export class Rig {
     const weapon = new THREE.Group();
     this.guns = {};
     this.weaponGroup = weapon;
-    this.kit = new THREE.Group(); spine.add(this.kit);
     spine.add(weapon);
 
     // The bomb rides on the carrier's back.
     const bm = new Mesher().box(0.34, 0.18, 0.2, 0, 0, 0, 0x2a2a2a).box(0.3, 0.04, 0.16, 0, 0.11, 0, 0x4d4d4d).box(0.06, 0.04, 0.06, 0.08, 0.14, 0, 0xff2a1a);
-    const bomb = bone(bm, 'bomb'); bomb.position.set(0, 0.26, (look.backpack != null ? 0.4 : 0.26) * bw); bomb.visible = false;
+    const bomb = bone(bm, 'bomb'); bomb.position.set(0, 0.3, 0.24); bomb.visible = false;
     spine.add(bomb);
 
     this.group = root;
     this.parts = { root, fall, body, lower, spine, head, weapon, bomb, pelvis };
-    this.loadoutKey = ''; this.kitCls = null;
+    this.loadoutKey = '';
     this.sync(actor);
     this.meshCount = 0;
     root.traverse(o => { if (o.isMesh) this.meshCount++; });
@@ -536,7 +429,7 @@ export class Rig {
     const lean = 0.04 + 0.1 * s * moving + 0.33 * cw + (a.mantle ? 0.25 : 0);
     const twist = Math.sin(this.phase) * 0.09 * moving * (1 - aw);
     P.spine.rotation.set(-lean, twist + this.legYaw * 0.3, 0);
-    P.head.rotation.set(clamp(a.pitch, -1.2, 1.2) * 0.12, 0, 0);   // the face nods a little; the block does not turn
+    P.head.rotation.set(clamp(a.pitch, -1.2, 1.2) * 0.35, 0, 0);   // the head nods as the fighter looks up and down
 
     // Weapon: aimed along the actor's view, kicked by recoil and shots.
     this.kick *= Math.exp(-16 * dt);
@@ -636,7 +529,7 @@ export class Rig {
     P.weapon.quaternion.slerp(tq, 1 - Math.exp(-6 * dt));
   }
 
-  // Rebuild the carried weapons and worn gear when the kit changes (a new round can change class).
+  // Rebuild the carried weapons when the loadout changes (a new round can bring a new pick).
   sync(a) {
     const key = [...(a.loadout ?? ['rifle', 'pistol']), 'knife'].join();
     if (key !== this.loadoutKey) {
@@ -655,11 +548,6 @@ export class Rig {
         this.guns[name] = { group: g, mag, flash, right: new THREE.Vector3(...spec.right), left: new THREE.Vector3(...spec.left), magWell: new THREE.Vector3(...spec.magWell) };
       }
       this.curGun = null;
-    }
-    if (a.cls !== this.kitCls) {
-      this.kitCls = a.cls;
-      for (const c of [...this.kit.children]) { this.kit.remove(c); c.geometry.dispose(); }
-      this.kit.add(bone(buildKit(a.cls, this.look, this.bw, this.kitScale), 'kit'));
     }
   }
 

@@ -1,4 +1,4 @@
-import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM, CLASSES, GADGETS, weaponName } from './config.js';
+import { CELL, GRID_W as W, GRID_D as D, GRID_H as H, WEAPONS, TEAM, pieceHex, teamLabel, weaponName } from './config.js';
 import { STATIC, EMPTY } from './grid.js';
 import { SHAPES, orient } from './pieces.js';
 import { SITES } from './map.js';
@@ -8,7 +8,7 @@ import { SHAPE_TINT } from './render.js';
 
 const $ = id => document.getElementById(id);
 const hex = n => '#' + n.toString(16).padStart(6, '0');
-// Slots follow the kit: 1 and 2 are its guns, 3 is the knife, 4 is a launcher picked up off the map.
+// Slots follow the loadout: 1 and 2 are its guns, 3 is the knife, 4 is a launcher picked up off the map.
 const slotKeys = a => [[a.loadout[0], '1'], [a.loadout[1], '2'], ['knife', '3'], ...(a.loadout.includes('rocket') ? [] : [['rocket', '4']])];
 const fmt = t => { const s = Math.max(0, Math.ceil(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
@@ -27,14 +27,16 @@ export class Hud {
   event(e) {
     if (e.type === 'feed') this.addFeed(e.text);
     if (e.type === 'lines') this.addFeed(`LINE CLEAR  ${e.count} cubes`, true);
-    if (e.type === 'roundEnd') this.banner(`${e.winner === TEAM.ATT ? 'Attackers' : 'Defenders'} win the round`, e.reason);
-    if (e.type === 'match') this.banner(`${e.winner === TEAM.ATT ? 'Attackers' : 'Defenders'} win the match`, 'Press Esc for the menu');
+    if (e.type === 'roundEnd') this.banner(`${this.side(e.winner)} win the round`, e.reason);
+    if (e.type === 'match') this.banner(`${this.side(e.winner)} win the match`, 'Press Esc for the menu');
     if (e.type === 'round') $('banner').hidden = true;
     if (e.type === 'pickup' && e.actor === this.game.human) this.addFeed({ health: 'Picked up health', ammo: 'Picked up ammo', launcher: 'Picked up the Rocket Launcher', rockets: 'Picked up rockets' }[e.what]);
     if (e.type === 'weaponPickup' && e.actor === this.game.human) this.addFeed(`Swapped ${weaponName(e.actor.team, e.dropped)} for ${weaponName(e.actor.team, e.weapon)}`);
     if (e.type === 'hurt' && e.actor === this.game.human) { const f = $('hurt'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
     if (e.type === 'hurt' && e.by === this.game.human) { const h = $('hitmark'); h.classList.remove('on'); void h.offsetWidth; h.classList.add('on'); }
   }
+  // "Red Z (Attackers)": the team first, then the role it plays in this round.
+  side(team) { return `${teamLabel(this.game.teamPiece[team])} team (${team === TEAM.ATT ? 'Attackers' : 'Defenders'})`; }
   banner(a, b) { $('banner').hidden = false; $('bannerA').textContent = a; $('bannerB').textContent = b; }
   addFeed(text, big) {
     const d = document.createElement('div');
@@ -62,14 +64,13 @@ export class Hud {
       $('hpbar').style.width = `${Math.max(0, a.hp)}%`;
       const w = WEAPONS[a.cur];
       $('weapon').textContent = weaponName(a.team, a.cur) + (a.hasBomb ? '  +  Bomb' : '');
-      $('cls').textContent = CLASSES[a.cls].name;
-      const gd = a.gadget ? GADGETS[a.gadget] : null;
-      $('gadget').textContent = !gd ? '' : gd.n === Infinity ? `[F] ${gd.name}${a.gadgetCd > 0 ? ` ${Math.ceil(a.gadgetCd)}s` : ''}` : `[F] ${gd.name} x${a.gadgetN}`;
+      $('cls').textContent = `${teamLabel(a.piece)} team`;
+      $('cls').style.color = pieceHex(a.piece);
       $('scope').hidden = !(a.scoped && a === this.game.human);
       $('ammo').textContent = w.melee ? '' : a.reloadT > 0 ? `Reloading ${Math.round(100 * (1 - a.reloadT / w.reload))}%` : `${a.weapons[a.cur]} / ${w.mag}`;
       // Weapon slots: the ones you carry, the held one lit, a launcher with no rockets greyed.
       const slots = slotKeys(a).filter(([id]) => a.weapons[id] !== undefined)
-        .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${weaponName(a.team, id).split(' ')[0]}</i>`).join('');
+        .map(([id, key]) => `<i class="${id === a.cur ? 'cur' : ''} ${WEAPONS[id].noReload && !a.weapons[id] ? 'empty' : ''}">${key} ${weaponName(a.team, id).split(' ').pop()}</i>`).join('');
       if (slots !== this.slotsHtml) { this.slotsHtml = slots; $('slots').innerHTML = slots; }
       const spread = 6 + Math.hypot(a.vel.x, a.vel.z) * 1.6 + a.shotStreak * 1.4 + a.recoil * 140;
       document.documentElement.style.setProperty('--gap', `${Math.min(40, spread).toFixed(1)}px`);
@@ -179,7 +180,7 @@ export class Hud {
       if (!a.alive) continue;
       const friend = !human || a.team === human.team || this.revealAll;
       if (!friend && !this.spotted.has(a) && !(a.spottedUntil > g.time)) continue;
-      c.fillStyle = a.team === TEAM.ATT ? '#e8953f' : '#4f9be8';
+      c.fillStyle = pieceHex(a.piece);
       c.beginPath(); c.arc(a.pos.x * m, a.pos.z * m, 3, 0, 7); c.fill();
     }
     if (viewer?.alive) {
@@ -197,8 +198,8 @@ export class Hud {
     const el = $('board');
     el.hidden = !show;
     if (!show) return;
-    const row = a => `<tr class="${a.alive ? '' : 'dead'} ${a.isHuman ? 'me' : ''}"><td>${a.name}</td><td>${CLASSES[a.cls].name}</td><td>${a.kills}</td><td>${a.deaths}</td></tr>`;
-    const table = (t, title) => `<div><h3 class="${t}">${title}</h3><table><tr><th>Name</th><th>Class</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
-    el.innerHTML = table(TEAM.ATT, 'Attackers') + table(TEAM.DEF, 'Defenders');
+    const row = a => `<tr class="${a.alive ? '' : 'dead'} ${a.isHuman ? 'me' : ''}"><td>${a.name}</td><td>${WEAPONS[a.loadout[0]].name}</td><td>${a.kills}</td><td>${a.deaths}</td></tr>`;
+    const table = (t, title) => `<div><h3 class="${t}" style="color:${pieceHex(this.game.teamPiece[t])}">${title}</h3><table><tr><th>Name</th><th>Primary</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
+    el.innerHTML = table(TEAM.ATT, `${teamLabel(this.game.teamPiece[TEAM.ATT])} team (Attackers)`) + table(TEAM.DEF, `${teamLabel(this.game.teamPiece[TEAM.DEF])} team (Defenders)`);
   }
 }

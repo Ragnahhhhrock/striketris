@@ -1,4 +1,4 @@
-import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, CLASSES, CLASS_ORDER, PIT, RIM, weaponName } from './config.js';
+import { CELL, TICK, MOVE, WEAPONS, BULLET_RANGE, BLOCK_HP, ROUND, PIECE, SKILL, TEAM, GRID_W, GRID_D, GRID_H, GADGETS, PRIMARIES, SECONDARIES, TEAM_PIECES, cleanLoadout, PIT, RIM, weaponName } from './config.js';
 import { rayBox, rayBoxHit, cellCentre, EMPTY, breakable, CRATE } from './grid.js';
 import { buildMap, SITES, SPAWNS, inRect } from './map.js';
 import { Nav } from './nav.js';
@@ -47,28 +47,26 @@ export class Game {
     this.nextProj = 1;
     this.thrown = []; this.mines = []; this.time = 0;
 
+    // Characters belong to teams, one team per Tetris shape. A match pits two of the seven against each other: the
+    // human's pick (or a random one when nobody is playing) and a rival. Picks use their own generator so they never
+    // disturb the sequence of the main one.
+    const pr = mulberry((this.opts.seed ^ 0x5eed) >>> 0);
+    const mine = TEAM_PIECES.includes(this.opts.humanPiece) ? this.opts.humanPiece : TEAM_PIECES[Math.floor(pr() * 7)];
+    const others = TEAM_PIECES.filter(p => p !== mine);
+    const rival = others.includes(this.opts.rivalPiece) ? this.opts.rivalPiece : others[Math.floor(pr() * others.length)];
+    this.teamPiece = this.opts.human && this.opts.humanTeam === TEAM.DEF ? { attackers: rival, defenders: mine } : { attackers: mine, defenders: rival };
+
     for (const team of [TEAM.ATT, TEAM.DEF]) {
       const names = team === TEAM.ATT ? ATT_NAMES : DEF_NAMES;
       for (let i = 0; i < this.opts.teamSize; i++) {
         const human = this.opts.human && team === this.opts.humanTeam && i === 0;
-        let cls = 'rifleman';
-        if (this.opts.classes) {
-          const hc = CLASSES[this.opts.humanClass] && this.opts.humanClass !== 'rifleman' ? this.opts.humanClass : 'assault';
-          // The human takes their pick; teammates fill the other kits in order so every side is mixed.
-          const rest = CLASS_ORDER.filter(c => c !== hc);
-          const humanHere = this.opts.human && team === this.opts.humanTeam;
-          cls = human ? hc : humanHere ? rest[(i - 1) % rest.length] : CLASS_ORDER[i % CLASS_ORDER.length];
-        }
-        const a = makeActor(this.actors.length, team, human ? 'You' : names[i], human, cls);
+        // Bots take a mix of loadouts so every side has rifles, machine guns and snipers.
+        const off = team === TEAM.ATT ? 0 : 1;
+        const loadout = human ? cleanLoadout(this.opts.humanLoadout) : { primary: PRIMARIES[(i + off) % PRIMARIES.length], secondary: SECONDARIES[(i + off) % SECONDARIES.length] };
+        const a = makeActor(this.actors.length, team, human ? 'You' : names[i], human, this.teamPiece[team], loadout);
         this.actors.push(a);
         if (human) this.human = a;
       }
-    }
-    // The player may wear any roster look. If a bot already has it, that bot takes the default recruit look.
-    const pick = this.opts.humanLook;
-    if (this.human && pick && pick !== 'You') {
-      this.human.lookName = pick;
-      for (const b of this.actors) if (b !== this.human && b.name === pick) b.lookName = 'You';
     }
     this.startRound();
   }
@@ -122,8 +120,8 @@ export class Game {
     this.emit('round', { round: this.round });
   }
 
-  // Takes effect at the start of the next round, as in a kit-select screen.
-  setClass(a, cls) { if (CLASSES[cls]) a.nextCls = cls; }
+  // Takes effect at the start of the next round.
+  setLoadout(a, loadout) { a.nextLoadout = cleanLoadout(loadout); }
 
   bombColumn() {
     if (this.bomb.state === 'carried' || !this.bomb.pos) return null;
@@ -432,7 +430,7 @@ export class Game {
     // Walk the round through the map. Each wall it meets either stops it or, while it has
     // bounces left, turns it into a new segment that keeps part of its damage.
     const path = [eye];
-    let origin = eye, left = BULLET_RANGE, keep = 1, bounces = 0;
+    let origin = eye, left = w.range ?? BULLET_RANGE, keep = 1, bounces = 0;
     let victim = null, head = false, impact = null;
     for (;;) {
       const hit = this.grid.raycastHit(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, left);
@@ -781,7 +779,7 @@ export class Game {
       const site = this.siteAt(a.pos);
       if (a.alive && a.input.use && site && a.onGround) {
         this.planter = a;
-        this.plantProgress += dt / (ROUND.plantTime * CLASSES[a.cls].plant);
+        this.plantProgress += dt / (ROUND.plantTime);
         if (this.plantProgress >= 1) {
           a.hasBomb = false;
           b.state = 'planted'; b.carrier = null; b.pos = { ...a.pos }; b.site = site.name; b.fuse = ROUND.bombFuse;
@@ -797,7 +795,7 @@ export class Game {
       if (d) {
         if (this.defuser !== d) this.defuseProgress = 0;
         this.defuser = d;
-        this.defuseProgress += dt / (ROUND.defuseTime * CLASSES[d.cls].defuse);
+        this.defuseProgress += dt / (ROUND.defuseTime);
         if (this.defuseProgress >= 1) {
           b.state = 'defused'; this.defuseProgress = 0; this.defuser = null;
           this.emit('feed', { text: `${d.name} defused the bomb` });

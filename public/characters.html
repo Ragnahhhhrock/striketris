@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StrikeTris characters</title>
-<meta name="description" content="Lineup of every StrikeTris fighter with all animations.">
+<meta name="description" content="One fighter per StrikeTris team with all animations.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#14161a">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -24,8 +24,6 @@
   #info { margin-top: 10px; min-height: 66px; color: var(--ink-dim); font-size: var(--text-sm); }
   #info b { color: var(--gold); font-size: var(--text-md); }
   .tag { position: fixed; transform: translate(-50%, 0); pointer-events: auto; cursor: pointer; background: var(--panel); padding: 1px 8px; font-size: var(--text-sm); text-shadow: var(--shadow-text); white-space: nowrap; }
-  .tag.att { border-bottom: 3px solid var(--attackers); }
-  .tag.def { border-bottom: 3px solid var(--defenders); }
   .tag.sel { color: var(--gold); }
   #help { position: fixed; bottom: 14px; left: 14px; color: var(--ink-faint); font-size: var(--text-sm); text-shadow: var(--shadow-text); }
 </style>
@@ -39,7 +37,7 @@
   <select id="anim"></select>
   <label for="gun">Weapon</label>
   <select id="gun"><option value="main">Primary</option><option value="side">Sidearm</option></select>
-  <label for="cls">Class</label>
+  <label for="cls">Loadout</label>
   <select id="cls"></select>
   <label for="pitch">Look up and down</label>
   <input id="pitch" type="range" min="-1" max="1" step="0.05" value="0">
