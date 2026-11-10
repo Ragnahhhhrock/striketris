@@ -26,6 +26,10 @@ Two modes, chosen on a mode-select screen before the loadout screen.
 - Pick one secondary: one of two pistols.
 - Every loadout includes the block knife for melee.
 
+## Respawning
+- On death, a player respawns at their original spawn point with a fresh loadout.
+- Open: is the fresh loadout the one chosen on the loadout screen, or can the player re-pick on respawn? Is there a respawn delay or brief spawn protection?
+
 ## Teams
 - Characters belong to teams. There is one team per Tetris shape: 7 teams.
 - Teams: I, O, T, S, Z, J, L.
