@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>StrikeTris: Tetris meets Counter-Strike arena shooter</title>
-<meta name="description" content="Tetris meets Counter-Strike. Fast team arena combat while giant Tetris blocks fall into the map, crush anyone underneath and rebuild cover mid-round. Play free in your browser with keyboard and mouse, or touch on your phone.">
+<meta name="description" content="Tetris meets Counter-Strike. Shoot. Stack. Clear the line. Fast team arena combat while giant Tetris blocks fall into the map, crush anyone underneath, rebuild cover mid-round and clear lines. Play free in your browser with keyboard and mouse, or touch on your phone.">
 <meta name="theme-color" content="#14161a">
 <meta name="color-scheme" content="dark">
 <meta name="application-name" content="StrikeTris">
@@ -32,7 +32,7 @@
 <meta property="og:site_name" content="StrikeTris">
 <meta property="og:url" content="https://striketris.com/">
 <meta property="og:title" content="StrikeTris: Tetris meets Counter-Strike arena shooter">
-<meta property="og:description" content="Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map. Play free in your browser.">
+<meta property="og:description" content="Tetris meets Counter-Strike. Shoot, steer falling blocks onto your enemies and clear lines. Play free in your browser.">
 <meta property="og:image" content="https://striketris.com/og-image.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
@@ -42,7 +42,7 @@
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="StrikeTris: Tetris meets Counter-Strike arena shooter">
-<meta name="twitter:description" content="Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map. Play free in your browser.">
+<meta name="twitter:description" content="Tetris meets Counter-Strike. Shoot, steer falling blocks onto your enemies and clear lines. Play free in your browser.">
 <meta name="twitter:image" content="https://striketris.com/twitter-card.png">
 <meta name="twitter:image:alt" content="StrikeTris logo beside a Tetris-style well. A cyan block falls toward a red landing marker on a stack of coloured blocks.">
 
@@ -51,7 +51,7 @@
   "@type": "VideoGame",
   "name": "StrikeTris",
   "url": "https://striketris.com/",
-  "description": "A Tetris meets Counter-Strike arena shooter where giant falling blocks crush enemies and rebuild the map mid-round.",
+  "description": "A Tetris meets Counter-Strike arena shooter where giant falling blocks crush enemies, rebuild the map mid-round and clear in lines.",
   "image": "https://striketris.com/og-image.png",
   "genre": ["First-person shooter", "Arena shooter", "Puzzle"],
   "gamePlatform": "Web browser",
@@ -76,7 +76,7 @@
     <div id="round">Round 1</div>
   </div>
   <canvas id="minimap" width="192" height="192"></canvas>
-  <div id="nextBox"><span>Next <b id="nextName"></b></span><canvas id="next" width="80" height="64"></canvas></div>
+  <div id="nextBox"><span>Next block <b id="nextName"></b> <i id="nextIn"></i></span><canvas id="next" width="80" height="64"></canvas></div>
   <div id="feed"></div>
   <div id="scope" hidden></div>
   <div id="cross"><i></i><i></i><i></i><i></i></div>
@@ -84,6 +84,9 @@
   <div id="hurt"></div>
   <div id="death" hidden><div id="deathFade"></div><p id="deathText"></p></div>
   <div id="countdown" hidden></div>
+  <div id="lineClear" hidden></div>
+  <div id="flash"></div>
+  <div id="tip" hidden></div>
   <div id="warn" hidden>Move! Block incoming</div>
   <div id="walls" hidden></div>
   <div id="prompt"></div>
@@ -124,7 +127,13 @@
 <div id="menu" hidden>
   <div class="card">
     <h1>StrikeTris</h1>
+    <p class="tag">Shoot. Stack. Clear the line.</p>
     <p class="sub">Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map. Grey box build.</p>
+    <div class="pillars">
+      <div><b>Shoot</b>Team arena combat with block-shaped guns.</div>
+      <div><b>Stack</b>Falling blocks stay as cover, stairs and walls. Steer them onto enemies.</div>
+      <div><b>Clear</b>Fill a wall-to-wall row and it vanishes, hurting anyone close.</div>
+    </div>
     <div class="opts">
       <label>Mode <select id="optMode"><option value="play">Play</option><option value="god">Play, invulnerable</option><option value="spectate">Spectate and steer blocks</option></select></label>
       <label>Side <select id="optSide"><option value="attackers">Attackers</option><option value="defenders">Defenders</option></select></label>

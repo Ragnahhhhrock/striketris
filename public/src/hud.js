@@ -10,6 +10,15 @@ const $ = id => document.getElementById(id);
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 // Slots follow the loadout: 1 and 2 are its guns, 3 is the knife, 4 is a launcher picked up off the map.
 const slotKeys = a => [[a.loadout[0], '1'], [a.loadout[1], '2'], ['knife', '3'], ...(a.loadout.includes('rocket') ? [] : [['rocket', '4']])];
+// A tetromino drawn as a small inline icon in its team colour, so a team's shape shows on the scoreboard and HUD.
+export function shapeIcon(letter, size = 9) {
+  const id = SHAPES.findIndex(s => s.name === letter);
+  if (id < 0) return '';
+  const cells = orient(id, 0, 0);
+  const w = Math.max(...cells.map(k => k.x)) + 1, h = Math.max(...cells.map(k => k.z)) + 1;
+  const rects = cells.map(k => `<rect x="${k.x + 0.04}" y="${k.z + 0.04}" width="0.92" height="0.92"/>`).join('');
+  return `<svg class="shape" width="${w * size}" height="${h * size}" viewBox="0 0 ${w} ${h}" fill="${pieceHex(letter)}" aria-hidden="true">${rects}</svg>`;
+}
 const fmt = t => { const s = Math.max(0, Math.ceil(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export class Hud {
@@ -21,12 +30,14 @@ export class Hud {
     this.spotted = new Set();
     this.lastNext = -1;
     this.goT = 0;
+    this.tipShown = false;
   }
   setGame(game) { this.game = game; this.goT = 0; this.lastNext = -1; this.feedItems = []; $('feed').innerHTML = ''; }
 
   event(e) {
-    if (e.type === 'feed') this.addFeed(e.text);
-    if (e.type === 'lines') this.addFeed(`LINE CLEAR  ${e.count} cubes`, true);
+    if (e.type === 'feed') this.addFeed(e.crush && e.shape ? `${e.text} by the ${e.shape} block` : e.text, false, e.crush ? 'crush' : '');
+    if (e.type === 'lines') { this.addFeed(`Line clear: ${e.count} cubes`, true); this.lineClear(e.count); }
+    if (e.type === 'telegraph') this.blockTip();
     if (e.type === 'roundEnd') this.banner(`${this.side(e.winner)} win the round`, e.reason);
     if (e.type === 'match') this.banner(`${this.side(e.winner)} win the match`, 'Press Esc for the menu');
     if (e.type === 'round') $('banner').hidden = true;
@@ -38,10 +49,29 @@ export class Hud {
   // "Red Z (Attackers)": the team first, then the role it plays in this round.
   side(team) { return `${teamLabel(this.game.teamPiece[team])} team (${team === TEAM.ATT ? 'Attackers' : 'Defenders'})`; }
   banner(a, b) { $('banner').hidden = false; $('bannerA').textContent = a; $('bannerB').textContent = b; }
-  addFeed(text, big) {
+  // Line clears are the Tetris payoff, so they get a banner and a screen flash, not just a feed line.
+  lineClear(count) {
+    const el = $('lineClear'), fx = $('flash');
+    el.hidden = false;
+    el.textContent = `Line clear: ${count} cubes`;
+    for (const n of [el, fx]) { n.classList.remove('on'); void n.offsetWidth; n.classList.add('on'); }
+    clearTimeout(this.lineT);
+    this.lineT = setTimeout(() => { el.hidden = true; }, 1600);
+  }
+  // One-time hint when the first block of the page session telegraphs, saying what blocks do.
+  blockTip() {
+    if (this.tipShown || this.game?.state !== 'live') return;
+    this.tipShown = true;
+    const el = $('tip');
+    el.hidden = false;
+    el.textContent = 'Blocks stay for the round. Fill a wall-to-wall row of 5 or more and it clears.';
+    clearTimeout(this.tipT);
+    this.tipT = setTimeout(() => { el.hidden = true; }, 6000);
+  }
+  addFeed(text, big, extra = '') {
     const d = document.createElement('div');
     d.textContent = text;
-    if (big) d.className = 'big';
+    d.className = [big ? 'big' : '', extra].filter(Boolean).join(' ');
     $('feed').prepend(d);
     while ($('feed').children.length > 6) $('feed').lastChild.remove();
     setTimeout(() => d.remove(), 6000);
@@ -64,7 +94,8 @@ export class Hud {
       $('hpbar').style.width = `${Math.max(0, a.hp)}%`;
       const w = WEAPONS[a.cur];
       $('weapon').textContent = weaponName(a.team, a.cur) + (a.hasBomb ? '  +  Bomb' : '');
-      $('cls').textContent = `${teamLabel(a.piece)} team`;
+      const cls = `${shapeIcon(a.piece, 8)}${teamLabel(a.piece)} team`;
+      if (cls !== this.clsHtml) { this.clsHtml = cls; $('cls').innerHTML = cls; }
       $('cls').style.color = pieceHex(a.piece);
       $('scope').hidden = !(a.scoped && a === this.game.human);
       $('ammo').textContent = w.melee ? '' : a.reloadT > 0 ? `Reloading ${Math.round(100 * (1 - a.reloadT / w.reload))}%` : `${a.weapons[a.cur]} / ${w.mag}`;
@@ -109,6 +140,8 @@ export class Hud {
     $('progressbar').style.width = `${prog * 100}%`;
 
     if (this.lastNext !== g.nextShape) { this.lastNext = g.nextShape; this.drawNext(g.nextShape); }
+    // Say when the next block comes down, like the timer on a Tetris queue.
+    $('nextIn').textContent = !g.opts.pieces ? '' : g.piece ? 'falling' : g.state === 'live' ? `in ${Math.max(0, Math.ceil(g.pieceTimer))}s` : '';
 
     this.sightT -= dt;
     if (this.sightT <= 0 && human) {
@@ -199,7 +232,7 @@ export class Hud {
     el.hidden = !show;
     if (!show) return;
     const row = a => `<tr class="${a.alive ? '' : 'dead'} ${a.isHuman ? 'me' : ''}"><td>${a.name}</td><td>${WEAPONS[a.loadout[0]].name}</td><td>${a.kills}</td><td>${a.deaths}</td></tr>`;
-    const table = (t, title) => `<div><h3 class="${t}" style="color:${pieceHex(this.game.teamPiece[t])}">${title}</h3><table><tr><th>Name</th><th>Primary</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
+    const table = (t, title) => `<div><h3 class="${t}" style="color:${pieceHex(this.game.teamPiece[t])}">${shapeIcon(this.game.teamPiece[t], 10)}${title}</h3><table><tr><th>Name</th><th>Primary</th><th>K</th><th>D</th></tr>${this.game.actors.filter(a => a.team === t).map(row).join('')}</table></div>`;
     el.innerHTML = table(TEAM.ATT, `${teamLabel(this.game.teamPiece[TEAM.ATT])} team (Attackers)`) + table(TEAM.DEF, `${teamLabel(this.game.teamPiece[TEAM.DEF])} team (Defenders)`);
   }
 }

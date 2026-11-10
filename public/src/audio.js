@@ -120,7 +120,11 @@ export class Audio {
       case 'blocked': this.tone(0.06, 150, 110, 0.08, 'sawtooth'); break;
       case 'telegraph': this.tone(0.1, 700, 1100, 0.5, 'square'); break;
       case 'land': this.burst(Math.max(0.15, at(e.pos)) * 0.9, 240, 0.8); this.tone(at(e.pos) * 0.7, 90, 28, 0.6); break;
-      case 'lines': this.tone(0.25, 300, 1400, 0.55, 'sawtooth'); this.burst(0.4, 900, 0.5); break;
+      case 'lines':
+        // A rising run of notes over the sweep, so a line clear sounds like a reward.
+        this.tone(0.25, 300, 1400, 0.55, 'sawtooth'); this.burst(0.4, 900, 0.5);
+        [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(0.14, f, f, 0.14, 'square'), 120 + i * 90));
+        break;
       case 'fall': {
         const v = e.actor === viewer ? 1 : at(e.actor.pos);
         const k = Math.min(1, 0.4 + e.damage / 60);

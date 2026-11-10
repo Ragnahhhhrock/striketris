@@ -68,13 +68,13 @@ Body line height `--leading-body` (1.45). Keep copy lines under 80 characters. S
 
 ## Motion
 
-Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s), block warning pulse. The arena is the one decorative exception: wall cubes rotate, flip and slide in waves, visual only. Floor tiles never move, because a gap in the floor means a real hole. Nothing is drawn falling unless it is heading for the bottom of the world. Elevators are gameplay, not decoration: their caps are neon yellow at rest (cyan for the pistons that run through the floor) and neon orange while moving, and they keep moving under `prefers-reduced-motion`. Respect `prefers-reduced-motion` for the warning pulse and the decorative arena movement.
+Motion answers game state in the HUD: hit marker (0.2s), damage vignette (0.4s), block warning pulse, line-clear banner (1.6s) and a white screen flash (0.35s). The arena is the one decorative exception: wall cubes rotate, flip and slide in waves, visual only. Floor tiles never move, because a gap in the floor means a real hole. Nothing is drawn falling unless it is heading for the bottom of the world. Elevators are gameplay, not decoration: their caps are neon yellow at rest (cyan for the pistons that run through the floor) and neon orange while moving, and they keep moving under `prefers-reduced-motion`. Respect `prefers-reduced-motion` for the warning pulse and the decorative arena movement.
 
 ## Copy
 
 Plain verbs, sentence case. Name actions by what happens: "Play", "Resume", "Steer block". The warning says what to do: "Move! Block incoming".
 
-Tagline: "Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map." Use it as written, or shorten to "Tetris meets Counter-Strike". Describe the game as an arena shooter. Do not describe it as a bomb-defusal game. The interact key is "Hold to interact"; name the bomb only in the on-screen prompt that appears when you can plant or defuse.
+Tagline: "Tetris meets Counter-Strike. Arena shooter combat while giant blocks fall into the map." Use it as written, or shorten to "Tetris meets Counter-Strike". Describe the game as an arena shooter. The secondary line "Shoot. Stack. Clear the line." names both halves (the shooter and the Tetris side) and sits under the title in the menu. Say so in the first screen a player sees: line clears, steering and stacking are as much the pitch as the gunfights. Do not describe it as a bomb-defusal game. The interact key is "Hold to interact"; name the bomb only in the on-screen prompt that appears when you can plant or defuse.
 
 ## Share images
 

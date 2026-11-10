@@ -506,7 +506,7 @@ export class Game {
     const you = t.name === 'You';
     const how = { void: by ? undefined : 'fell off the map', piece: 'was crushed', fall: 'fell too far', blast: 'was caught in the blast', lift: 'was squashed by a lift', line: 'was caught in a line clear', wall: 'was squashed by the walls' }[cause]?.replace(/^was /, you ? 'were ' : 'was ')
       ?? (cause === 'rocket' && by === t ? (you ? 'blew yourself up' : 'blew themselves up') : undefined);
-    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? (cause === 'void' ? 'Off the edge' : cause)}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}${teamKill ? ' Team kill' : ''}] ${t.name}`, crush: cause === 'piece' });
+    this.emit('feed', { text: how ? `${t.name} ${how}` : `${by?.name ?? '?'} [${WEAPONS[cause]?.name ?? (cause === 'void' ? 'Off the edge' : cause)}${bounces ? ' Ricochet' : ''}${head ? ' HS' : ''}${teamKill ? ' Team kill' : ''}] ${t.name}`, crush: cause === 'piece', shape: cause === 'piece' ? SHAPES[this.piece?.shapeId]?.name : undefined });
     this.emit('death', { actor: t, cause, by, reason: how ? `${you ? 'You' : t.name} ${how}` : `Killed by ${by?.name ?? '?'}` });
   }
 

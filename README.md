@@ -1,6 +1,6 @@
 # StrikeTris
 
-Tetris meets Counter-Strike. A team arena shooter where giant Tetris blocks fall into the map, crush anyone underneath and rebuild cover mid-round. This is the grey box build: untextured, single-player against bots, made to test whether the idea is fun. Target domain: striketris.com.
+Shoot. Stack. Clear the line. Tetris meets Counter-Strike. A team arena shooter where giant Tetris blocks fall into the map, crush anyone underneath and rebuild cover mid-round. This is the grey box build: untextured, single-player against bots, made to test whether the idea is fun. Target domain: striketris.com.
 
 ## Run it
 
@@ -46,6 +46,7 @@ Touch devices get on-screen controls automatically (add `?touch=1` to force them
 - **Block lighting:** the falling block glows and lights the map in its own colour.
 - **Stacks are terrain:** blocks stay for the round as cover, walls and high ground. Hold Space at a ledge to climb up to one cube.
 - **Line clears:** fill a wall-to-wall run of at least 5 cubes and it clears, damages anyone close, and drops what sat above it.
+- **Tetris cues:** so the puzzle half is never missed, the HUD shows a Next block box with a countdown to the next drop, a line clear gets a banner, a screen flash and a rising chime, and a crush shows in the feed with the shape that did it ("Ash was crushed by the T block"). Each team's shape is drawn beside its name on the scoreboard and under your health. The first block of a session shows a one-line hint about stacks and line clears. The menu leads with the three pillars: Shoot, Stack, Clear. Code is in `public/src/hud.js`.
 - **No softlocks:** a block never lands on a spawn or plant spot, and is rejected if it would cut off a site or trap a player.
 
 ## Teams
