@@ -6,6 +6,7 @@ import { Audio } from './audio.js';
 import { eyePos } from './actor.js';
 import { DEATH_CAM, deathView } from './deathcam.js';
 import { TouchControls } from './touch.js?v=6';
+import { track } from './analytics.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('view');
@@ -26,6 +27,12 @@ let timeScale = 1;       // only honoured while spectating
 let overT = 0;
 let deathCam = null;    // { t, reason } while the player's own death plays out, before spectating
 let lastView = null;
+let matchT0 = 0;         // performance.now() when the current match began, for analytics
+let steerSent = false;   // block_steer is sent once per match
+const inputKind = () => (touch.enabled ? 'touch' : 'keyboard');
+const sideWon = w => !!game.human && w === game.human.team;
+const score = () => game.human ? [game.score[game.human.team], game.score[game.human.team === 'attackers' ? 'defenders' : 'attackers']] : [game.score.attackers, game.score.defenders];
+const liveMatch = () => mode !== 'menu' && !!game && !game.matchOver && matchT0 > 0;
 const free = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
 const keys = new Set();
 const SENS = 0.0022;
@@ -61,7 +68,10 @@ const loadoutText = p => `${teamLabel(p.piece)} team · ${WEAPONS[p.primary].nam
 // The loadout screen drives the menu's side and remembers the team and weapons.
 function applyPick(p) { $('optSide').value = p.side; $('loadoutBlurb').textContent = loadoutText(p); }
 initLoadout(applyPick);
-$('selGo').onclick = () => { hideLoadout(); showMenu(false); };
+$('selGo').onclick = () => {
+  track('loadout_confirm', { team_shape: pick.piece, primary: pick.primary, secondary: pick.secondary, side: pick.side });
+  hideLoadout(); showMenu(false);
+};
 $('changeChar').onclick = () => { $('menu').hidden = true; showLoadout(); };
 $('optSide').addEventListener('change', () => { pick.side = $('optSide').value; });
 
@@ -84,6 +94,8 @@ function start(keep) {
     seed: Number(params.get('seed')) || undefined,
   }));
   if (touch.enabled) goFullscreen();
+  matchT0 = performance.now(); steerSent = false;
+  if (keep !== true) track('game_start', { game_mode: m, side: $('optSide').value, team_shape: pick.piece, primary: pick.primary, secondary: pick.secondary, team_size: Number($('optSize').value), bot_skill: $('optSkill').value, block_rate: $('optPieces').value, input: inputKind(), restart: mode === 'pause' });
   if (keep !== true) { camFree = m === 'spectate'; resetFree(); timeScale = 1; }
   simPaused = false; overT = 0; endDeathCam();
   resume();
@@ -98,6 +110,7 @@ function resume() {
 
 function pause() {
   if (mode !== 'play') return;
+  track('pause', { round: game.round });
   mode = 'pause';
   showMenu(true);
 }
@@ -189,7 +202,9 @@ addEventListener('keydown', e => {
   const h = game.human;
   if (controllable()) {
     const c = blockCmd(e.code);
-    if (c && (!e.repeat || c.dx || c.dz)) game.adjustPiece(c);
+    if (c && (!e.repeat || c.dx || c.dz)) {
+      if (game.adjustPiece(c) && !steerSent) { steerSent = true; track('block_steer', { game_mode: game.human ? (game.opts.god ? 'god' : 'play') : 'spectate' }); }
+    }
   }
   if (e.repeat) return;
   if (e.code === 'Tab') hud.scoreboard(true);
@@ -290,6 +305,27 @@ function chooseView(now) {
   return { mode: 'free', x: free.x, y: free.y, z: free.z, yaw: free.yaw, pitch: free.pitch, actor: null };
 }
 
+// Gameplay events worth counting. Only called while a match is being played, never for the menu's background match.
+function trackEvent(e) {
+  switch (e.type) {
+    case 'lines': track('line_clear', { lines: e.count }); break;
+    case 'death': if (e.actor === game.human) track('player_death', { cause: e.cause, round: game.round }); break;
+    case 'roundEnd': { const [f, a] = score(); track('round_end', { round: game.round, won: sideWon(e.winner), reason: e.reason, score_for: f, score_against: a }); break; }
+    case 'match': {
+      const [f, a] = score();
+      track('match_end', { won: sideWon(e.winner), rounds: game.round, duration_s: Math.round((performance.now() - matchT0) / 1000), score_for: f, score_against: a, game_mode: game.human ? (game.opts.god ? 'god' : 'play') : 'spectate' });
+      matchT0 = 0;
+      break;
+    }
+  }
+}
+// Leaving mid-match: pagehide is the only event that reliably fires on tab close and mobile app switches.
+addEventListener('pagehide', () => {
+  if (!liveMatch()) return;
+  track('match_abandon', { round: game.round, duration_s: Math.round((performance.now() - matchT0) / 1000) });
+  matchT0 = 0;
+});
+
 let last = performance.now(), fpsT = 0, frames = 0, fps = 0, specShown = '';
 
 function advance(dt) {
@@ -339,6 +375,7 @@ function frame(now) {
   }
   for (const e of game.drainEvents()) {
     if (e.type === 'round') endDeathCam();
+    if (mode === 'play') trackEvent(e);
     renderer.handleEvent(e, view.actor);
     hud.event(e);
     if (mode === 'play') audio.event(e, view.actor ?? { pos: { x: view.x, z: view.z } });
